@@ -8,9 +8,9 @@ from tqdm import tqdm
 
 # 1. Determine paths relative to the current working directory
 CWD = os.getcwd()
-DATA_DIR = os.path.join(CWD, 'resources')
-INPUT_CSV = os.path.join(DATA_DIR, 'standards_di_20240327.csv')
-OUTPUT_CSV = os.path.join(DATA_DIR, 'standards_full.csv')
+DATA_DIR = os.path.join(CWD, 'data')
+INPUT_CSV = os.path.join(DATA_DIR, 'standard_weightings_2024-03-27.csv')
+OUTPUT_CSV = os.path.join(DATA_DIR, 'standard_details_2025-07-01.csv')
 
 # Debug: show where we’re running
 print("Current working directory:", os.getcwd())
@@ -19,7 +19,7 @@ print("Expecting input CSV at   :", INPUT_CSV)
 print("Will write output CSV to :", OUTPUT_CSV)
 print()
 
-# 2. Ensure resources folder exists
+# 2. Ensure data folder exists
 os.makedirs(DATA_DIR, exist_ok=True)
 
 
@@ -123,7 +123,7 @@ def main():
     print(f"\nDone! Wrote {len(out_df)} rows to:\n   {abs_out}\n")
 
     # List files in the folder so you can see it
-    print("Contents of resources/ directory:")
+    print("Contents of data/ directory:")
     for fname in sorted(os.listdir(DATA_DIR)):
         print("  -", fname)
 
