@@ -3,3 +3,8 @@ uvicorn[standard]
 python-dotenv
 mysql-connector-python
 SQLAlchemy
+pydantic-settings
+
+# Testing Dependencies
+pytest
+httpx
