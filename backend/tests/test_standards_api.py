@@ -1,26 +1,16 @@
-# backend/tests/test_standards_api.py
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-# --- FIX: Import the settings object from your config file ---
 from app.core.config import settings
 from app.main import app
 from app.api.standards import get_db
 
-# --- Test Database Setup ---
-# Use the DATABASE_URL from your settings object, which is loaded from the .env file.
-# This ensures your tests connect to the same database as your main application.
 TEST_DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# --- Dependency Override ---
-# This function will be used to override the `get_db` dependency in your API
-# during testing, ensuring tests use the testing database session.
 def override_get_db():
     try:
         db = TestingSessionLocal()
@@ -31,7 +21,7 @@ def override_get_db():
 # Apply the override to the FastAPI app
 app.dependency_overrides[get_db] = override_get_db
 
-# Create a TestClient instance. This client will make requests to your app in tests.
+# Create a TestClient instance.
 client = TestClient(app)
 
 # --- Test Cases ---
@@ -39,7 +29,6 @@ client = TestClient(app)
 def test_search_by_standard_number():
     """
     Tests searching for a specific standard by its number.
-    Assumes standard 91523 exists in your database.
     """
     response = client.get("/api/v1/standards?q=91523")
     assert response.status_code == 200
@@ -51,28 +40,26 @@ def test_search_by_standard_number():
 def test_search_by_subject():
     """
     Tests searching for all standards within a subject.
-    Assumes 'Calculus' is a subject in your database.
     """
-    response = client.get("/api/v1/standards?q=Calculus")
+    response = client.get("/api/v1/standards?q=Physics")
     assert response.status_code == 200
     data = response.json()
-    # Check that we got multiple results and they are all for the correct subject
+    # Check for multiple results and correct subject
     assert len(data) > 1
     for standard in data:
-        assert standard["subject"] == "Calculus"
+        assert standard["subject"] == "Physics"
 
 def test_search_by_keyword():
     """
     Tests searching for a keyword in the standard title.
-    Assumes standards with 'aspects' in the title exist.
     """
-    response = client.get("/api/v1/standards?q=aspects")
+    response = client.get("/api/v1/standards?q=waves")
     assert response.status_code == 200
     data = response.json()
     assert len(data) > 0
-    # Check that the keyword appears in the title of each result
+    # Check that the keyword appears in the title of result
     for standard in data:
-        assert "aspects" in standard["title"].lower()
+        assert "waves" in standard["title"].lower()
 
 def test_search_no_results():
     """
@@ -90,5 +77,5 @@ def test_search_empty_query():
     response = client.get("/api/v1/standards")
     assert response.status_code == 200
     data = response.json()
-    # Your API should return an empty list if the query is empty
+    # API should return an empty list if the query is empty
     assert data == []
