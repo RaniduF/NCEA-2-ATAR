@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+mysql-connector-python
+SQLAlchemy
+pydantic-settings
+thefuzz[speedup]
+
+# Testing Dependencies
+pytest
+httpx
