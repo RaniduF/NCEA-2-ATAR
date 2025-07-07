@@ -4,7 +4,9 @@ CREATE TABLE standards (
     title VARCHAR(255) NOT NULL,
     credits INT NOT NULL,
     assessment_type VARCHAR(50),
-    subject VARCHAR(100)
+    standards_type VARCHAR(50),
+    subject VARCHAR(100),
+    search_keywords JSON
 );
 
 -- Table to store the difficulty weightings for each standard, which can change

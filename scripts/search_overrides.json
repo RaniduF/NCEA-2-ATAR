@@ -1,0 +1,30 @@
+{
+  "standard_aliases": {
+    "91579": ["inter"],
+    "91578": ["diff"],
+    "91577": ["complx", "cmplx"],
+    "91575": ["trig"],
+    "91581": ["bivar"],
+    "91391": ["orgo", "organics"],
+    "91523": ["waves"],
+    "91388": ["spec", "spectroscopy"],
+    "91524": ["mech", "mechanics"],
+    "91526": ["e&m", "elec", "enm"]
+  },
+  "subject_overrides": {
+    "91577": "Calculus",
+    "91578": "Calculus",
+    "91579": "Calculus",
+    "91573": "Calculus",
+    "91574": "Calculus",
+    "91575": "Calculus",
+    "91587": "Calculus",
+    "91584": "Statistics",
+    "91585": "Statistics",
+    "91586": "Statistics",
+    "91580": "Statistics",
+    "91581": "Statistics",
+    "91582": "Statistics",
+    "91583": "Statistics"
+  }
+}
