@@ -66,7 +66,7 @@ class ATARCalculator:
             year_pop_data = self.participation_rates.get(year)
             if not year_dist_data or not year_pop_data: continue
 
-            students_per_band = round(year_pop_data * 0.0005)  # 0.05%
+            students_per_band = round(float(year_pop_data) * 0.0005) # 0.05%
             if students_per_band == 0: continue
 
             # --- Rank Calculation ---

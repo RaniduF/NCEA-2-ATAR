@@ -1,4 +1,4 @@
-# backend/tests/test_standards_api.py
+# backend/tests/test_standards_endpoint.py
 
 import pytest
 from fastapi.testclient import TestClient
