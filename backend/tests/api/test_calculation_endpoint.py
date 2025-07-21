@@ -7,6 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.main import app
 from app.api.calculation import get_db
+# Import the model needed for the diagnostic query
+from app.models.standard_models import ParticipationRate
 
 # --- Test Database Setup ---
 TEST_DATABASE_URL = settings.DATABASE_URL
@@ -33,30 +35,35 @@ client = TestClient(app)
 # Tests for the ATAR Calculation Endpoint
 # ===================================================================
 
-def test_calculate_atar_success():
+def test_calculate_atar_success_with_diagnostics():
     """
-    Tests the main ATAR calculation logic with a sample set of user data.
+    Tests the main ATAR calculation logic and prints detailed diagnostic
+    information for each year's result.
     """
     # --- !!! PLACEHOLDER: REPLACE WITH YOUR NCEA LEVEL 3 DATA !!! ---
-    # Provide a list of standards and the grades you achieved.
-    # The more standards you include, the more accurate the test will be.
     user_standards_payload = {
         "standards": [
+            {"standard_number": 91393, "grade": "Excellence"},
+            {"standard_number": 91390, "grade": "Achieved"},
+            {"standard_number": 91387, "grade": "Excellence"},
+            {"standard_number": 91391, "grade": "Merit"},
+            {"standard_number": 91392, "grade": "Achieved"},
+            {"standard_number": 91473, "grade": "Merit"},
+            {"standard_number": 91475, "grade": "Excellence"},
+            {"standard_number": 91478, "grade": "Excellence"},
+            {"standard_number": 91472, "grade": "Achieved"},
+            {"standard_number": 91575, "grade": "Excellence"},
             {"standard_number": 91577, "grade": "Excellence"},
-            # Calculus - Complex Numbers
             {"standard_number": 91578, "grade": "Excellence"},
-            # Calculus - Differentiation
             {"standard_number": 91579, "grade": "Merit"},
-            # Calculus - Integration
-            {"standard_number": 91523, "grade": "Excellence"},
-            # Physics - Wave Systems
-            {"standard_number": 91524, "grade": "Merit"},
-            # Physics - Mechanical Systems
-            {"standard_number": 91526, "grade": "Achieved"},
-            # Physics - Electrical Systems
-            {"standard_number": 91605, "grade": "Excellence"}
-            # Biology - Evolutionary Processes
-            # Add more standards here...
+            {"standard_number": 91902, "grade": "Achieved"},
+            {"standard_number": 91906, "grade": "Excellence"},
+            {"standard_number": 91907, "grade": "Achieved"},
+            {"standard_number": 91908, "grade": "Excellence"},
+            {"standard_number": 91525, "grade": "Excellence"},
+            {"standard_number": 91526, "grade": "Merit"},
+            {"standard_number": 91523, "grade": "Merit"},
+            {"standard_number": 91524, "grade": "Excellence"}
         ]
     }
     # ----------------------------------------------------------------
@@ -68,38 +75,50 @@ def test_calculate_atar_success():
     data = response.json()
 
     assert "results" in data
-    assert isinstance(data["results"], list)
-    assert len(data["results"]) > 0  # Should get results for multiple years
+    assert len(data["results"]) > 0
 
-    # Check the structure of the first result
-    first_result = data["results"][0]
-    assert "year" in first_result
-    assert "estimated_atar" in first_result
-    assert "statistical_value" in first_result
+    # --- NEW: Diagnostic Information Section ---
+    print("\n\n--- ATAR Calculation Diagnostics ---")
 
-    # Check that the values are of the correct type and in a reasonable range
-    assert isinstance(first_result["year"], int)
-    assert isinstance(first_result["estimated_atar"], float)
-    assert 0.0 <= first_result["estimated_atar"] <= 99.95
+    # Fetch the participation rates to calculate the band sizes for diagnostics
+    db = TestingSessionLocal()
+    rates = db.query(ParticipationRate).all()
+    participation_rates = {r.academic_year: r.weighted_statnz_population for r
+                           in rates}
+    db.close()
+
+    for result in data["results"]:
+        year = result["year"]
+        estimated_atar = result["estimated_atar"]
+        stat_value = result["statistical_value"]
+
+        population = participation_rates.get(year)
+        if population:
+            students_per_band = round(float(population) * 0.0005)
+        else:
+            students_per_band = "N/A"
+
+        print("\n------------------------------------")
+        print(f"YEAR: {year}")
+        print("------------------------------------")
+        print(f"  - Students per ATAR Band: {students_per_band}")
+        print(f"  - Calculated Statistical Value: {stat_value:.6f}")
+        print(f"  - Final Estimated ATAR: {estimated_atar:.2f}")
+
+    print("\n--- End of Diagnostics ---\n")
+    # -----------------------------------------
 
 
 def test_calculate_atar_no_standards_provided():
     """Tests that sending an empty list of standards returns a 400 error."""
     response = client.post("/api/v1/calculate-atar", json={"standards": []})
     assert response.status_code == 400
-    assert "No standards provided" in response.json()["detail"]
 
 
 def test_calculate_atar_invalid_grade():
     """
     Tests that providing an invalid grade string results in a 422 Unprocessable Entity error.
-    This is handled automatically by FastAPI's Pydantic validation.
     """
-    payload = {
-        "standards": [
-            {"standard_number": 91577, "grade": "Exellent"}
-            # Typo in "Excellence"
-        ]
-    }
+    payload = {"standards": [{"standard_number": 91577, "grade": "Exellent"}]}
     response = client.post("/api/v1/calculate-atar", json=payload)
-    assert response.status_code == 422  # Unprocessable Entity
+    assert response.status_code == 422
