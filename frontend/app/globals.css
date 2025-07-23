@@ -1,0 +1,200 @@
+@import "tailwindcss";
+
+/* Cosmic Color Palette */
+:root {
+  /* Background: Deep midnight blue */
+  --background: #101014;
+  /* Text: Clean off-white */
+  --foreground: #F0F0F0;
+  /* Accent: Ion Thruster Blue (can be changed to Nebula Purple #A678DE or Supernova Gold #FFC700) */
+  --accent: #33B1FF;
+  --accent-hover: #4FC3FF;
+  --accent-dim: #1A5F8A;
+  
+  /* UI Elements */
+  --card-bg: rgba(240, 240, 240, 0.03);
+  --card-border: rgba(240, 240, 240, 0.1);
+  --input-bg: rgba(240, 240, 240, 0.02);
+  --input-border: rgba(240, 240, 240, 0.15);
+  
+  /* Fonts */
+  --font-heading: var(--font-space-grotesk);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-dim: var(--accent-dim);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+  --font-heading: var(--font-heading);
+  --font-data: var(--font-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-heading), sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  font-optical-sizing: auto;
+  min-height: 100vh;
+  overflow-x: hidden;
+  
+  /* Subtle noise texture */
+  background-image: 
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.01) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-dim);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Cosmic glow effects */
+.cosmic-glow {
+  box-shadow: 0 0 20px rgba(51, 177, 255, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.cosmic-glow:hover {
+  box-shadow: 0 0 30px rgba(51, 177, 255, 0.5);
+}
+
+/* Constellation lines for dividers */
+.constellation-line {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--accent) 20%,
+    var(--accent) 80%,
+    transparent 100%
+  );
+  height: 1px;
+  position: relative;
+  opacity: 0.3;
+}
+
+.constellation-line::before,
+.constellation-line::after {
+  content: '';
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 50%;
+  top: -1px;
+}
+
+.constellation-line::before {
+  left: 20%;
+}
+
+.constellation-line::after {
+  right: 20%;
+}
+
+/* Starfield container */
+#starfield {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+/* Loading animations */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.twinkle {
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(51, 177, 255, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(51, 177, 255, 0.6); }
+}
+
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Animation utilities */
+.animate-reverse {
+  animation-direction: reverse;
+}
+
+/* Form inputs cosmic styling */
+input, select, textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--foreground);
+  font-family: var(--font-data), monospace;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 15px rgba(51, 177, 255, 0.3);
+}
+
+/* Button cosmic styling */
+button {
+  font-family: var(--font-heading), sans-serif;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+/* Year picker styling */
+.year-picker {
+  perspective: 1000px;
+}
+
+.year-item {
+  transition: all 0.3s ease;
+  transform-style: preserve-3d;
+}
+
+.year-item.selected {
+  transform: scale(1.2) translateZ(20px);
+  color: var(--foreground);
+  text-shadow: 0 0 10px var(--accent);
+}
+
+.year-item.distant {
+  transform: scale(0.8) translateZ(-20px);
+  opacity: 0.4;
+}
