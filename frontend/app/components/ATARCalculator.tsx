@@ -109,36 +109,14 @@ export default function ATARCalculator() {
     performSearch(searchTerm);
   }, [searchTerm, performSearch]);
 
-  // Calculate total credits (no limit)
+  // Calculate total credits from all standards (including Not Achieved)
   const totalCredits = useMemo(() => {
-    return selectedStandards
-      .filter(s => s.grade !== 'Not Achieved')
-      .reduce((sum, s) => sum + s.standard.credits, 0);
+    return selectedStandards.reduce((sum, s) => sum + s.standard.credits, 0);
   }, [selectedStandards]);
 
-  // Calculate best 90 credits for ATAR (client-side preview)
-  const bestStandards = useMemo(() => {
-    const validStandards = selectedStandards
-      .filter(s => s.grade !== 'Not Achieved')
-      .map(s => ({
-        ...s,
-        weightedValue: s.standard.credits * (gradeWeights[s.grade] + 3 * 0.1) // Assuming level 3
-      }))
-      .sort((a, b) => b.weightedValue - a.weightedValue);
-
-    let creditCount = 0;
-    const contributing: SelectedStandard[] = [];
-    
-    for (const standard of validStandards) {
-      if (creditCount >= 90) break;
-      const credits = Math.min(standard.standard.credits, 90 - creditCount);
-      if (credits > 0) {
-        contributing.push(standard);
-        creditCount += credits;
-      }
-    }
-    
-    return contributing;
+  // Count standards with grades (for display purposes only)
+  const standardsWithGrades = useMemo(() => {
+    return selectedStandards.filter(s => s.grade !== 'Not Achieved');
   }, [selectedStandards]);
 
   const addStandard = (standard: StandardResponse) => {
@@ -188,9 +166,9 @@ export default function ATARCalculator() {
     setApiError(null);
 
     try {
-      // Convert frontend format to API format
+      // Convert frontend format to API format - send ALL standards to backend
+      // The backend will determine the best 90 credits based on difficulty weightings
       const apiStandards = selectedStandards
-        .filter(s => s.grade !== 'Not Achieved')
         .map(s => convertToAPIFormat(s.standard.standard_number, s.grade));
 
       // Call real ATAR calculation API
@@ -219,9 +197,7 @@ export default function ATARCalculator() {
     }
   };
 
-  const isContributingStandard = (standardNumber: number) => {
-    return bestStandards.some(s => s.standard.standard_number === standardNumber);
-  };
+  // Note: ATAR calculation and ranking is now handled entirely by the backend
 
   const ProgressStepper = () => (
     <div className="flex items-center justify-center w-full mb-12">
@@ -514,17 +490,10 @@ export default function ATARCalculator() {
                     <h3 className="font-serif text-xl font-semibold text-slate-800">Your Selected Standards</h3>
                     <div className="space-y-3">
                       {selectedStandards.map(selectedStandard => {
-                        const isContributing = isContributingStandard(selectedStandard.standard.standard_number);
-                        
                         return (
-                          <div key={selectedStandard.standard.standard_number} className={`bg-white rounded-xl p-4 border shadow-sm ${
-                            isContributing ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'
-                          }`}>
+                          <div key={selectedStandard.standard.standard_number} className="bg-white rounded-xl p-4 border shadow-sm border-slate-200">
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex items-center space-x-2 flex-1">
-                                {isContributing && (
-                                  <Star className="w-4 h-4 text-emerald-600 fill-emerald-600" />
-                                )}
                                 <div className="flex-1">
                                   <h5 className="font-medium text-slate-800 leading-snug">{selectedStandard.standard.title}</h5>
                                   <div className="flex items-center space-x-4 mt-1 text-sm text-slate-500">
@@ -607,14 +576,14 @@ export default function ATARCalculator() {
                       ></div>
                     </div>
 
-                    {bestStandards.length > 0 && (
+                    {standardsWithGrades.length > 0 && (
                       <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                         <div className="flex items-center space-x-2 mb-2">
                           <Star className="w-4 h-4 text-emerald-600" />
-                          <span className="text-sm font-semibold text-emerald-800">Contributing Standards</span>
+                          <span className="text-sm font-semibold text-emerald-800">Standards with Grades</span>
                         </div>
                         <p className="text-xs text-emerald-700">
-                          {bestStandards.length} standards contributing to your ATAR calculation
+                          {standardsWithGrades.length} standards with assigned grades
                         </p>
                       </div>
                     )}
@@ -632,13 +601,9 @@ export default function ATARCalculator() {
                     </h4>
                     <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                       {selectedStandards.map(({standard, grade}) => {
-                        const isContributing = isContributingStandard(standard.standard_number);
                         return (
-                          <div key={standard.standard_number} className={`flex justify-between items-center p-3 rounded-lg text-sm border ${
-                            isContributing ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'
-                          }`}>
+                          <div key={standard.standard_number} className="flex justify-between items-center p-3 rounded-lg text-sm border bg-slate-50 border-slate-200">
                             <div className="flex items-center space-x-2 flex-1 pr-2">
-                              {isContributing && <Star className="w-3 h-3 text-emerald-600 flex-shrink-0" />}
                               <span className="text-slate-700 font-medium truncate">{standard.title}</span>
                             </div>
                             <div className="flex items-center space-x-2">
@@ -688,7 +653,7 @@ export default function ATARCalculator() {
                           {Math.min(...atarResults.map(r => r.score)).toFixed(2)} - {Math.max(...atarResults.map(r => r.score)).toFixed(2)}
                         </p>
                         <p className="text-sm text-teal-100 opacity-90">
-                          Based on {bestStandards.length} contributing standards • {Math.min(totalCredits, 90)} credits
+                          Based on {selectedStandards.length} standards • {totalCredits} total credits
                         </p>
                       </div>
                     </div>
