@@ -219,11 +219,25 @@ export function createDebouncedSearch<T extends any[], R>(
   delay: number = 300
 ) {
   let timeoutId: NodeJS.Timeout;
+  let pendingReject: ((reason?: any) => void) | null = null;
 
   return (...args: T): Promise<R> => {
     return new Promise((resolve, reject) => {
+      // Cancel any pending promise by rejecting it
+      if (pendingReject) {
+        pendingReject(new Error('Search cancelled due to new request'));
+        pendingReject = null;
+      }
+
       clearTimeout(timeoutId);
+      
+      // Store the reject function for potential cancellation
+      pendingReject = reject;
+      
       timeoutId = setTimeout(async () => {
+        // Clear the pending reject since we're about to execute
+        pendingReject = null;
+        
         try {
           const result = await searchFunction(...args);
           resolve(result);
