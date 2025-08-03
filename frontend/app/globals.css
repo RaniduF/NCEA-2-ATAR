@@ -1,200 +1,189 @@
 @import "tailwindcss";
 
-/* Cosmic Color Palette */
 :root {
-  /* Background: Deep midnight blue */
-  --background: #101014;
-  /* Text: Clean off-white */
-  --foreground: #F0F0F0;
-  /* Accent: Ion Thruster Blue (can be changed to Nebula Purple #A678DE or Supernova Gold #FFC700) */
-  --accent: #33B1FF;
-  --accent-hover: #4FC3FF;
-  --accent-dim: #1A5F8A;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 248, 250, 252;
   
-  /* UI Elements */
-  --card-bg: rgba(240, 240, 240, 0.03);
-  --card-border: rgba(240, 240, 240, 0.1);
-  --input-bg: rgba(240, 240, 240, 0.02);
-  --input-border: rgba(240, 240, 240, 0.15);
-  
-  /* Fonts */
-  --font-heading: var(--font-space-grotesk);
-  --font-mono: var(--font-ibm-plex-mono);
+  --foreground-rgb: 51, 65, 85;
+
+  /* Academic Minimal Palette */
+  --primary: #1e293b; /* Deep Navy */
+  --background: #ffffff; /* Crisp White */
+  --accent: #06b6d4; /* Teal */
+  --secondary: #f8fafc; /* Light Gray */
+  --text-primary: #334155; /* Charcoal */
+  --text-secondary: #64748b; /* Slate */
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-dim: var(--accent-dim);
-  --color-card-bg: var(--card-bg);
-  --color-card-border: var(--card-border);
-  --color-input-bg: var(--input-bg);
-  --color-input-border: var(--input-border);
-  --font-heading: var(--font-heading);
-  --font-data: var(--font-mono);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background-start-rgb: 255, 255, 255;
+    --background-end-rgb: 248, 250, 252;
+    --foreground-rgb: 51, 65, 85;
+  }
 }
 
-* {
-  box-sizing: border-box;
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+  font-family: var(--font-inter);
 }
 
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-crimson-pro);
+}
+
+/* Custom Academic Minimal Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.animate-in {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.slide-in-from-bottom {
+  animation: slideInFromBottom 0.5s ease-out;
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+/* Enhanced Card Shadows */
+.shadow-card {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-card-hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.shadow-card-elevated {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Academic Typography */
+.text-academic {
+  letter-spacing: -0.025em;
+  line-height: 1.5;
+}
+
+/* Progress Bar Animation */
+.progress-bar {
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Loading Shimmer Effect */
+.shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Scroll Behavior */
 html {
   scroll-behavior: smooth;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-heading), sans-serif;
-  font-feature-settings: "cv11", "ss01";
-  font-optical-sizing: auto;
-  min-height: 100vh;
-  overflow-x: hidden;
-  
-  /* Subtle noise texture */
-  background-image: 
-    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.01) 1px, transparent 0);
-  background-size: 20px 20px;
+/* Focus States for Accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--background);
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--accent-dim);
-  border-radius: 4px;
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-/* Cosmic glow effects */
-.cosmic-glow {
-  box-shadow: 0 0 20px rgba(51, 177, 255, 0.3);
-  transition: box-shadow 0.3s ease;
+/* Grade Button Hover Effects */
+.grade-button {
+  @apply transition-all duration-200 transform hover:scale-105 active:scale-95;
 }
 
-.cosmic-glow:hover {
-  box-shadow: 0 0 30px rgba(51, 177, 255, 0.5);
+.grade-button-selected {
+  @apply shadow-lg ring-2 ring-teal-400;
 }
 
-/* Constellation lines for dividers */
-.constellation-line {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--accent) 20%,
-    var(--accent) 80%,
-    transparent 100%
-  );
-  height: 1px;
-  position: relative;
-  opacity: 0.3;
+/* Card Hover Effects */
+.card-hover {
+  @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
 }
 
-.constellation-line::before,
-.constellation-line::after {
-  content: '';
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 50%;
-  top: -1px;
+/* Text Selection */
+::selection {
+  background-color: rgba(6, 182, 212, 0.2);
+  color: #1e293b;
 }
 
-.constellation-line::before {
-  left: 20%;
+/* Academic Minimal Button Styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-slate-800 to-slate-900 text-white font-semibold py-3 px-6 rounded-lg shadow-lg hover:from-slate-700 hover:to-slate-800 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2;
 }
 
-.constellation-line::after {
-  right: 20%;
+.btn-secondary {
+  @apply bg-white text-slate-700 font-semibold py-3 px-6 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2;
 }
 
-/* Starfield container */
-#starfield {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-}
-
-/* Loading animations */
-@keyframes twinkle {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-.twinkle {
-  animation: twinkle 2s ease-in-out infinite;
-}
-
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(51, 177, 255, 0.3); }
-  50% { box-shadow: 0 0 40px rgba(51, 177, 255, 0.6); }
-}
-
-.pulse-glow {
-  animation: pulseGlow 2s ease-in-out infinite;
-}
-
-/* Animation utilities */
-.animate-reverse {
-  animation-direction: reverse;
-}
-
-/* Form inputs cosmic styling */
-input, select, textarea {
-  background: var(--input-bg);
-  border: 1px solid var(--input-border);
-  color: var(--foreground);
-  font-family: var(--font-data), monospace;
-}
-
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 15px rgba(51, 177, 255, 0.3);
-}
-
-/* Button cosmic styling */
-button {
-  font-family: var(--font-heading), sans-serif;
-  transition: all 0.3s ease;
-}
-
-button:hover {
-  transform: translateY(-1px);
-}
-
-/* Year picker styling */
-.year-picker {
-  perspective: 1000px;
-}
-
-.year-item {
-  transition: all 0.3s ease;
-  transform-style: preserve-3d;
-}
-
-.year-item.selected {
-  transform: scale(1.2) translateZ(20px);
-  color: var(--foreground);
-  text-shadow: 0 0 10px var(--accent);
-}
-
-.year-item.distant {
-  transform: scale(0.8) translateZ(-20px);
-  opacity: 0.4;
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
 }
