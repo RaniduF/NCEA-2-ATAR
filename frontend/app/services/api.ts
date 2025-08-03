@@ -195,8 +195,11 @@ export function groupStandardsBySubject(standards: StandardResponse[]): Record<s
  */
 export async function checkAPIHealth(): Promise<boolean> {
   try {
+    // Derive base URL from API_BASE_URL by removing /api/v1 suffix
+    const baseUrl = API_BASE_URL.replace(/\/api\/v1$/, '');
+    
     // Make direct call to root endpoint
-    const response = await fetch('http://127.0.0.1:8000/', {
+    const response = await fetch(`${baseUrl}/`, {
       headers: {
         'Content-Type': 'application/json',
       },
