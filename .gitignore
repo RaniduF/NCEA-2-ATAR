@@ -26,3 +26,5 @@ htmlcov/
 # ===================================================================
 .idea/
 .vscode/
+# Environment variables
+.env
