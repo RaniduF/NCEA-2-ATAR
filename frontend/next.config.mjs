@@ -1,5 +1,8 @@
 const nextConfig = {
-  /* config options here */
+  output: 'standalone',
+  experimental: {
+    outputFileTracingRoot: undefined,
+  },
 };
 
 export default nextConfig; 

@@ -1,0 +1,80 @@
+services:
+  # MySQL Database
+  database:
+    image: mysql:8.0
+    container_name: ncea-database
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-ncea_atar}
+      MYSQL_USER: ${DB_USER:-ncea_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ncea_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./database/02-standards-data.sql:/docker-entrypoint-initdb.d/02-standards-data.sql:ro
+      - ./database/03-standard-weightings-data.sql:/docker-entrypoint-initdb.d/03-standard-weightings-data.sql:ro
+      - ./database/04-atar-distributions-data.sql:/docker-entrypoint-initdb.d/04-atar-distributions-data.sql:ro
+      - ./database/05-participation-rates-data.sql:/docker-entrypoint-initdb.d/05-participation-rates-data.sql:ro
+    networks:
+      - ncea-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: ncea-backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-ncea_atar}
+      DB_USER: ${DB_USER:-ncea_user}
+      DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
+      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - ncea-network
+    volumes:
+      - ./backend:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: ncea-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - ncea-network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  ncea-network:
+    driver: bridge 
