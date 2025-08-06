@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import standards
 from .api import suggestions
 from .api import calculation
+from .api import subject_analysis
 
 app = FastAPI(title="NCEA to ATAR API")
 
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(standards.router, prefix="/api/v1")
 app.include_router(suggestions.router, prefix="/api/v1")
 app.include_router(calculation.router, prefix="/api/v1")
+app.include_router(subject_analysis.router, prefix="/api/v1/subject-analysis", tags=["Subject Analysis"])
 
 @app.get("/")
 def read_root():

@@ -5,6 +5,8 @@ mysql-connector-python
 SQLAlchemy
 pydantic-settings
 thefuzz[speedup]
+pandas
+numpy
 
 # Testing Dependencies
 pytest
