@@ -1,0 +1,80 @@
+services:
+  # MySQL Database
+  database:
+    image: mysql:8.0
+    container_name: ncea-database-dev
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-ncea_atar}
+      MYSQL_USER: ${DB_USER:-ncea_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ncea_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./data:/docker-entrypoint-initdb.d/data:ro
+    networks:
+      - ncea-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # FastAPI Backend (Development with hot reloading)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: ncea-backend-dev
+    restart: unless-stopped
+    environment:
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-ncea_atar}
+      DB_USER: ${DB_USER:-ncea_user}
+      DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
+      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+    ports:
+      - "8000:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - ncea-network
+    volumes:
+      - ./backend:/app
+      - backend_cache:/app/__pycache__
+
+  # Next.js Frontend (Development with hot reloading)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: ncea-frontend-dev
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - ncea-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  mysql_data_dev:
+    driver: local
+  backend_cache:
+    driver: local
+
+networks:
+  ncea-network:
+    driver: bridge 
