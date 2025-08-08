@@ -1,32 +1,22 @@
-import type { Config } from "tailwindcss";
+import type { Config } from 'tailwindcss';
 
-const config: Config = {
-  content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+export default {
+  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        primary: "var(--primary)",
-        background: "var(--background)",
-        accent: "var(--accent)",
-        secondary: "var(--secondary)",
-        "text-primary": "var(--text-primary)",
-        "text-secondary": "var(--text-secondary)",
+        brand: {
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+        },
       },
-      fontFamily: {
-        sans: ["var(--font-inter)"],
-        serif: ["var(--font-crimson-pro)"],
-      },
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+      boxShadow: {
+        glow: '0 0 80px rgba(14, 165, 233, 0.15)',
       },
     },
   },
   plugins: [],
-};
-export default config; 
+} satisfies Config; 
