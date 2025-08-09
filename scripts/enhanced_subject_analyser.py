@@ -34,6 +34,13 @@ class SubjectAnalyzer:
         self.standards_df = None
         self.weightings_df = None
         self.merged_df = None
+        # Capture detailed credits usage for each subject-year and standard
+        self.credits_breakdown_rows: List[Dict] = []
+        # Scoring configuration (defaults preserve previous behavior)
+        self.max_standards: Optional[int] = None  # None = unlimited
+        self.target_credits: Optional[int] = 24   # 24-credit target for fixed normalization
+        # normalization_mode: 'fixed' | 'dynamic_credits' | 'unweighted'
+        self.normalization_mode: str = 'fixed'
         
     def connect_to_database(self) -> bool:
         """Establish connection to the MySQL database."""
@@ -98,44 +105,96 @@ class SubjectAnalyzer:
     
     def calculate_subject_score(self, subject_df: pd.DataFrame) -> float:
         """
-        Calculate the optimal score for a subject using the best 24 credits.
-        
-        Args:
-            subject_df: DataFrame containing standards for a specific subject and year
-            
-        Returns:
-            Normalized score (sum of weighted credits / 24)
+        Calculate the optimal score for a subject using configured rules.
+        - Sort by excellence weight descending
+        - Optionally cap by number of standards (self.max_standards)
+        - Optionally cap by target credits (self.target_credits > 0)
+        - Normalization per self.normalization_mode
         """
-        # Sort by excellence weight descending
         subject_df = subject_df.sort_values(by='weight_excellence', ascending=False)
         
         credits_mapped = 0
-        total_weighted_score = 0
+        total_contribution = 0.0
         used_standards = []
+        selected_count = 0
+        
+        # Try to infer grouping info for breakdown rows
+        subject_name = None
+        academic_year = None
+        if 'subject' in subject_df.columns and not subject_df['subject'].empty:
+            try:
+                subject_name = subject_df['subject'].iloc[0]
+            except Exception:
+                subject_name = None
+        if 'academic_year' in subject_df.columns and not subject_df['academic_year'].empty:
+            try:
+                academic_year = int(subject_df['academic_year'].iloc[0])
+            except Exception:
+                academic_year = None
         
         for _, row in subject_df.iterrows():
-            if credits_mapped >= 24:
+            if self.max_standards is not None and selected_count >= self.max_standards:
                 break
-                
-            credits_to_take = min(row['credits'], 24 - credits_mapped)
-            weighted_contribution = credits_to_take * row['weight_excellence']
+            if self.target_credits and self.target_credits > 0 and credits_mapped >= self.target_credits:
+                break
             
-            total_weighted_score += weighted_contribution
+            available_credits = row['credits']
+            if self.target_credits and self.target_credits > 0:
+                credits_to_take = min(available_credits, max(0, self.target_credits - credits_mapped))
+            else:
+                # Dynamic credits mode: take full credits for selected standards
+                credits_to_take = available_credits
+            
+            if credits_to_take <= 0:
+                continue
+            
+            # Contribution calculation based on normalization mode
+            if self.normalization_mode == 'unweighted':
+                contribution = row['weight_excellence']
+            else:
+                contribution = credits_to_take * row['weight_excellence']
+            
+            total_contribution += contribution
             credits_mapped += credits_to_take
+            selected_count += 1
             
-            used_standards.append({
+            used_entry = {
                 'standard': row['standard_number'],
-                'title': row['title'],
+                'title': row.get('title', None),
+                'credits_available': available_credits,
                 'credits_used': credits_to_take,
                 'weight': row['weight_excellence'],
-                'contribution': weighted_contribution
-            })
-        
+                'contribution': contribution,
+                'subject': subject_name,
+                'academic_year': academic_year,
+                'standard_version': row.get('standard_version', None)
+            }
+            used_standards.append(used_entry)
+            
         # Store detailed breakdown for later analysis
         subject_df._used_standards = used_standards
         subject_df._total_credits_available = subject_df['credits'].sum()
         
-        return total_weighted_score / 24
+        # Accumulate exportable credits breakdown rows
+        for item in used_standards:
+            self.credits_breakdown_rows.append({
+                'subject': item.get('subject'),
+                'academic_year': item.get('academic_year'),
+                'standard_number': item['standard'],
+                'standard_version': item.get('standard_version'),
+                'weight_excellence': item['weight'],
+                'effective_credits': item['credits_used']
+            })
+        
+        # Determine denominator
+        if self.normalization_mode == 'unweighted':
+            denom = max(1, selected_count)
+        elif self.normalization_mode == 'dynamic_credits':
+            denom = max(1, int(sum(item['credits_used'] for item in used_standards)))
+        else:  # 'fixed'
+            denom = self.target_credits if (self.target_credits and self.target_credits > 0) else 24
+        
+        return total_contribution / denom if denom else 0.0
     
     def calculate_comprehensive_metrics(self) -> pd.DataFrame:
         """Calculate multiple metrics for each subject by year."""
@@ -229,6 +288,14 @@ class SubjectAnalyzer:
         # Calculate the optimal combination
         score = self.calculate_subject_score(subject_data)
         
+        # Map effective credits used for this subject-year
+        used_map = {}
+        try:
+            for item in getattr(subject_data, '_used_standards', []):
+                used_map[item['standard']] = item['credits_used']
+        except Exception:
+            used_map = {}
+        
         # Get the breakdown from the calculation
         breakdown = {
             'subject': subject,
@@ -247,7 +314,9 @@ class SubjectAnalyzer:
                 'credits': row['credits'],
                 'weight_excellence': row['weight_excellence'],
                 'assessment_type': row['assessment_type'],
-                'is_ue': row['is_ue']
+                'is_ue': row['is_ue'],
+                'standard_version': row.get('standard_version', None),
+                'effective_credits': used_map.get(row['standard_number'], 0)
             }
             breakdown['standards_breakdown'].append(standard_info)
         
@@ -293,6 +362,11 @@ class SubjectAnalyzer:
         trends_filename = filename.replace('.txt', '_trends.csv') if filename else "subject_trends_data.csv"
         trends_df.to_csv(trends_filename, index=False)
         print(f"📈 Trends data exported to: {trends_filename}")
+        
+        # Export credits breakdown data for debugging ranking behavior
+        breakdown_filename = filename.replace('.txt', '_credits_breakdown.csv') if filename else "credits_breakdown.csv"
+        self.export_credits_breakdown(breakdown_filename)
+        print(f"🔎 Credits breakdown exported to: {breakdown_filename}")
     
     def _format_report(self, metrics_df: pd.DataFrame, trends_df: pd.DataFrame) -> str:
         """Format the comprehensive analysis report."""
@@ -395,6 +469,20 @@ class SubjectAnalyzer:
             self.connection.close()
             print("🔌 Database connection closed")
 
+    def export_credits_breakdown(self, filename: str = "credits_breakdown.csv") -> None:
+        """Export the captured credits breakdown rows to CSV for debugging ranking behavior."""
+        if not self.credits_breakdown_rows:
+            # No rows captured; create empty file with headers
+            pd.DataFrame(columns=[
+                'subject', 'academic_year', 'standard_number', 'standard_version',
+                'weight_excellence', 'effective_credits'
+            ]).to_csv(filename, index=False)
+            return
+        df = pd.DataFrame(self.credits_breakdown_rows)
+        # Order and deduplicate if necessary (keep first occurrence)
+        df = df[['subject', 'academic_year', 'standard_number', 'standard_version', 'weight_excellence', 'effective_credits']]
+        df.to_csv(filename, index=False)
+
 def main():
     """Main function to run the enhanced subject analyzer."""
     parser = argparse.ArgumentParser(description='Enhanced NCEA Subject Weight Analyzer')
@@ -407,6 +495,10 @@ def main():
     parser.add_argument('--filename', help='Output filename (for file output)')
     parser.add_argument('--subject', help='Analyze specific subject')
     parser.add_argument('--year', type=int, help='Analyze specific year')
+    # New configuration options
+    parser.add_argument('--max-standards', type=int, help='Maximum number of standards to select per subject')
+    parser.add_argument('--norm', choices=['fixed', 'dynamic_credits', 'unweighted'], help='Normalization mode: fixed=divide by 24 or target credits, dynamic_credits=divide by credits used, unweighted=divide by number of standards')
+    parser.add_argument('--target-credits', type=int, default=24, help='Target credits for selection and fixed normalization (set 0 to disable credit cap)')
     
     args = parser.parse_args()
     
@@ -421,6 +513,29 @@ def main():
     
     # Initialize analyzer
     analyzer = SubjectAnalyzer(db_config)
+    
+    # Configure scoring with prompt fallbacks
+    analyzer.max_standards = args.max_standards
+    analyzer.target_credits = args.target_credits if args.target_credits is not None else 24
+    analyzer.normalization_mode = args.norm or 'fixed'
+    
+    try:
+        if analyzer.max_standards is None:
+            try:
+                user_input = input("Enter max standards per subject (e.g., 4/5/6, blank for no limit): ").strip()
+                analyzer.max_standards = int(user_input) if user_input else None
+            except Exception:
+                analyzer.max_standards = None
+        if args.norm is None:
+            try:
+                prompt = "Choose normalization [fixed | dynamic_credits | unweighted] (default: fixed): "
+                user_input = input(prompt).strip().lower()
+                analyzer.normalization_mode = user_input if user_input in {'fixed','dynamic_credits','unweighted'} else 'fixed'
+            except Exception:
+                analyzer.normalization_mode = 'fixed'
+    except EOFError:
+        # Non-interactive environment; keep defaults
+        pass
     
     try:
         # Connect and load data
@@ -443,8 +558,13 @@ def main():
                 print("\nStandards Breakdown (by excellence weight):")
                 for i, std in enumerate(breakdown['standards_breakdown'], 1):
                     ue_status = "UE" if std['is_ue'] else ""
-                    print(f"{i:2d}. {std['standard_number']} ({std['credits']} credits) - {std['weight_excellence']:.4f} {ue_status}")
+                    eff = std.get('effective_credits', 0)
+                    ver = std.get('standard_version', '')
+                    print(f"{i:2d}. {std['standard_number']} v{ver} ({std['credits']} cr, eff {eff}) - {std['weight_excellence']:.4f} {ue_status}")
                     print(f"    {std['title']}")
+                # Also export the credits breakdown captured so far
+                analyzer.export_credits_breakdown("credits_breakdown.csv")
+                print("\n🔎 Credits breakdown exported to: credits_breakdown.csv")
             else:
                 print(f"❌ No data found for {args.subject} in {args.year}")
         else:
