@@ -41,6 +41,22 @@ class SubjectAnalyzer:
         self.target_credits: Optional[int] = 24   # 24-credit target for fixed normalization
         # normalization_mode: 'fixed' | 'dynamic_credits' | 'unweighted'
         self.normalization_mode: str = 'fixed'
+        # Weight sanitation config
+        self.cap_excellence: float = 0.99
+        self.cap_merit: float = 0.99
+        self.apply_shrink: bool = True
+        self.shrink_prior_excellence: float = 0.95
+        self.shrink_prior_merit: float = 0.90
+        # When weights are near cap or equal to 1.0, shrink factor r in [0,1]
+        self.shrink_r_high: float = 0.6
+        # Extra shrink if suspected zero-E (weight exactly 1.0)
+        self.shrink_r_zero_e: float = 0.4
+        # One-weight strict penalty
+        self.one_weight_threshold: float = 1.0
+        self.one_weight_replacement: float = 0.5
+        # Store used standards per (subject, year) to avoid setting DataFrame attributes
+        self.used_standards_by_key: Dict[Tuple[str, int], List[Dict]] = {}
+        self.total_credits_available_by_key: Dict[Tuple[str, int], int] = {}
         
     def connect_to_database(self) -> bool:
         """Establish connection to the MySQL database."""
@@ -103,15 +119,50 @@ class SubjectAnalyzer:
             print(f"❌ Error loading data: {e}")
             return False
     
+    def _sanitize_weight(self, weight_value: float, grade: str = 'Excellence') -> float:
+        """Apply capping and shrinkage to mitigate over-weighted niche standards.
+        Enforce strict penalty for raw==1.0 by mapping to self.one_weight_replacement.
+        """
+        if weight_value is None:
+            return 0.0
+        w = float(weight_value)
+        w = max(0.0, min(1.0, w))
+        # Strict 1.0 penalty
+        if w >= self.one_weight_threshold:
+            return float(self.one_weight_replacement)
+        if grade == 'Excellence':
+            cap = self.cap_excellence
+            prior = self.shrink_prior_excellence
+        elif grade == 'Merit':
+            cap = self.cap_merit
+            prior = self.shrink_prior_merit
+        else:
+            return w
+        # Winsorize then shrink heuristically
+        w_capped = min(w, cap)
+        if not self.apply_shrink:
+            return w_capped
+        if w >= cap * 0.995:
+            r = self.shrink_r_high
+        else:
+            r = 1.0
+        w_shrunk = prior + r * (w_capped - prior)
+        return max(0.0, min(1.0, w_shrunk))
+    
     def calculate_subject_score(self, subject_df: pd.DataFrame) -> float:
         """
         Calculate the optimal score for a subject using configured rules.
-        - Sort by excellence weight descending
+        - Sort by sanitized excellence weight descending
         - Optionally cap by number of standards (self.max_standards)
         - Optionally cap by target credits (self.target_credits > 0)
         - Normalization per self.normalization_mode
         """
-        subject_df = subject_df.sort_values(by='weight_excellence', ascending=False)
+        # Use sanitized weights for ordering and contribution
+        subject_df = subject_df.copy()
+        subject_df['sanitized_weight_excellence'] = subject_df['weight_excellence'].apply(
+            lambda v: self._sanitize_weight(v, 'Excellence')
+        )
+        subject_df = subject_df.sort_values(by='sanitized_weight_excellence', ascending=False)
         
         credits_mapped = 0
         total_contribution = 0.0
@@ -142,17 +193,19 @@ class SubjectAnalyzer:
             if self.target_credits and self.target_credits > 0:
                 credits_to_take = min(available_credits, max(0, self.target_credits - credits_mapped))
             else:
-                # Dynamic credits mode: take full credits for selected standards
                 credits_to_take = available_credits
             
             if credits_to_take <= 0:
                 continue
             
-            # Contribution calculation based on normalization mode
+            w_raw = float(row['weight_excellence'])
+            sanitized_w = row['sanitized_weight_excellence']
+            penalized_one = w_raw >= self.one_weight_threshold
+            
             if self.normalization_mode == 'unweighted':
-                contribution = row['weight_excellence']
+                contribution = sanitized_w
             else:
-                contribution = credits_to_take * row['weight_excellence']
+                contribution = credits_to_take * sanitized_w
             
             total_contribution += contribution
             credits_mapped += credits_to_take
@@ -163,7 +216,9 @@ class SubjectAnalyzer:
                 'title': row.get('title', None),
                 'credits_available': available_credits,
                 'credits_used': credits_to_take,
-                'weight': row['weight_excellence'],
+                'weight_raw': w_raw,
+                'weight_sanitized': float(sanitized_w),
+                'penalized_one': penalized_one,
                 'contribution': contribution,
                 'subject': subject_name,
                 'academic_year': academic_year,
@@ -171,9 +226,11 @@ class SubjectAnalyzer:
             }
             used_standards.append(used_entry)
             
-        # Store detailed breakdown for later analysis
-        subject_df._used_standards = used_standards
-        subject_df._total_credits_available = subject_df['credits'].sum()
+        # Store detailed breakdown for later analysis without touching DataFrame attributes
+        if subject_name is not None and academic_year is not None:
+            key = (subject_name, academic_year)
+            self.used_standards_by_key[key] = used_standards
+            self.total_credits_available_by_key[key] = int(subject_df['credits'].sum())
         
         # Accumulate exportable credits breakdown rows
         for item in used_standards:
@@ -182,7 +239,9 @@ class SubjectAnalyzer:
                 'academic_year': item.get('academic_year'),
                 'standard_number': item['standard'],
                 'standard_version': item.get('standard_version'),
-                'weight_excellence': item['weight'],
+                'weight_excellence_raw': item['weight_raw'],
+                'weight_excellence_sanitized': item['weight_sanitized'],
+                'penalized_one': item['penalized_one'],
                 'effective_credits': item['credits_used']
             })
         
@@ -285,16 +344,21 @@ class SubjectAnalyzer:
         if subject_data.empty:
             return {}
         
-        # Calculate the optimal combination
+        # Calculate the optimal combination (also populates used standards map)
         score = self.calculate_subject_score(subject_data)
         
-        # Map effective credits used for this subject-year
-        used_map = {}
-        try:
-            for item in getattr(subject_data, '_used_standards', []):
-                used_map[item['standard']] = item['credits_used']
-        except Exception:
-            used_map = {}
+        # Map effective credits and sanitized weights used for this subject-year
+        used_map: Dict[int, float] = {}
+        used_weight_map: Dict[int, float] = {}
+        key = (subject, year)
+        used_list = self.used_standards_by_key.get(key)
+        if used_list is None:
+            # If not present (e.g., if called directly), compute and fetch
+            self.calculate_subject_score(subject_data.copy())
+            used_list = self.used_standards_by_key.get(key, [])
+        for item in used_list or []:
+            used_map[item['standard']] = item['credits_used']
+            used_weight_map[item['standard']] = item['weight_sanitized']
         
         # Get the breakdown from the calculation
         breakdown = {
@@ -306,13 +370,19 @@ class SubjectAnalyzer:
             'standards_breakdown': []
         }
         
-        # Add all standards sorted by weight
-        for _, row in subject_data.sort_values('weight_excellence', ascending=False).iterrows():
+        # Add all standards sorted by sanitized weight
+        subject_data['sanitized_weight_excellence'] = subject_data['weight_excellence'].apply(
+            lambda v: self._sanitize_weight(v, 'Excellence')
+        )
+        for _, row in subject_data.sort_values('sanitized_weight_excellence', ascending=False).iterrows():
+            w_raw = row['weight_excellence']
+            w_san = used_weight_map.get(row['standard_number'], self._sanitize_weight(w_raw, 'Excellence'))
             standard_info = {
                 'standard_number': row['standard_number'],
                 'title': row['title'],
                 'credits': row['credits'],
-                'weight_excellence': row['weight_excellence'],
+                'weight_excellence_raw': w_raw,
+                'weight_excellence_sanitized': w_san,
                 'assessment_type': row['assessment_type'],
                 'is_ue': row['is_ue'],
                 'standard_version': row.get('standard_version', None),
@@ -475,12 +545,12 @@ class SubjectAnalyzer:
             # No rows captured; create empty file with headers
             pd.DataFrame(columns=[
                 'subject', 'academic_year', 'standard_number', 'standard_version',
-                'weight_excellence', 'effective_credits'
+                'weight_excellence_raw', 'weight_excellence_sanitized', 'penalized_one', 'effective_credits'
             ]).to_csv(filename, index=False)
             return
         df = pd.DataFrame(self.credits_breakdown_rows)
-        # Order and deduplicate if necessary (keep first occurrence)
-        df = df[['subject', 'academic_year', 'standard_number', 'standard_version', 'weight_excellence', 'effective_credits']]
+        # Order
+        df = df[['subject', 'academic_year', 'standard_number', 'standard_version', 'weight_excellence_raw', 'weight_excellence_sanitized', 'penalized_one', 'effective_credits']]
         df.to_csv(filename, index=False)
 
 def main():
@@ -499,6 +569,16 @@ def main():
     parser.add_argument('--max-standards', type=int, help='Maximum number of standards to select per subject')
     parser.add_argument('--norm', choices=['fixed', 'dynamic_credits', 'unweighted'], help='Normalization mode: fixed=divide by 24 or target credits, dynamic_credits=divide by credits used, unweighted=divide by number of standards')
     parser.add_argument('--target-credits', type=int, default=24, help='Target credits for selection and fixed normalization (set 0 to disable credit cap)')
+    # Weight sanitation options
+    parser.add_argument('--cap-excellence', type=float, default=0.99, help='Winsorization cap for Excellence weights')
+    parser.add_argument('--cap-merit', type=float, default=0.99, help='Winsorization cap for Merit weights (not used unless ranking by Merit)')
+    parser.add_argument('--no-shrink', action='store_true', help='Disable shrinkage after capping')
+    parser.add_argument('--shrink-prior-ex', type=float, default=0.95, help='Shrinkage prior for Excellence')
+    parser.add_argument('--shrink-prior-m', type=float, default=0.90, help='Shrinkage prior for Merit')
+    parser.add_argument('--shrink-r-high', type=float, default=0.6, help='Shrink factor near cap (0..1)')
+    parser.add_argument('--shrink-r-zero-e', type=float, default=0.4, help='Extra shrink when weight is exactly 1.0')
+    parser.add_argument('--one-weight-threshold', type=float, default=1.0, help='Threshold at/above which to apply strict 1.0 penalty')
+    parser.add_argument('--one-weight-replacement', type=float, default=0.5, help='Replacement value when applying strict 1.0 penalty')
     
     args = parser.parse_args()
     
@@ -518,6 +598,17 @@ def main():
     analyzer.max_standards = args.max_standards
     analyzer.target_credits = args.target_credits if args.target_credits is not None else 24
     analyzer.normalization_mode = args.norm or 'fixed'
+    
+    # Configure sanitation
+    analyzer.cap_excellence = args.cap_excellence
+    analyzer.cap_merit = args.cap_merit
+    analyzer.apply_shrink = not args.no_shrink
+    analyzer.shrink_prior_excellence = args.shrink_prior_ex
+    analyzer.shrink_prior_merit = args.shrink_prior_m
+    analyzer.shrink_r_high = args.shrink_r_high
+    analyzer.shrink_r_zero_e = args.shrink_r_zero_e
+    analyzer.one_weight_threshold = args.one_weight_threshold
+    analyzer.one_weight_replacement = args.one_weight_replacement
     
     try:
         if analyzer.max_standards is None:
@@ -560,7 +651,13 @@ def main():
                     ue_status = "UE" if std['is_ue'] else ""
                     eff = std.get('effective_credits', 0)
                     ver = std.get('standard_version', '')
-                    print(f"{i:2d}. {std['standard_number']} v{ver} ({std['credits']} cr, eff {eff}) - {std['weight_excellence']:.4f} {ue_status}")
+                    w_raw = std.get('weight_excellence_raw', None)
+                    w_san = std.get('weight_excellence_sanitized', None)
+                    if w_raw is None:
+                        # compute sanitized on the fly if missing
+                        w_raw = std.get('weight_excellence', None)
+                        w_san = analyzer._sanitize_weight(w_raw, 'Excellence') if w_raw is not None else None
+                    print(f"{i:2d}. {std['standard_number']} v{ver} ({std['credits']} cr, eff {eff}) - raw {w_raw:.4f} → used {w_san:.4f} {ue_status}")
                     print(f"    {std['title']}")
                 # Also export the credits breakdown captured so far
                 analyzer.export_credits_breakdown("credits_breakdown.csv")
