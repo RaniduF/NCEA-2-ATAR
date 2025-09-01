@@ -55,7 +55,7 @@ export default function Page() {
           <p className="text-slate-300 mt-1">Search your subjects or standards, add them, and assign your grades.</p>
         </div>
         <div className="p-6">
-          <SearchStandards onAdd={handleAddStandard} selectedStandardIds={selectedIds} />
+          <SearchStandards onAdd={handleAddStandard} onRemove={handleRemoveStandard} selectedStandardIds={selectedIds} />
         </div>
       </section>
 

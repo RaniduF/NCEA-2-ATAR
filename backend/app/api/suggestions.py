@@ -40,9 +40,30 @@ async def get_search_suggestions(q: str | None = None,
     # --- 1. Find matching subjects ---
     subject_matches = db.query(standard_models.Standard.subject).filter(
         func.lower(standard_models.Standard.subject).like(f"{search_term}%")
-    ).distinct().limit(3).all()
+    ).distinct().all()
     
-    subjects = [subject[0] for subject in subject_matches if subject[0]]
+    # Score and rank subjects by relevance
+    scored_subjects = []
+    for subject_tuple in subject_matches:
+        if subject_tuple[0]:
+            subject = subject_tuple[0]
+            subject_lower = subject.lower()
+            
+            # Calculate relevance score (lower score = better match)
+            length_penalty = len(subject)  # Shorter names are better
+            match_ratio = len(search_term) / len(subject)  # Higher ratio is better
+            
+            # Bonus for exact word boundary matches
+            word_bonus = 0
+            if subject_lower.startswith(search_term):
+                word_bonus = -10  # Strong bonus for prefix match
+            
+            score = length_penalty - (match_ratio * 50) + word_bonus
+            scored_subjects.append((score, subject))
+    
+    # Sort by score (ascending - lower is better) and take top 3
+    scored_subjects.sort(key=lambda x: x[0])
+    subjects = [subject for score, subject in scored_subjects[:3]]
 
     # --- 2. Find matching standards by keywords or standard numbers ---
     # First try to find by standard number (if the search term is numeric)
@@ -72,7 +93,7 @@ async def get_search_suggestions(q: str | None = None,
                  {excluded_clause}
                  LIMIT :limit_count;
                  """)
-    
+
     keyword_results = db.execute(keyword_query, {
         "search_term": f"{search_term}%",
         "limit_count": 7 - len(standards_by_number)

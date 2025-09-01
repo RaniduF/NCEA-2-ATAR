@@ -111,15 +111,33 @@ async def search_standards(q: str | None = None,
         related_groups_response = []
         if top_standard.search_keywords and 'groups' in top_standard.search_keywords:
             for group_name in top_standard.search_keywords['groups']:
-                standards_in_group = db.query(standard_models.Standard).filter(
-                    func.json_contains(
-                        standard_models.Standard.search_keywords,
-                        json.dumps([group_name]), '$.groups')
+                # Skip general subject groups (like "Physics") and only include specific categories
+                # (like "Physics Externals", "Physics Internals")
+                if not (group_name.endswith(' Externals') or group_name.endswith(' Internals')):
+                    continue
+                    
+                # Get all standards from the subject first
+                subject_name = group_name.replace(' Externals', '').replace(' Internals', '')
+                subject_standards = db.query(standard_models.Standard).filter(
+                    func.lower(standard_models.Standard.subject) == subject_name.lower()
                 ).all()
-                related_groups_response.append(
-                    {"name": group_name, "standards": standards_in_group})
+                
+                # Filter by assessment type based on group name
+                if group_name.endswith(' Externals'):
+                    filtered_standards = [s for s in subject_standards if s.assessment_type == 'External']
+                elif group_name.endswith(' Internals'):
+                    filtered_standards = [s for s in subject_standards if s.assessment_type == 'Internal']
+                else:
+                    filtered_standards = subject_standards
+                
+                # Sort by standard number
+                filtered_standards.sort(key=lambda x: x.standard_number)
+                
+                if filtered_standards:  # Only add if there are standards
+                    related_groups_response.append(
+                        {"name": group_name, "standards": filtered_standards})
         return {"direct_results": [top_standard],
-                "related_groups": related_groups_response, "suggestion": None}
+                "related_groups": related_groups_response, "suggestion": None, "subject_match": None}
 
     # --- 4. Fuzzy Search for Suggestions (if all else fails) ---
     # Find the best match for the user's query from the list of all subjects.
