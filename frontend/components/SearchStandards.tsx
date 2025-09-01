@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { getSuggestions, searchStandards, type Standard, type StandardsSearchResponse } from '../app/services/api';
+import { getSuggestions, searchStandards, type Standard, type StandardsSearchResponse, type SuggestionsResponse } from '../app/services/api';
 
 interface Props {
   onAdd: (standard: Standard) => void;
@@ -10,7 +10,7 @@ interface Props {
 
 export function SearchStandards({ onAdd, selectedStandardIds }: Props) {
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionsResponse>({ subjects: [], standards: [] });
   const [searchData, setSearchData] = useState<StandardsSearchResponse | null>(null);
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
@@ -20,7 +20,7 @@ export function SearchStandards({ onAdd, selectedStandardIds }: Props) {
   // Debounced suggestions
   useEffect(() => {
     if (query.trim().length < 2) {
-      setSuggestions([]);
+      setSuggestions({ subjects: [], standards: [] });
       return;
     }
     const t = setTimeout(async () => {
@@ -79,22 +79,56 @@ export function SearchStandards({ onAdd, selectedStandardIds }: Props) {
               placeholder="Search subjects (e.g., Physics) or standards (e.g., 91577, Calculus differentiation)…"
               className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 outline-none"
             />
-            {suggestions.length > 0 && (
+            {(suggestions.subjects.length > 0 || suggestions.standards.length > 0) && (
               <div className="absolute mt-1 w-full rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur shadow-xl overflow-hidden z-10">
-                {suggestions.map((s, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setQuery(s);
-                      performSearch(s);
-                      inputRef.current?.focus();
-                    }}
-                    className="w-full text-left px-4 py-2 hover:bg-white/5"
-                  >
-                    {s}
-                  </button>
-                ))}
+                {suggestions.subjects.length > 0 && (
+                  <>
+                    <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10">
+                      Subjects
+                    </div>
+                    {suggestions.subjects.map((subject, idx) => (
+                      <button
+                        key={`subject-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setQuery(subject);
+                          performSearch(subject);
+                          inputRef.current?.focus();
+                        }}
+                        className="w-full text-left px-4 py-2 hover:bg-white/5 font-medium"
+                      >
+                        {subject}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {suggestions.standards.length > 0 && (
+                  <>
+                    {suggestions.subjects.length > 0 && (
+                      <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10">
+                        Standards
+                      </div>
+                    )}
+                    {suggestions.standards.map((standard, idx) => {
+                      // Extract standard number from formatted string "91577 • Title"
+                      const standardNumber = standard.split(' • ')[0];
+                      return (
+                        <button
+                          key={`standard-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            setQuery(standardNumber);
+                            performSearch(standardNumber);
+                            inputRef.current?.focus();
+                          }}
+                          className="w-full text-left px-4 py-2 hover:bg-white/5"
+                        >
+                          {standard}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </div>
             )}
           </div>

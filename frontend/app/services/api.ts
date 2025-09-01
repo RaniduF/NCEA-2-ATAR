@@ -15,10 +15,16 @@ export interface StandardGroup {
   standards: Standard[];
 }
 
+export interface SuggestionsResponse {
+  subjects: string[];
+  standards: string[];
+}
+
 export interface StandardsSearchResponse {
   direct_results: Standard[];
   related_groups: StandardGroup[];
   suggestion: null | { type: string; value: string };
+  subject_match: null | { name: string; standards: Standard[] };
 }
 
 export interface ATARResult {
@@ -29,7 +35,7 @@ export interface ATARResult {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export async function getSuggestions(q: string): Promise<string[]> {
+export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
   const url = `${API_BASE}/api/v1/suggestions/?q=${encodeURIComponent(q)}`;
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error('Failed to fetch suggestions');
