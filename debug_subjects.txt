@@ -1,0 +1,194 @@
+================================================================================
+🎓 NCEA TO ATAR SUBJECT ANALYSIS REPORT
+================================================================================
+Generated: 2025-08-10 05:25:27
+Total Subjects Analyzed: 57
+Years Covered: 2018 - 2024
+
+📋 EXECUTIVE SUMMARY
+----------------------------------------
+🏆 TOP 10 SUBJECTS FOR 2024:
+ 1. Statistics                Score: 0.9947
+ 2. Health Education          Score: 0.9806
+ 3. History                   Score: 0.9782
+ 4. Technology/Hangarau       Score: 0.9749
+ 5. Physics                   Score: 0.9742
+ 6. Business Studies          Score: 0.9701
+ 7. Sculpture (Practical Art) Score: 0.9698
+ 8. Te Reo Māori              Score: 0.9654
+ 9. Biology                   Score: 0.9608
+10. Design and Visual Communication Score: 0.9497
+
+📊 YEAR-BY-YEAR SUBJECT RANKINGS
+--------------------------------------------------
+
+📅 2024 Rankings:
+ 1. Statistics                Score: 0.9947 Avg Weight: 0.931 
+ 2. Health Education          Score: 0.9806 Avg Weight: 0.942 
+ 3. History                   Score: 0.9782 Avg Weight: 0.908 
+ 4. Technology/Hangarau       Score: 0.9749 Avg Weight: 0.828 
+ 5. Physics                   Score: 0.9742 Avg Weight: 0.916 
+ 6. Business Studies          Score: 0.9701 Avg Weight: 0.906 
+ 7. Sculpture (Practical Art) Score: 0.9698 Avg Weight: 0.885 
+ 8. Te Reo Māori              Score: 0.9654 Avg Weight: 0.855 
+ 9. Biology                   Score: 0.9608 Avg Weight: 0.901 
+10. Design and Visual Communication Score: 0.9497 Avg Weight: 0.909 
+11. Design (Practical Art)    Score: 0.9470 Avg Weight: 0.901 
+12. Chemistry                 Score: 0.9468 Avg Weight: 0.875 
+13. Calculus                  Score: 0.9456 Avg Weight: 0.879 
+14. Geography                 Score: 0.9434 Avg Weight: 0.894 
+15. Economics                 Score: 0.9338 Avg Weight: 0.917 
+
+📅 2023 Rankings:
+ 1. Calculus                  Score: 0.9771 Avg Weight: 0.864 
+ 2. Technology/Hangarau       Score: 0.9760 Avg Weight: 0.874 
+ 3. Health Education          Score: 0.9752 Avg Weight: 0.917 
+ 4. Physics                   Score: 0.9659 Avg Weight: 0.902 
+ 5. Statistics                Score: 0.9653 Avg Weight: 0.934 
+ 6. History                   Score: 0.9579 Avg Weight: 0.908 
+ 7. Music Studies             Score: 0.9516 Avg Weight: 0.808 
+ 8. Earth and Space Science   Score: 0.9497 Avg Weight: 0.881 
+ 9. Media Studies             Score: 0.9484 Avg Weight: 0.870 
+10. Tikanga ā-Iwi             Score: 0.9480 Avg Weight: 0.853 
+11. Economics                 Score: 0.9461 Avg Weight: 0.916 
+12. Geography                 Score: 0.9447 Avg Weight: 0.900 
+13. Biology                   Score: 0.9417 Avg Weight: 0.863 
+14. Design (Practical Art)    Score: 0.9379 Avg Weight: 0.896 
+15. English                   Score: 0.9311 Avg Weight: 0.908 
+
+📅 2022 Rankings:
+ 1. Sculpture (Practical Art) Score: 0.9684 Avg Weight: 0.889 
+ 2. Statistics                Score: 0.9633 Avg Weight: 0.935 
+ 3. Media Studies             Score: 0.9486 Avg Weight: 0.914 
+ 4. Education for Sustainability Score: 0.9470 Avg Weight: 0.906 
+ 5. Photography (Practical Art) Score: 0.9462 Avg Weight: 0.918 
+ 6. Agriculture & Horticulture Score: 0.9458 Avg Weight: 0.928 
+ 7. Health Education          Score: 0.9446 Avg Weight: 0.834 
+ 8. Classical Studies         Score: 0.9414 Avg Weight: 0.906 
+ 9. History                   Score: 0.9412 Avg Weight: 0.905 
+10. Economics                 Score: 0.9366 Avg Weight: 0.909 
+11. Drama                     Score: 0.9333 Avg Weight: 0.873 
+12. Earth and Space Science   Score: 0.9314 Avg Weight: 0.871 
+13. Geography                 Score: 0.9292 Avg Weight: 0.913 
+14. Physics                   Score: 0.9283 Avg Weight: 0.879 
+15. Biology                   Score: 0.9242 Avg Weight: 0.897 
+
+📅 2021 Rankings:
+ 1. Technology/Hangarau       Score: 0.9755 Avg Weight: 0.867 
+ 2. Statistics                Score: 0.9605 Avg Weight: 0.932 
+ 3. Drama                     Score: 0.9565 Avg Weight: 0.882 
+ 4. Physical Education        Score: 0.9511 Avg Weight: 0.902 
+ 5. Sculpture (Practical Art) Score: 0.9488 Avg Weight: 0.922 
+ 6. Home Economics            Score: 0.9481 Avg Weight: 0.924 
+ 7. Music Studies             Score: 0.9330 Avg Weight: 0.795 
+ 8. Tikanga ā-Iwi             Score: 0.9311 Avg Weight: 0.896 
+ 9. Biology                   Score: 0.9262 Avg Weight: 0.891 
+10. Health Education          Score: 0.9215 Avg Weight: 0.857 
+11. Media Studies             Score: 0.9188 Avg Weight: 0.894 
+12. Business Studies          Score: 0.9180 Avg Weight: 0.892 
+13. Geography                 Score: 0.9178 Avg Weight: 0.899 
+14. Design and Visual Communication Score: 0.9168 Avg Weight: 0.891 
+15. Earth and Space Science   Score: 0.9152 Avg Weight: 0.858 
+
+📅 2020 Rankings:
+ 1. Health Education          Score: 0.9722 Avg Weight: 0.889 
+ 2. Statistics                Score: 0.9615 Avg Weight: 0.922 
+ 3. Technology/Hangarau       Score: 0.9517 Avg Weight: 0.863 
+ 4. Music Studies             Score: 0.9512 Avg Weight: 0.819 
+ 5. Digital Technologies      Score: 0.9494 Avg Weight: 0.859 
+ 6. Tikanga ā-Iwi             Score: 0.9458 Avg Weight: 0.811 
+ 7. Education for Sustainability Score: 0.9388 Avg Weight: 0.913 
+ 8. Physics                   Score: 0.9384 Avg Weight: 0.896 
+ 9. Photography (Practical Art) Score: 0.9383 Avg Weight: 0.910 
+10. Design (Practical Art)    Score: 0.9378 Avg Weight: 0.904 
+11. Biology                   Score: 0.9334 Avg Weight: 0.881 
+12. Earth and Space Science   Score: 0.9314 Avg Weight: 0.922 
+13. Home Economics            Score: 0.9298 Avg Weight: 0.915 
+14. Geography                 Score: 0.9283 Avg Weight: 0.900 
+15. Calculus                  Score: 0.9254 Avg Weight: 0.879 
+
+📅 2019 Rankings:
+ 1. Technology/Hangarau       Score: 0.9920 Avg Weight: 0.887 
+ 2. Earth and Space Science   Score: 0.9797 Avg Weight: 0.953 
+ 3. Media Studies             Score: 0.9701 Avg Weight: 0.911 
+ 4. Health Education          Score: 0.9555 Avg Weight: 0.911 
+ 5. Physical Education        Score: 0.9516 Avg Weight: 0.902 
+ 6. Social Studies            Score: 0.9510 Avg Weight: 0.915 
+ 7. Statistics                Score: 0.9475 Avg Weight: 0.912 
+ 8. History of Art            Score: 0.9453 Avg Weight: 0.904 
+ 9. Dance                     Score: 0.9428 Avg Weight: 0.857 
+10. Music Studies             Score: 0.9409 Avg Weight: 0.812 
+11. Physics                   Score: 0.9393 Avg Weight: 0.903 
+12. Drama                     Score: 0.9393 Avg Weight: 0.839 
+13. Calculus                  Score: 0.9391 Avg Weight: 0.893 
+14. Classical Studies         Score: 0.9359 Avg Weight: 0.913 
+15. Digital Technologies      Score: 0.9358 Avg Weight: 0.854 
+
+📅 2018 Rankings:
+ 1. Design and Visual Communication Score: 0.9903 Avg Weight: 0.938 
+ 2. Health Education          Score: 0.9789 Avg Weight: 0.952 
+ 3. Home Economics            Score: 0.9717 Avg Weight: 0.926 
+ 4. Earth and Space Science   Score: 0.9673 Avg Weight: 0.919 
+ 5. Agriculture & Horticulture Score: 0.9659 Avg Weight: 0.939 
+ 6. Technology/Hangarau       Score: 0.9653 Avg Weight: 0.879 
+ 7. Music Studies             Score: 0.9645 Avg Weight: 0.822 
+ 8. Digital Technologies      Score: 0.9612 Avg Weight: 0.880 
+ 9. Dance                     Score: 0.9606 Avg Weight: 0.824 
+10. Drama                     Score: 0.9580 Avg Weight: 0.850 
+11. Statistics                Score: 0.9546 Avg Weight: 0.917 
+12. Physical Education        Score: 0.9462 Avg Weight: 0.893 
+13. Economics                 Score: 0.9456 Avg Weight: 0.917 
+14. Accounting                Score: 0.9427 Avg Weight: 0.891 
+15. History                   Score: 0.9413 Avg Weight: 0.900 
+
+
+📈 TREND ANALYSIS
+------------------------------
+
+🚀 Top Improving Subjects:
+   Statistics                Score Change: +0.0400 (Rank #1.0)
+   History                   Score Change: +0.0369 (Rank #3.0)
+   Physics                   Score Change: +0.0609 (Rank #5.0)
+   Business Studies          Score Change: +0.0446 (Rank #6.0)
+   Sculpture (Practical Art) Score Change: +0.0926 (Rank #7.0)
+
+📉 Declining Subjects:
+   Design and Visual Communication Score Change: -0.0407 (Rank #10.0)
+   Digital Technologies      Score Change: -0.0118 (Rank #nan)
+   Economics                 Score Change: -0.0118 (Rank #15.0)
+   Earth and Space Science   Score Change: -0.0377 (Rank #18.0)
+   Physical Education        Score Change: -0.0182 (Rank #19.0)
+
+
+📊 STATISTICAL INSIGHTS
+-----------------------------------
+Average Subject Score: 0.8403
+Median Subject Score: 0.8950
+Score Standard Deviation: 0.1638
+Best Subject Score: 0.9947
+Lowest Subject Score: 0.1667
+
+🎯 HIGH-PERFORMING SUBJECTS (Top 25%):
+Threshold Score: 0.9386
+   • Statistics
+   • Health Education
+   • History
+   • Technology/Hangarau
+   • Physics
+   • Business Studies
+   • Sculpture (Practical Art)
+   • Te Reo Māori
+   • Biology
+   • Design and Visual Communication
+   • Design (Practical Art)
+   • Chemistry
+   • Calculus
+   • Geography
+
+
+================================================================================
+📝 METHODOLOGY NOTE:
+Scores calculated using best 24 credits per subject rule.
+Only Achievement Standards included (Unit Standards excluded).
+Pro-rata calculations applied for partial credit usage.
+================================================================================
