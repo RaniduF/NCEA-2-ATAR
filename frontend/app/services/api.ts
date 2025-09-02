@@ -49,7 +49,7 @@ export async function searchStandards(q: string): Promise<StandardsSearchRespons
   return res.json();
 }
 
-export async function calculateATAR(standards: { standard_number: number; grade: Grade }[]): Promise<ATARResult[]> {
+export async function calculateATAR(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<ATARResult[]> {
   const url = `${API_BASE}/api/v1/calculate-atar/`;
   const res = await fetch(url, {
     method: 'POST',
@@ -62,4 +62,20 @@ export async function calculateATAR(standards: { standard_number: number; grade:
   }
   const data = await res.json();
   return data.results as ATARResult[];
+}
+
+export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
+  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch available years');
+  const data = await res.json();
+  return data.available_years;
+}
+
+export async function getAvailableVersions(standardNumber: number): Promise<number[]> {
+  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch available versions');
+  const data = await res.json();
+  return data.available_versions;
 } 

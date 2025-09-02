@@ -11,6 +11,8 @@ export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
 export interface SelectedItem {
   standard: Standard;
   grade: Grade;
+  year_achieved?: number;
+  standard_version?: number;
 }
 
 export default function Page() {
@@ -21,7 +23,7 @@ export default function Page() {
 
   const handleAddStandard = (standard: Standard) => {
     if (selectedIds.has(standard.standard_number)) return;
-    setSelectedItems(prev => [...prev, { standard, grade: 'Achieved' }]);
+    setSelectedItems(prev => [...prev, { standard, grade: 'Achieved' }]); // No year_achieved = iterative default
   };
 
   const handleRemoveStandard = (standardNumber: number) => {
@@ -32,11 +34,24 @@ export default function Page() {
     setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, grade } : item));
   };
 
+  const handleChangeYear = (standardNumber: number, year_achieved: number | undefined) => {
+    setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, year_achieved } : item));
+  };
+
+  const handleChangeVersion = (standardNumber: number, standard_version: number | undefined) => {
+    setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, standard_version } : item));
+  };
+
   const handleCalculate = async () => {
     setIsCalculating(true);
     setResults(null);
     try {
-      const payload = selectedItems.map(item => ({ standard_number: item.standard.standard_number, grade: item.grade }));
+      const payload = selectedItems.map(item => ({ 
+        standard_number: item.standard.standard_number, 
+        grade: item.grade,
+        year_achieved: item.year_achieved,
+        standard_version: item.standard_version
+      }));
       const data = await calculateATAR(payload);
       setResults(data);
     } catch (err) {
@@ -65,7 +80,7 @@ export default function Page() {
           <p className="text-slate-300 mt-1">Adjust grades and remove anything you don't want to include.</p>
         </div>
         <div className="p-6">
-          <SelectedStandards items={selectedItems} onRemove={handleRemoveStandard} onChangeGrade={handleChangeGrade} />
+          <SelectedStandards items={selectedItems} onRemove={handleRemoveStandard} onChangeGrade={handleChangeGrade} onChangeYear={handleChangeYear} onChangeVersion={handleChangeVersion} />
           <div className="mt-6 flex items-center justify-end gap-3">
             <button
               className="px-4 py-2 rounded-lg border border-white/10 text-slate-200 hover:bg-white/5"

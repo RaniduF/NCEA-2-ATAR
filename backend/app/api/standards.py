@@ -2,6 +2,7 @@
 
 import json
 import os
+from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
@@ -150,3 +151,32 @@ async def search_standards(q: str | None = None,
 
     # --- Final Fallback: No results and no suggestions ---
     return {"direct_results": [], "related_groups": [], "suggestion": None}
+
+
+@router.get("/{standard_number}/available-years")
+def get_available_years_for_standard(standard_number: int, version: Optional[int] = None, db: Session = Depends(get_db)):
+    """Get available years for a specific standard and optional version"""
+    query = db.query(standard_models.StandardWeighting.academic_year)\
+        .filter(standard_models.StandardWeighting.standard_number == standard_number)
+    
+    if version is not None:
+        query = query.filter(standard_models.StandardWeighting.standard_version == version)
+    
+    available_years = query.distinct()\
+        .order_by(standard_models.StandardWeighting.academic_year.desc())\
+        .all()
+    
+    years = [year[0] for year in available_years]
+    return {"standard_number": standard_number, "version": version, "available_years": years}
+
+@router.get("/{standard_number}/available-versions")
+def get_available_versions_for_standard(standard_number: int, db: Session = Depends(get_db)):
+    """Get available versions for a specific standard"""
+    available_versions = db.query(standard_models.StandardWeighting.standard_version)\
+        .filter(standard_models.StandardWeighting.standard_number == standard_number)\
+        .distinct()\
+        .order_by(standard_models.StandardWeighting.standard_version.desc())\
+        .all()
+    
+    versions = [version[0] for version in available_versions]
+    return {"standard_number": standard_number, "available_versions": versions}

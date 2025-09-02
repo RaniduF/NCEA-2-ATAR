@@ -131,7 +131,6 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     }
   };
 
-  const directResults = searchData?.direct_results ?? [];
   const relatedGroups = searchData?.related_groups ?? [];
   const suggestion = searchData?.suggestion ?? null;
 
@@ -211,37 +210,22 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
       {error && <div className="text-red-400 text-sm">{error}</div>}
 
-      {suggestion && !directResults.length && !relatedGroups.length && (
+      {suggestion && !relatedGroups.length && (
         <div className="text-slate-300 text-sm">Did you mean <button className="underline" onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}>{suggestion.value}</button>?</div>
       )}
 
-      {(directResults.length > 0 || relatedGroups.length > 0) && (
-        <div className="space-y-6">
-          {directResults.length > 0 && (
-            <div>
-              <div className="text-slate-300 text-sm mb-2">Direct match</div>
+      {relatedGroups.length > 0 && (
+        <div className="space-y-3">
+          {relatedGroups.map((group, idx) => (
+            <div key={idx}>
+              <div className="font-medium text-slate-200 mb-2">{group.name}</div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {directResults.map(std => (
+                {group.standards.map(std => (
                   <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
                 ))}
               </div>
             </div>
-          )}
-
-          {relatedGroups.length > 0 && (
-            <div className="space-y-3">
-              {relatedGroups.map((group, idx) => (
-                <div key={idx}>
-                  <div className="font-medium text-slate-200 mb-2">{group.name}</div>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {group.standards.map(std => (
-                      <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          ))}
         </div>
       )}
     </div>
