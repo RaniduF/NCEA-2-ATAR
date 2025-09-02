@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SearchStandards } from '../components/SearchStandards';
 import { SelectedStandards } from '../components/SelectedStandards';
 import { ATARResults } from '../components/ATARResults';
+import { PortfolioManager } from '../components/PortfolioManager';
 import { calculateATAR, type ATARResult, type Standard } from './services/api';
+import { portfolioService } from './services/portfolio';
 
 export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
 
@@ -19,7 +21,27 @@ export default function Page() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [results, setResults] = useState<ATARResult[] | null>(null);
+  const [isPortfolioManagerOpen, setIsPortfolioManagerOpen] = useState(false);
   const selectedIds = useMemo(() => new Set(selectedItems.map(i => i.standard.standard_number)), [selectedItems]);
+
+  // Load auto-saved portfolio on component mount
+  useEffect(() => {
+    const autoSaved = portfolioService.loadAutoSave();
+    if (autoSaved && autoSaved.length > 0) {
+      setSelectedItems(autoSaved);
+    }
+  }, []);
+
+  // Auto-save whenever selectedItems changes (with debounce)
+  useEffect(() => {
+    if (selectedItems.length > 0) {
+      const timeoutId = setTimeout(() => {
+        portfolioService.autoSave(selectedItems);
+      }, 1000); // Debounce for 1 second
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedItems]);
 
   const handleAddStandard = (standard: Standard) => {
     if (selectedIds.has(standard.standard_number)) return;
@@ -40,6 +62,32 @@ export default function Page() {
 
   const handleChangeVersion = (standardNumber: number, standard_version: number | undefined) => {
     setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, standard_version } : item));
+  };
+
+  const handleClearPortfolio = () => {
+    setSelectedItems([]);
+    setResults(null);
+    portfolioService.clearAutoSave();
+  };
+
+  const handleSavePortfolio = () => {
+    if (selectedItems.length === 0) {
+      alert('No standards to save');
+      return;
+    }
+
+    const name = prompt('Enter a name for this portfolio:');
+    if (name) {
+      portfolioService.savePortfolio(name.trim(), selectedItems);
+      portfolioService.clearAutoSave(); // Clear auto-save after explicit save
+      alert(`Portfolio "${name}" saved successfully!`);
+    }
+  };
+
+  const handleLoadPortfolio = (items: SelectedItem[]) => {
+    setSelectedItems(items);
+    setResults(null); // Clear previous calculation results
+    portfolioService.clearAutoSave(); // Clear auto-save when loading explicit portfolio
   };
 
   const handleCalculate = async () => {
@@ -81,21 +129,41 @@ export default function Page() {
         </div>
         <div className="p-6">
           <SelectedStandards items={selectedItems} onRemove={handleRemoveStandard} onChangeGrade={handleChangeGrade} onChangeYear={handleChangeYear} onChangeVersion={handleChangeVersion} />
-          <div className="mt-6 flex items-center justify-end gap-3">
-            <button
-              className="px-4 py-2 rounded-lg border border-white/10 text-slate-200 hover:bg-white/5"
-              onClick={() => setSelectedItems([])}
-              disabled={selectedItems.length === 0}
-            >
-              Clear
-            </button>
-            <button
-              className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleCalculate}
-              disabled={selectedItems.length === 0 || isCalculating}
-            >
-              {isCalculating ? 'Calculating…' : 'Calculate ATAR'}
-            </button>
+          <div className="mt-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                onClick={handleSavePortfolio}
+                disabled={selectedItems.length === 0}
+              >
+                Save Portfolio
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg border border-purple-500/50 text-purple-400 hover:bg-purple-500/10"
+                onClick={() => setIsPortfolioManagerOpen(true)}
+              >
+                My Portfolios
+              </button>
+              {selectedItems.length > 0 && (
+                <span className="text-xs text-slate-500">Auto-saving...</span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-white/10 text-slate-200 hover:bg-white/5"
+                onClick={handleClearPortfolio}
+                disabled={selectedItems.length === 0}
+              >
+                Clear
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleCalculate}
+                disabled={selectedItems.length === 0 || isCalculating}
+              >
+                {isCalculating ? 'Calculating…' : 'Calculate ATAR'}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -109,6 +177,12 @@ export default function Page() {
           <ATARResults results={results} />
         </div>
       </section>
+
+      <PortfolioManager 
+        isOpen={isPortfolioManagerOpen}
+        onClose={() => setIsPortfolioManagerOpen(false)}
+        onLoadPortfolio={handleLoadPortfolio}
+      />
     </div>
   );
 } 
