@@ -2,6 +2,15 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getSuggestions, searchStandards, type Standard, type StandardsSearchResponse, type SuggestionsResponse } from '../app/services/api';
+import { 
+  MagnifyingGlassIcon, 
+  PlusIcon, 
+  XMarkIcon,
+  AcademicCapIcon,
+  BookOpenIcon
+} from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/solid';
+import { createPortal } from 'react-dom';
 
 interface Props {
   onAdd: (standard: Standard) => void;
@@ -18,6 +27,32 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null);
+
+  const updateDropdownPos = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setDropdownPos({ left: rect.left, top: rect.bottom + 8, width: rect.width });
+  };
+
+  useEffect(() => {
+    if (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0)) {
+      updateDropdownPos();
+    }
+  }, [showSuggestions, suggestions, query]);
+
+  useEffect(() => {
+    const onResizeOrScroll = () => {
+      if (showSuggestions) updateDropdownPos();
+    };
+    window.addEventListener('resize', onResizeOrScroll);
+    window.addEventListener('scroll', onResizeOrScroll, true);
+    return () => {
+      window.removeEventListener('resize', onResizeOrScroll);
+      window.removeEventListener('scroll', onResizeOrScroll, true);
+    };
+  }, [showSuggestions]);
 
   // Debounced suggestions
   useEffect(() => {
@@ -136,89 +171,92 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
   return (
     <div className="space-y-4">
-      <form onSubmit={onSubmit} className="relative">
-        <div className="flex items-center gap-2">
+      <form onSubmit={onSubmit} className="relative z-50">
+        <div className="flex items-center gap-3">
           <div className="relative flex-1">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+              <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
+            </div>
             <input
               ref={inputRef}
               value={query}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Search subjects (e.g., Physics) or standards (e.g., 91577, Calculus differentiation)…"
-              className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-white/10 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 outline-none"
+              className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 outline-none transition-all duration-200"
+              onFocus={() => setShowSuggestions(true)}
             />
-            {(suggestions.subjects.length > 0 || suggestions.standards.length > 0) && (
-              <div className="absolute mt-1 w-full rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur shadow-xl overflow-hidden z-10">
-                {suggestions.subjects.length > 0 && (
-                  <>
-                    <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10">
-                      Subjects
-                    </div>
-                    {suggestions.subjects.map((subject, idx) => (
-                      <button
-                        key={`subject-${idx}`}
-                        type="button"
-                        onClick={() => {
-                          closeSuggestions();
-                          setQuery(subject);
-                          performSearch(subject);
-                          inputRef.current?.blur();
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-white/5 font-medium"
-                      >
-                        {subject}
-                      </button>
-                    ))}
-                  </>
-                )}
-                {suggestions.standards.length > 0 && (
-                  <>
-                    {suggestions.subjects.length > 0 && (
-                      <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10">
-                        Standards
-                      </div>
-                    )}
-                    {suggestions.standards.map((standard, idx) => {
-                      // Extract standard number from formatted string "91577 • Title"
-                      const standardNumber = standard.split(' • ')[0];
-                      return (
-                        <button
-                          key={`standard-${idx}`}
-                          type="button"
-                          onClick={() => {
-                            handleStandardSuggestionClick(standardNumber);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-white/5"
-                        >
-                          {standard}
-                        </button>
-                      );
-                    })}
-                  </>
-                )}
-              </div>
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setSearchData(null);
+                  setSuggestions({ subjects: [], standards: [] });
+                  setShowSuggestions(false);
+                  inputRef.current?.focus();
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <XMarkIcon className="w-4 h-4 text-slate-400" />
+              </button>
             )}
           </div>
-          <button type="submit" className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10">
-            {loadingSearch ? 'Searching…' : 'Search'}
+          <button 
+            type="submit" 
+            disabled={loadingSearch}
+            className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-500/50 transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
+          >
+            {loadingSearch ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                Searching
+              </>
+            ) : (
+              <>
+                <MagnifyingGlassIcon className="w-4 h-4" />
+                Search
+              </>
+            )}
           </button>
         </div>
         {loadingSuggest && query && (
-          <div className="text-xs text-slate-400 mt-1">Fetching suggestions…</div>
+          <div className="text-xs text-slate-400 mt-2 flex items-center gap-2">
+            <div className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin" />
+            Fetching suggestions…
+          </div>
         )}
       </form>
 
-      {error && <div className="text-red-400 text-sm">{error}</div>}
+      {error && (
+        <div className="p-3 rounded-lg bg-error-500/10 border border-error-500/20 text-error-400 text-sm flex items-center gap-2">
+          <XMarkIcon className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
       {suggestion && !relatedGroups.length && (
-        <div className="text-slate-300 text-sm">Did you mean <button className="underline" onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}>{suggestion.value}</button>?</div>
+        <div className="text-slate-300 text-sm flex items-center gap-2">
+          <span>Did you mean</span>
+          <button 
+            className="underline hover:text-brand-400 transition-colors" 
+            onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}
+          >
+            {suggestion.value}
+          </button>
+          <span>?</span>
+        </div>
       )}
 
       {relatedGroups.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {relatedGroups.map((group, idx) => (
             <div key={idx}>
-              <div className="font-medium text-slate-200 mb-2">{group.name}</div>
+              <div className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+                <BookOpenIcon className="w-5 h-5 text-brand-400" />
+                {group.name}
+                <span className="text-xs text-slate-400 font-normal">({group.standards.length} standards)</span>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {group.standards.map(std => (
                   <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
@@ -227,6 +265,67 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
             </div>
           ))}
         </div>
+      )}
+
+      {createPortal(
+        (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
+          <div
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur shadow-xl overflow-hidden"
+            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width }}
+          >
+            {suggestions.subjects.length > 0 && (
+              <>
+                <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10 flex items-center gap-2">
+                  <BookOpenIcon className="w-4 h-4" />
+                  Subjects
+                </div>
+                {suggestions.subjects.map((subject, idx) => (
+                  <button
+                    key={`subject-${idx}`}
+                    type="button"
+                    onClick={() => {
+                      setShowSuggestions(false);
+                      setQuery(subject);
+                      performSearch(subject);
+                      inputRef.current?.blur();
+                    }}
+                    className="w-full text-left px-4 py-3 hover:bg-white/5 font-medium transition-colors flex items-center gap-3"
+                  >
+                    <BookOpenIcon className="w-4 h-4 text-brand-400 flex-shrink-0" />
+                    {subject}
+                  </button>
+                ))}
+              </>
+            )}
+            {suggestions.standards.length > 0 && (
+              <>
+                {suggestions.subjects.length > 0 && (
+                  <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10 flex items-center gap-2">
+                    <AcademicCapIcon className="w-4 h-4" />
+                    Standards
+                  </div>
+                )}
+                {suggestions.standards.map((standard, idx) => {
+                  const standardNumber = standard.split(' • ')[0];
+                  return (
+                    <button
+                      key={`standard-${idx}`}
+                      type="button"
+                      onClick={() => {
+                        handleStandardSuggestionClick(standardNumber);
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-3"
+                    >
+                      <AcademicCapIcon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <span className="truncate">{standard}</span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        ) : null,
+        document.body
       )}
     </div>
   );
@@ -239,28 +338,37 @@ function StandardCard({ std, onAdd, onRemove, selected }: {
   selected: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 flex flex-col gap-3">
+    <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 flex flex-col gap-3 hover:bg-slate-900/80 transition-all duration-200 shadow-card hover:shadow-card-hover">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm text-slate-400">{std.subject} • {std.assessment_type} • {std.standards_type}</div>
-          <div className="font-semibold">{std.standard_number}: {std.title}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-slate-400 flex items-center gap-2 mb-1">
+            <AcademicCapIcon className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{std.subject} • {std.assessment_type} • {std.standards_type}</span>
+          </div>
+          <div className="font-semibold text-slate-100 leading-tight">{std.standard_number}: {std.title}</div>
         </div>
-        {std.is_ue && <span title="University Entrance" className="text-xs px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">UE</span>}
+        {std.is_ue && (
+          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0 font-medium">
+            UE
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between">
-        <div className="text-slate-300 text-sm">{std.credits} credits</div>
+        <div className="text-slate-300 text-sm font-medium">{std.credits} credits</div>
         {selected ? (
           <button
             onClick={() => onRemove(std.standard_number)}
-            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white"
+            className="px-3 py-2 rounded-lg bg-error-600 hover:bg-error-700 text-white transition-all duration-200 flex items-center gap-2 shadow-card"
           >
+            <XMarkIcon className="w-4 h-4" />
             Remove
           </button>
         ) : (
           <button
             onClick={() => onAdd(std)}
-            className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white"
+            className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
           >
+            <PlusIcon className="w-4 h-4" />
             Add
           </button>
         )}
