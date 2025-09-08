@@ -98,8 +98,9 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
   const addStandard = (standard: Standard) => {
     onAdd(standard);
-    // Keep input and results intact to allow multiple selection
-    inputRef.current?.focus();
+    // Close suggestions and avoid stealing focus back to the input
+    setShowSuggestions(false);
+    inputRef.current?.blur();
   };
 
   const closeSuggestions = () => {
@@ -183,7 +184,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Search subjects (e.g., Physics) or standards (e.g., 91577, Calculus differentiation)…"
-              className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/50 outline-none transition-all duration-200"
+              className="input pl-11"
               onFocus={() => setShowSuggestions(true)}
             />
             {query && (
@@ -205,7 +206,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
           <button 
             type="submit" 
             disabled={loadingSearch}
-            className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed border border-brand-500/50 transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loadingSearch ? (
               <>
@@ -270,12 +271,12 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       {createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-slate-900/95 backdrop-blur shadow-xl overflow-hidden"
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-slate-900 text-slate-100 shadow-xl overflow-hidden"
             style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width }}
           >
             {suggestions.subjects.length > 0 && (
               <>
-                <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10 flex items-center gap-2">
+                <div className="px-4 py-2 text-xs text-slate-300 bg-slate-800 border-b border-white/10 flex items-center gap-2">
                   <BookOpenIcon className="w-4 h-4" />
                   Subjects
                 </div>
@@ -300,7 +301,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
             {suggestions.standards.length > 0 && (
               <>
                 {suggestions.subjects.length > 0 && (
-                  <div className="px-4 py-2 text-xs text-slate-400 bg-slate-800/50 border-b border-white/10 flex items-center gap-2">
+                  <div className="px-4 py-2 text-xs text-slate-300 bg-slate-800 border-b border-white/10 flex items-center gap-2">
                     <AcademicCapIcon className="w-4 h-4" />
                     Standards
                   </div>

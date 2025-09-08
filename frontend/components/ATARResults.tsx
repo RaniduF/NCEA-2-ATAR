@@ -49,7 +49,7 @@ export function ATARResults({ results }: Props) {
     <div className="space-y-8">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-800/60 rounded-xl p-5 border border-white/10">
+        <div className="panel p-5">
           <div className="flex items-center gap-3 mb-2">
             <ArrowTrendingUpIcon className="w-5 h-5 text-brand-400" />
             <h3 className="font-semibold text-slate-200">Latest ATAR</h3>
@@ -58,7 +58,7 @@ export function ATARResults({ results }: Props) {
           <div className="text-xs text-slate-400 mt-1">{latestResult.year}</div>
         </div>
         
-        <div className="bg-slate-800/60 rounded-xl p-5 border border-white/10">
+        <div className="panel p-5">
           <div className="flex items-center gap-3 mb-2">
             <CalendarDaysIcon className="w-5 h-5 text-emerald-400" />
             <h3 className="font-semibold text-slate-200">Year Range</h3>
@@ -69,7 +69,7 @@ export function ATARResults({ results }: Props) {
           <div className="text-xs text-slate-400 mt-1">{data.length} years</div>
         </div>
         
-        <div className="bg-slate-800/60 rounded-xl p-5 border border-white/10">
+        <div className="panel p-5">
           <div className="flex items-center gap-3 mb-2">
             <ChartBarIcon className="w-5 h-5 text-purple-400" />
             <h3 className="font-semibold text-slate-200">Trend</h3>
@@ -84,12 +84,12 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Chart */}
-      <div className="bg-slate-800/60 rounded-xl p-6 border border-white/10">
+      <div className="card p-6">
         <div className="flex items-center gap-3 mb-6">
           <ChartBarIcon className="w-6 h-6 text-brand-400" />
           <h3 className="text-lg font-semibold text-slate-200">ATAR Trend</h3>
         </div>
-        <div className="h-80 w-full">
+        <div className="h-80 w-full reveal reveal-in">
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -126,10 +126,10 @@ export function ATARResults({ results }: Props) {
               <Line 
                 type="monotone" 
                 dataKey="estimated_atar" 
-                stroke="#0ea5e9" 
+                stroke="#6366f1" 
                 strokeWidth={3} 
-                dot={{ fill: '#0ea5e9', strokeWidth: 2, r: 6 }}
-                activeDot={{ r: 8, fill: '#0ea5e9', stroke: '#ffffff', strokeWidth: 2 }}
+                dot={{ fill: '#6366f1', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -137,7 +137,7 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Detailed Table */}
-      <div className="bg-slate-800/60 rounded-xl border border-white/10 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <InformationCircleIcon className="w-6 h-6 text-brand-400" />
@@ -174,9 +174,7 @@ export function ATARResults({ results }: Props) {
                   <td className="px-6 py-4 text-sm font-medium text-slate-200">
                     {result.year}
                     {index === data.length - 1 && (
-                      <span className="ml-2 text-xs text-brand-400 bg-brand-400/10 px-2 py-1 rounded-full">
-                        Latest
-                      </span>
+                      <span className="ml-2 badge-brand">Latest</span>
                     )}
                   </td>
                   <td className="px-6 py-4">
@@ -195,7 +193,7 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Info Note */}
-      <div className="bg-info-500/10 border border-info-500/20 rounded-xl p-4">
+      <div className="panel p-4 border border-info-500/20">
         <div className="flex items-start gap-3">
           <InformationCircleIcon className="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-info-200">

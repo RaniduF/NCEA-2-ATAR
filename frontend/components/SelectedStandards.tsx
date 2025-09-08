@@ -123,7 +123,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
             const displayVersion = standard_version || defaultVersion;
             
             return (
-              <div key={standard.standard_number} className="rounded-xl border border-white/10 bg-slate-900/60 p-5 hover:bg-slate-900/80 transition-all duration-200 shadow-card hover:shadow-card-hover">
+              <div key={standard.standard_number} className="card card-hover p-5 hover:bg-slate-900/80 transition-transform duration-200 will-change-transform">
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-slate-400 flex items-center gap-2 mb-2">
@@ -134,9 +134,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                     <div className="flex items-center gap-4 text-sm">
                       <div className="text-slate-300 font-medium">{standard.credits} credits</div>
                       {standard.is_ue && (
-                        <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">
-                          UE
-                        </span>
+                        <span title="University Entrance" className="badge-ue">UE</span>
                       )}
                     </div>
                     {typeof displayYear === 'number' && (
@@ -159,7 +157,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                         <select
                           value={grade}
                           onChange={e => onChangeGrade(standard.standard_number, e.target.value as Grade)}
-                          className={`px-3 py-2 rounded-lg bg-slate-800/80 border text-sm font-medium transition-all duration-200 focus:ring-2 focus:ring-brand-500/50 outline-none ${getGradeColor(grade)}`}
+                          className={`input text-sm font-medium ${getGradeColor(grade)}`}
                         >
                           {GRADES.map(g => <option key={g} value={g} className="bg-slate-800 text-slate-200">{g}</option>)}
                         </select>
@@ -167,7 +165,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                     </div>
                     <button 
                       onClick={() => toggleExpanded(standard.standard_number)}
-                      className="p-2 rounded-lg bg-slate-700/50 border border-white/10 hover:bg-slate-600/50 text-slate-300 transition-all duration-200 flex items-center justify-center"
+                      className="btn-ghost"
                       title="Advanced options"
                     >
                       {isExpanded ? (
@@ -178,7 +176,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                     </button>
                     <button 
                       onClick={() => onRemove(standard.standard_number)} 
-                      className="px-3 py-2 rounded-lg border border-error-500/50 text-error-400 hover:bg-error-500/10 transition-all duration-200 flex items-center gap-2"
+                      className="ripple btn-danger"
                     >
                       <XMarkIcon className="w-4 h-4" />
                       Remove
@@ -187,7 +185,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                 </div>
                 
                 {isExpanded && (
-                  <div className="border-t border-white/10 pt-4 space-y-4">
+                  <div className="border-t border-white/10 pt-4 space-y-4 animate-reveal-in">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-sm text-slate-300 font-medium flex items-center gap-2">
@@ -198,14 +196,13 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                           value={displayVersion}
                           onChange={e => {
                             const selectedVersion = parseInt(e.target.value);
-                            // Only call onChangeVersion if it's different from the default latest version
                             if (selectedVersion === defaultVersion) {
-                              onChangeVersion(standard.standard_number, undefined); // Clear explicit version
+                              onChangeVersion(standard.standard_number, undefined);
                             } else {
                               handleVersionChange(standard.standard_number, e.target.value);
                             }
                           }}
-                          className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-white/10 text-slate-200 text-sm focus:ring-2 focus:ring-brand-500/50 outline-none transition-all duration-200"
+                          className="input text-sm"
                         >
                           {(availableVersionsByStandard[standard.standard_number] || []).map((version: number) => (
                             <option key={version} value={version} className="bg-slate-800">Version {version}</option>
@@ -230,7 +227,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                               onChangeYear(standard.standard_number, parseInt(value));
                             }
                           }}
-                          className="w-full px-3 py-2 rounded-lg bg-slate-800/80 border border-white/10 text-slate-200 text-sm focus:ring-2 focus:ring-brand-500/50 outline-none transition-all duration-200"
+                          className="input text-sm"
                         >
                           <option value="Iterative" className="bg-slate-800">Iterative (Default)</option>
                           {(availableYearsByStandard[standard.standard_number] || []).map((year: number) => (

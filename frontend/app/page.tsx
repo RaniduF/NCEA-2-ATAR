@@ -17,6 +17,8 @@ import {
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
+import { useReveal } from './hooks/useReveal';
+import { useRipple } from './hooks/useRipple';
 
 export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
 
@@ -52,6 +54,11 @@ export default function Page() {
       return () => clearTimeout(timeoutId);
     }
   }, [selectedItems]);
+
+  // Trigger reveal animations on scroll
+  useReveal();
+  // Enable ripple on buttons with .ripple class
+  useRipple('.ripple');
 
   const handleAddStandard = (standard: Standard) => {
     if (selectedIds.has(standard.standard_number)) return;
@@ -125,7 +132,7 @@ export default function Page() {
 
   return (
     <div className="space-y-8">
-      <section className="relative z-50 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl shadow-black/20 backdrop-blur">
+      <section className="relative z-50 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl shadow-black/20 backdrop-blur reveal reveal-up">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3 mb-2">
             <SparklesIcon className="w-6 h-6 text-brand-400" />
@@ -138,7 +145,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-slate-900/60 border border-white/10 backdrop-blur">
+      <section className="rounded-2xl bg-slate-900/60 border border-white/10 backdrop-blur reveal reveal-up">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -161,7 +168,7 @@ export default function Page() {
           <div className="mt-8 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
-                className="px-4 py-2.5 rounded-xl border border-brand-500/50 text-brand-400 hover:bg-brand-500/10 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="ripple px-4 py-2.5 rounded-xl border border-brand-500/50 text-brand-400 hover:bg-brand-500/10 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleSavePortfolio}
                 disabled={selectedItems.length === 0}
               >
@@ -169,7 +176,7 @@ export default function Page() {
                 Save Portfolio
               </button>
               <button
-                className="px-4 py-2.5 rounded-xl border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-all duration-200 flex items-center gap-2"
+                className="ripple px-4 py-2.5 rounded-xl border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-all duration-200 flex items-center gap-2"
                 onClick={() => setIsPortfolioManagerOpen(true)}
               >
                 <FolderOpenIcon className="w-4 h-4" />
@@ -184,7 +191,7 @@ export default function Page() {
             </div>
             <div className="flex items-center gap-3">
               <button
-                className="px-4 py-2.5 rounded-xl border border-error-500/50 text-error-400 hover:bg-error-500/10 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="ripple px-4 py-2.5 rounded-xl border border-error-500/50 text-error-400 hover:bg-error-500/10 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleClearPortfolio}
                 disabled={selectedItems.length === 0}
               >
@@ -192,7 +199,7 @@ export default function Page() {
                 Clear All
               </button>
               <button
-                className="px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
+                className="ripple px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
                 onClick={handleCalculate}
                 disabled={selectedItems.length === 0 || isCalculating}
               >
@@ -213,7 +220,7 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-slate-900/60 border border-white/10 backdrop-blur">
+      <section className="rounded-2xl bg-slate-900/60 border border-white/10 backdrop-blur reveal reveal-up">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <CalculatorIcon className="w-6 h-6 text-brand-400" />
