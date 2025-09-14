@@ -38,11 +38,25 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState<string>('');
   const [atarPreviewById, setAtarPreviewById] = useState<Record<string, { loading: boolean; results: ATARResult[] | null; error?: string }>>({});
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState('NCEA Import');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadPortfolios();
     }
+  }, [isOpen]);
+
+  // Lock body scroll when the manager is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
   }, [isOpen]);
 
   const loadPortfolios = () => {
@@ -87,10 +101,16 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   };
 
   const handleDeletePortfolio = (id: string, name: string) => {
-    if (confirm(`Delete portfolio "${name}"? This cannot be undone.`)) {
-      portfolioService.deletePortfolio(id);
-      loadPortfolios();
-    }
+    setDeleteTarget({ id, name });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeletePortfolio = () => {
+    if (!deleteTarget) return;
+    portfolioService.deletePortfolio(deleteTarget.id);
+    loadPortfolios();
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
   };
 
   const handleExportPortfolio = (id: string, name: string) => {
@@ -119,7 +139,6 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           const imported = portfolioService.importPortfolio(result);
           if (imported) {
             loadPortfolios();
-            alert(`Portfolio "${imported.name}" imported successfully!`);
           } else {
             alert('Failed to import portfolio. Please check the file format.');
           }
@@ -148,25 +167,24 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
     }
   };
 
-  const handleImportParsedStandards = () => {
+  const handleImportParsedStandards = (name: string) => {
     if (!parseResult?.validStandards.length) {
       alert('No valid standards to import');
       return;
     }
 
-    const portfolioName = prompt('Enter a name for this imported portfolio:', 'NCEA Import');
-    if (portfolioName) {
-      const imported = portfolioService.savePortfolio(
-        portfolioName.trim(),
-        parseResult.validStandards,
-        `Imported from NCEA portal - ${parseResult.summary.validInDatabase} standards`
-      );
-      loadPortfolios();
-      setShowNCEAImport(false);
-      setNCEAText('');
-      setParseResult(null);
-      alert(`Portfolio "${imported.name}" created with ${parseResult.summary.validInDatabase} standards!`);
-    }
+    const imported = portfolioService.savePortfolio(
+      name.trim() || 'NCEA Import',
+      parseResult.validStandards,
+      `Imported from NCEA portal - ${parseResult.summary.validInDatabase} standards`
+    );
+    loadPortfolios();
+    // Reset NCEA import state and close naming modal
+    setShowNameModal(false);
+    setNewPortfolioName('NCEA Import');
+    setShowNCEAImport(false);
+    setNCEAText('');
+    setParseResult(null);
   };
 
   const handleLoadParsedStandards = () => {
@@ -176,6 +194,10 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
     }
 
     onLoadPortfolio({ items: parseResult.validStandards });
+    // Reset state so next open shows saved portfolios view
+    setShowNCEAImport(false);
+    setNCEAText('');
+    setParseResult(null);
     onClose();
   };
 
@@ -422,6 +444,14 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                         <div className="text-slate-500 text-xs">Not in Database</div>
                       </div>
                     </div>
+                    {parseResult.missingGrades > 0 && (
+                      <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-start gap-2">
+                        <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
+                        <span>
+                          {parseResult.missingGrades} standard(s) did not have a grade on NZQA. We've defaulted these to Achieved. Please review and manually adjust grades if needed.
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Valid Standards */}
@@ -496,9 +526,9 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                         Load to Current Portfolio
                       </button>
                       <button
-                        onClick={handleImportParsedStandards}
+                        onClick={() => { setShowNameModal(true); setNewPortfolioName('NCEA Import'); }}
                         disabled={!parseResult.validStandards.length}
-                        className="btn px-4 py-2 bg-success-600 hover:bg-success-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-card"
+                        className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <BookmarkIcon className="w-4 h-4" />
                         Save as New Portfolio
@@ -507,6 +537,58 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Name Modal */}
+            {parseResult && showNameModal && (
+              <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
+                <div className="card w-full max-w-md overflow-hidden animate-scale-in">
+                  <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                    <h4 className="text-slate-200 font-semibold">Name Your Portfolio</h4>
+                    <button onClick={() => setShowNameModal(false)} className="btn-ghost">
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm text-slate-300">Portfolio name</label>
+                      <input
+                        className="input"
+                        value={newPortfolioName}
+                        onChange={(e) => setNewPortfolioName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleImportParsedStandards(newPortfolioName);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => setShowNameModal(false)} className="btn-ghost">Cancel</button>
+                      <button onClick={() => handleImportParsedStandards(newPortfolioName)} className="btn-primary">Save</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
+          <div className="card w-full max-w-md overflow-hidden animate-scale-in">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <h4 className="text-slate-200 font-semibold">Delete Portfolio</h4>
+              <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-slate-300 text-sm">Are you sure you want to delete "{deleteTarget.name}"? This cannot be undone.</p>
+              <div className="flex items-center justify-end gap-2">
+                <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">Cancel</button>
+                <button onClick={confirmDeletePortfolio} className="btn-danger">Delete</button>
+              </div>
             </div>
           </div>
         </div>

@@ -19,6 +19,7 @@ export interface ParseResult {
   level3Standards: ParsedStandard[];
   validStandards: SelectedItem[];
   invalidStandards: ParsedStandard[];
+  missingGrades: number;
   summary: {
     totalFound: number;
     level3Found: number;
@@ -201,10 +202,13 @@ export class NCEAPortalParser {
     
     // Filter for Level 3 standards only
     const level3Standards = standards.filter(std => std.level === 3);
+
+    // Count missing grades among level 3 standards
+    const missingGrades = level3Standards.filter(std => !std.result || std.result.trim() === '').length;
     
-    // Filter for valid results (ignore ABS, SNA, RNA, N)
+    // Include standards with missing grades (default to Achieved later), exclude ABS/SNA/RNA/N
     const validResultStandards = level3Standards.filter(std => 
-      std.result && !['ABS', 'SNA', 'RNA', 'N'].includes(std.result)
+      !['ABS', 'SNA', 'RNA', 'N'].includes((std.result || '').toUpperCase())
     );
     
     // Validate against database
@@ -253,6 +257,7 @@ export class NCEAPortalParser {
       level3Standards,
       validStandards,
       invalidStandards,
+      missingGrades,
       summary: {
         totalFound: standards.length,
         level3Found: level3Standards.length,
