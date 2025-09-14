@@ -20,9 +20,10 @@ import {
   BookmarkIcon
 } from '@heroicons/react/24/outline';
 import { FolderIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
+import { calculateATAR, type ATARResult } from '../app/services/api';
 
 interface Props {
-  onLoadPortfolio: (items: SelectedItem[]) => void;
+  onLoadPortfolio: (payload: { id?: string; name?: string; items: SelectedItem[] }) => void;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -34,6 +35,9 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [nceaText, setNCEAText] = useState('');
   const [isParsingNCEA, setIsParsingNCEA] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState<string>('');
+  const [atarPreviewById, setAtarPreviewById] = useState<Record<string, { loading: boolean; results: ATARResult[] | null; error?: string }>>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -48,8 +52,37 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
     setStorageInfo(info);
   };
 
+  const toggleExpand = async (p: SavedPortfolio) => {
+    setExpandedId(prev => (prev === p.id ? null : p.id));
+    if (!atarPreviewById[p.id]) {
+      setAtarPreviewById(prev => ({ ...prev, [p.id]: { loading: true, results: null } }));
+      try {
+        const payload = p.items.map(item => ({
+          standard_number: item.standard.standard_number,
+          grade: item.grade,
+          year_achieved: item.year_achieved,
+          standard_version: item.standard_version
+        }));
+        const results = await calculateATAR(payload);
+        setAtarPreviewById(prev => ({ ...prev, [p.id]: { loading: false, results } }));
+      } catch (e: any) {
+        setAtarPreviewById(prev => ({ ...prev, [p.id]: { loading: false, results: null, error: 'Failed to preview ATAR' } }));
+      }
+    }
+    setRenamingValue(p.name);
+  };
+
+  const handleRenameCommit = (p: SavedPortfolio) => {
+    const name = renamingValue.trim();
+    if (!name || name === p.name) return;
+    const updated = portfolioService.updatePortfolio(p.id, { name });
+    if (updated) {
+      setPortfolios(prev => prev.map(x => (x.id === p.id ? updated : x)));
+    }
+  };
+
   const handleLoadPortfolio = (portfolio: SavedPortfolio) => {
-    onLoadPortfolio(portfolio.items);
+    onLoadPortfolio({ id: portfolio.id, name: portfolio.name, items: portfolio.items });
     onClose();
   };
 
@@ -142,7 +175,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
       return;
     }
 
-    onLoadPortfolio(parseResult.validStandards);
+    onLoadPortfolio({ items: parseResult.validStandards });
     onClose();
   };
 
@@ -165,8 +198,8 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-slate-900 rounded-2xl border border-white/10 w-full max-w-5xl max-h-[85vh] overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-reveal-in">
+      <div className="card w-full max-w-5xl max-h-[85vh] overflow-hidden animate-scale-in">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FolderIcon className="w-8 h-8 text-brand-400" />
@@ -180,21 +213,21 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowNCEAImport(true)}
-              className="px-4 py-2 rounded-xl border border-brand-500/50 text-brand-400 hover:bg-brand-500/10 transition-all duration-200 flex items-center gap-2"
+              className="btn-primary"
             >
               <CloudArrowUpIcon className="w-4 h-4" />
               Import from NCEA
             </button>
             <button
               onClick={handleImportPortfolio}
-              className="px-4 py-2 rounded-xl border border-success-500/50 text-success-400 hover:bg-success-500/10 transition-all duration-200 flex items-center gap-2"
+              className="btn-ghost"
             >
               <DocumentArrowUpIcon className="w-4 h-4" />
               Import JSON
             </button>
             <button
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-all duration-200 flex items-center gap-2"
+              className="btn-ghost"
             >
               <XMarkIcon className="w-4 h-4" />
               Close
@@ -213,72 +246,85 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
             </div>
           ) : (
             <div className="space-y-4">
-              {portfolios.map((portfolio) => (
-                <div
-                  key={portfolio.id}
-                  className="rounded-xl border border-white/10 bg-slate-800/60 p-5 hover:bg-slate-800/80 transition-all duration-200 shadow-card hover:shadow-card-hover"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <DocumentTextIcon className="w-5 h-5 text-brand-400 flex-shrink-0" />
-                        <h3 className="font-semibold text-slate-200 truncate">{portfolio.name}</h3>
-                      </div>
-                      {portfolio.description && (
-                        <p className="text-slate-400 text-sm mb-3 line-clamp-2">{portfolio.description}</p>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-slate-500 mb-3">
-                        <span className="flex items-center gap-1">
-                          <AcademicCapIcon className="w-3 h-3" />
-                          {portfolio.items.length} standards
-                        </span>
-                        <span>Created {formatDate(portfolio.createdAt)}</span>
-                        {portfolio.updatedAt !== portfolio.createdAt && (
-                          <span>Updated {formatDate(portfolio.updatedAt)}</span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {Array.from(new Set(portfolio.items.map(item => item.standard.subject))).slice(0, 6).map(subject => (
-                          <span
-                            key={subject}
-                            className="px-2 py-1 rounded-md bg-slate-700/50 text-slate-300 text-xs border border-white/10"
-                          >
-                            {subject}
+              {portfolios.map((p) => {
+                const isExpanded = expandedId === p.id;
+                const preview = atarPreviewById[p.id];
+                const subjects = Array.from(new Set(p.items.map(item => item.standard.subject)));
+                return (
+                  <div key={p.id} className="panel p-5 card-hover">
+                    <button onClick={() => toggleExpand(p)} className="w-full text-left flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DocumentTextIcon className="w-5 h-5 text-brand-400 flex-shrink-0" />
+                          <h3 className="font-semibold text-slate-200 truncate">{p.name}</h3>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <AcademicCapIcon className="w-3 h-3" />
+                            {p.items.length} standards
                           </span>
-                        ))}
-                        {Array.from(new Set(portfolio.items.map(item => item.standard.subject))).length > 6 && (
-                          <span className="px-2 py-1 rounded-md bg-slate-700/50 text-slate-400 text-xs border border-white/10">
-                            +{Array.from(new Set(portfolio.items.map(item => item.standard.subject))).length - 6} more
-                          </span>
-                        )}
+                          <span>Updated {formatDate(p.updatedAt)}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleLoadPortfolio(portfolio)}
-                        className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-all duration-200 flex items-center gap-2 shadow-card"
-                      >
-                        <FolderOpenIcon className="w-4 h-4" />
-                        Load
-                      </button>
-                      <button
-                        onClick={() => handleExportPortfolio(portfolio.id, portfolio.name)}
-                        className="px-3 py-2 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5 transition-all duration-200 flex items-center gap-2"
-                      >
-                        <DocumentArrowDownIcon className="w-4 h-4" />
-                        Export
-                      </button>
-                      <button
-                        onClick={() => handleDeletePortfolio(portfolio.id, portfolio.name)}
-                        className="px-3 py-2 rounded-lg border border-error-500/50 text-error-400 hover:bg-error-500/10 transition-all duration-200 flex items-center gap-2"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                        Delete
-                      </button>
-                    </div>
+                      <div className={`w-4 h-4 mt-1 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</div>
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-4 border-t border-white/10 pt-4 space-y-4 animate-reveal-in">
+                        <div className="space-y-2">
+                          <label className="text-sm text-slate-300">Portfolio name</label>
+                          <input
+                            className="input"
+                            value={renamingValue}
+                            onChange={(e) => setRenamingValue(e.target.value)}
+                            onBlur={() => handleRenameCommit(p)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); }}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="panel p-4">
+                            <div className="text-xs text-slate-400 mb-1">Subjects</div>
+                            <div className="flex flex-wrap gap-1">
+                              {subjects.slice(0, 6).map(s => (
+                                <span key={s} className="px-2 py-1 rounded-md bg-slate-700/50 text-slate-300 text-xs border border-white/10">{s}</span>
+                              ))}
+                              {subjects.length > 6 && (
+                                <span className="px-2 py-1 rounded-md bg-slate-700/50 text-slate-400 text-xs border border-white/10">+{subjects.length - 6} more</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="panel p-4">
+                            <div className="text-xs text-slate-400 mb-1">Latest ATAR</div>
+                            <div className="text-lg font-semibold text-brand-400">
+                              {preview?.loading ? 'Loading…' : (preview?.results && preview.results.length > 0 ? preview.results[preview.results.length - 1].estimated_atar.toFixed(2) : '—')}
+                            </div>
+                          </div>
+                          <div className="panel p-4">
+                            <div className="text-xs text-slate-400 mb-1">Trend</div>
+                            <div className="text-lg font-semibold">
+                              {preview?.results && preview.results.length > 1 ? (() => {
+                                const d = [...preview.results].sort((a,b)=>a.year-b.year);
+                                const t = d[d.length-1].estimated_atar - d[0].estimated_atar;
+                                return <span className={t>=0? 'text-success-400':'text-error-400'}>{t>=0?'+':''}{t.toFixed(2)}</span>;
+                              })() : '—'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => handleLoadPortfolio(p)} className="btn-primary">
+                            <FolderOpenIcon className="w-4 h-4" /> Load
+                          </button>
+                          <button onClick={() => handleExportPortfolio(p.id, p.name)} className="btn-ghost">
+                            <DocumentArrowDownIcon className="w-4 h-4" /> Export
+                          </button>
+                          <button onClick={() => handleDeletePortfolio(p.id, p.name)} className="btn-danger">
+                            <TrashIcon className="w-4 h-4" /> Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -286,8 +332,8 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
       {/* NCEA Import Modal */}
       {showNCEAImport && (
-        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-60">
-          <div className="bg-slate-900 rounded-2xl border border-white/10 w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-60 animate-reveal-in">
+          <div className="card w-full max-w-4xl max-h-[90vh] overflow-hidden animate-scale-in">
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <CloudArrowUpIcon className="w-8 h-8 text-brand-400" />
@@ -304,7 +350,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                   setNCEAText('');
                   setParseResult(null);
                 }}
-                className="px-3 py-2 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5 transition-all duration-200 flex items-center gap-2"
+                className="btn-ghost"
               >
                 <XMarkIcon className="w-4 h-4" />
                 Cancel
@@ -323,7 +369,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                       value={nceaText}
                       onChange={(e) => setNCEAText(e.target.value)}
                       placeholder="Paste your NCEA portal text here... (should include standards tables with Std., Ver., Asm., Title, Lvl., Credits, Result columns)"
-                      className="w-full h-64 px-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-slate-200 placeholder-slate-500 text-sm font-mono focus:ring-2 focus:ring-brand-500/50 outline-none transition-all duration-200"
+                      className="input h-64 font-mono"
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -334,7 +380,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                     <button
                       onClick={handleParseNCEAText}
                       disabled={!nceaText.trim() || isParsingNCEA}
-                      className="px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-card"
+                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isParsingNCEA ? (
                         <>
@@ -353,7 +399,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
               ) : (
                 <div className="space-y-6">
                   {/* Parse Results Summary */}
-                  <div className="rounded-xl border border-white/10 bg-slate-800/60 p-5">
+                  <div className="panel p-5">
                     <h4 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
                       <InformationCircleIcon className="w-5 h-5 text-brand-400" />
                       Import Summary
@@ -380,7 +426,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
                   {/* Valid Standards */}
                   {parseResult.validStandards.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-slate-800/60 p-5">
+                    <div className="panel p-5">
                       <h4 className="font-semibold text-success-400 mb-4 flex items-center gap-2">
                         <CheckCircleIcon className="w-5 h-5" />
                         Standards Ready for Import ({parseResult.validStandards.length})
@@ -407,7 +453,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
                   {/* Invalid Standards */}
                   {parseResult.invalidStandards.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-slate-800/60 p-5">
+                    <div className="panel p-5">
                       <h4 className="font-semibold text-error-400 mb-4 flex items-center gap-2">
                         <ExclamationCircleIcon className="w-5 h-5" />
                         Standards Not in Database ({parseResult.invalidStandards.length})
@@ -435,7 +481,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                         setParseResult(null);
                         setNCEAText('');
                       }}
-                      className="px-4 py-2 rounded-lg border border-white/10 text-slate-300 hover:bg-white/5 transition-all duration-200 flex items-center gap-2"
+                      className="btn-ghost"
                     >
                       <XMarkIcon className="w-4 h-4" />
                       Parse Again
@@ -444,7 +490,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                       <button
                         onClick={handleLoadParsedStandards}
                         disabled={!parseResult.validStandards.length}
-                        className="px-4 py-2 rounded-lg border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                        className="btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <FolderOpenIcon className="w-4 h-4" />
                         Load to Current Portfolio
@@ -452,7 +498,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                       <button
                         onClick={handleImportParsedStandards}
                         disabled={!parseResult.validStandards.length}
-                        className="px-4 py-2 rounded-lg bg-success-600 hover:bg-success-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-card"
+                        className="btn px-4 py-2 bg-success-600 hover:bg-success-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-card"
                       >
                         <BookmarkIcon className="w-4 h-4" />
                         Save as New Portfolio

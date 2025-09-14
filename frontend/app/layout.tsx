@@ -1,14 +1,17 @@
 import './globals.css';
 import React from 'react';
 import { AcademicCapIcon, CalculatorIcon } from '@heroicons/react/24/solid';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.12),transparent_60%)]" />
-        <header className="border-b border-white/10 sticky top-0 backdrop-blur bg-slate-900/80 z-50 shadow-glow-sm">
-          <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-screen bg-[#0D1117] text-slate-100">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.10),transparent_60%)]" />
+        <header className="border-b border-white/10 sticky top-0 backdrop-blur bg-[#0D1117]/80 z-50 shadow-glow-sm">
+          <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 shadow-glow-sm flex items-center justify-center">
@@ -28,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         </header>
-        <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
+        <main className="max-w-7xl mx-auto px-8 py-10">{children}</main>
       </body>
     </html>
   );

@@ -49,7 +49,7 @@ export function ATARResults({ results }: Props) {
     <div className="space-y-8">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="panel p-5">
+        <div className="panel p-5 animate-reveal-in">
           <div className="flex items-center gap-3 mb-2">
             <ArrowTrendingUpIcon className="w-5 h-5 text-brand-400" />
             <h3 className="font-semibold text-slate-200">Latest ATAR</h3>
@@ -58,7 +58,7 @@ export function ATARResults({ results }: Props) {
           <div className="text-xs text-slate-400 mt-1">{latestResult.year}</div>
         </div>
         
-        <div className="panel p-5">
+        <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '80ms' }}>
           <div className="flex items-center gap-3 mb-2">
             <CalendarDaysIcon className="w-5 h-5 text-emerald-400" />
             <h3 className="font-semibold text-slate-200">Year Range</h3>
@@ -69,12 +69,12 @@ export function ATARResults({ results }: Props) {
           <div className="text-xs text-slate-400 mt-1">{data.length} years</div>
         </div>
         
-        <div className="panel p-5">
+        <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '160ms' }}>
           <div className="flex items-center gap-3 mb-2">
             <ChartBarIcon className="w-5 h-5 text-purple-400" />
             <h3 className="font-semibold text-slate-200">Trend</h3>
           </div>
-          <div className={`text-2xl font-bold ${trend >= 0 ? 'text-success-400' : 'text-error-400'}`}>
+          <div className={`${trend >= 0 ? 'text-success-400' : 'text-error-400'} text-2xl font-bold`}>
             {trend >= 0 ? '+' : ''}{trend.toFixed(2)}
           </div>
           <div className="text-xs text-slate-400 mt-1">
@@ -84,7 +84,7 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Chart */}
-      <div className="card p-6">
+      <div className="card p-6 animate-reveal-up">
         <div className="flex items-center gap-3 mb-6">
           <ChartBarIcon className="w-6 h-6 text-brand-400" />
           <h3 className="text-lg font-semibold text-slate-200">ATAR Trend</h3>
@@ -137,7 +137,7 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Detailed Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden animate-reveal-up" style={{ animationDelay: '120ms' }}>
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <InformationCircleIcon className="w-6 h-6 text-brand-400" />
@@ -193,7 +193,7 @@ export function ATARResults({ results }: Props) {
       </div>
 
       {/* Info Note */}
-      <div className="panel p-4 border border-info-500/20">
+      <div className="panel p-4 border border-info-500/20 animate-reveal-in" style={{ animationDelay: '200ms' }}>
         <div className="flex items-start gap-3">
           <InformationCircleIcon className="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-info-200">

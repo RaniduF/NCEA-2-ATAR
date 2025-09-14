@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Grade, SelectedItem } from '../app/page';
 import { getAvailableYears, getAvailableVersions } from '../app/services/api';
 import { 
@@ -27,6 +27,8 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   const [expandedStandards, setExpandedStandards] = useState<Set<number>>(new Set());
   const [availableYearsByStandard, setAvailableYearsByStandard] = useState<Record<number, number[]>>({});
   const [availableVersionsByStandard, setAvailableVersionsByStandard] = useState<Record<number, number[]>>({});
+  const [removingStandardIds, setRemovingStandardIds] = useState<Set<number>>(new Set());
+  const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const toggleExpanded = async (standardNumber: number) => {
     setExpandedStandards(prev => {
@@ -56,6 +58,48 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
       }
       return newSet;
     });
+  };
+
+  const startRemove = (standardNumber: number) => {
+    const el = itemRefs.current[standardNumber];
+    // Mark as removing to trigger opacity/transform transition
+    setRemovingStandardIds(prev => {
+      const next = new Set(prev);
+      next.add(standardNumber);
+      return next;
+    });
+    if (!el) {
+      // Fallback if ref missing
+      setTimeout(() => onRemove(standardNumber), 250);
+      return;
+    }
+    // Apply custom remove animation class
+    el.classList.add('animate-remove-card');
+    // Prepare height collapse
+    const currentHeight = el.getBoundingClientRect().height;
+    el.style.height = `${currentHeight}px`;
+    el.style.willChange = 'height, opacity, transform, filter';
+    // Force reflow then collapse to 0 height
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    el.offsetHeight;
+    requestAnimationFrame(() => {
+      el.style.height = '0px';
+    });
+    const onEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== 'height') return;
+      el.removeEventListener('transitionend', onEnd as any);
+      onRemove(standardNumber);
+      setRemovingStandardIds(prev => {
+        const next = new Set(prev);
+        next.delete(standardNumber);
+        return next;
+      });
+      // Cleanup inline styles
+      el.style.height = '';
+      el.style.willChange = '';
+      el.classList.remove('animate-remove-card');
+    };
+    el.addEventListener('transitionend', onEnd as any);
   };
 
   const handleVersionChange = (standardNumber: number, version: string) => {
@@ -96,22 +140,22 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   // Helper function to get grade color
   const getGradeColor = (grade: Grade) => {
     switch (grade) {
-      case 'Excellence': return 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20';
-      case 'Merit': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
-      case 'Achieved': return 'text-green-400 bg-green-400/10 border-green-400/20';
-      case 'Not Achieved': return 'text-red-400 bg-red-400/10 border-red-400/20';
-      default: return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
+      case 'Excellence': return 'text-amber-300 border-amber-300/30';
+      case 'Merit': return 'text-sky-300 border-sky-300/30';
+      case 'Achieved': return 'text-emerald-300 border-emerald-300/30';
+      case 'Not Achieved': return 'text-red-300 border-red-300/30';
+      default: return 'text-slate-300 border-slate-300/30';
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {sortedSubjects.map(subject => (
-        <div key={subject} className="space-y-3">
-          <h3 className="text-lg font-semibold text-slate-200 border-b border-white/10 pb-3 flex items-center gap-3">
+        <div key={subject} className="space-y-4 md:space-y-5">
+          <h3 className="text-xl md:text-2xl font-semibold text-slate-200 border-b border-white/10 pb-3 flex items-center gap-3">
             <AcademicCapIcon className="w-6 h-6 text-brand-400" />
             <span>{subject}</span>
-            <span className="text-sm text-slate-400 font-normal bg-slate-800/50 px-2 py-1 rounded-full">
+            <span className="meta bg-slate-800/50 px-2 py-1 rounded-full">
               {groupedBySubject[subject].length} standard{groupedBySubject[subject].length === 1 ? '' : 's'}
             </span>
           </h3>
@@ -121,16 +165,21 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
             const availableVersions = availableVersionsByStandard[standard.standard_number] || [];
             const defaultVersion = availableVersions.length > 0 ? availableVersions[0] : 1; // Latest version (first in desc order)
             const displayVersion = standard_version || defaultVersion;
+            const isRemoving = removingStandardIds.has(standard.standard_number);
             
             return (
-              <div key={standard.standard_number} className="card card-hover p-5 hover:bg-slate-900/80 transition-transform duration-200 will-change-transform">
+              <div
+                key={standard.standard_number}
+                ref={(el) => { itemRefs.current[standard.standard_number] = el; }}
+                className={`card card-hover p-6 transition-all duration-200 will-change-transform hover-scale collapse-height ${isRemoving ? 'origin-top pointer-events-none' : 'animate-fade-down'}`}
+              >
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-slate-400 flex items-center gap-2 mb-2">
+                    <div className="meta flex items-center gap-2 mb-2">
                       <AcademicCapIcon className="w-4 h-4 flex-shrink-0" />
                       <span className="truncate">{standard.subject} • {standard.assessment_type} • {standard.standards_type}</span>
                     </div>
-                    <div className="font-semibold text-slate-100 leading-tight mb-2">{standard.standard_number}: {standard.title}</div>
+                    <div className="font-medium text-slate-100 leading-tight mb-2">{standard.standard_number}: {standard.title}</div>
                     <div className="flex items-center gap-4 text-sm">
                       <div className="text-slate-300 font-medium">{standard.credits} credits</div>
                       {standard.is_ue && (
@@ -175,7 +224,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                       )}
                     </button>
                     <button 
-                      onClick={() => onRemove(standard.standard_number)} 
+                      onClick={() => startRemove(standard.standard_number)} 
                       className="ripple btn-danger"
                     >
                       <XMarkIcon className="w-4 h-4" />

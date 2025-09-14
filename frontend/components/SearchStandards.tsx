@@ -258,7 +258,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
                 {group.name}
                 <span className="text-xs text-slate-400 font-normal">({group.standards.length} standards)</span>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {group.standards.map(std => (
                   <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
                 ))}
@@ -271,12 +271,12 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       {createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-slate-900 text-slate-100 shadow-xl overflow-hidden"
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-hidden"
             style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width }}
           >
             {suggestions.subjects.length > 0 && (
               <>
-                <div className="px-4 py-2 text-xs text-slate-300 bg-slate-800 border-b border-white/10 flex items-center gap-2">
+                <div className="px-4 py-2 text-xs text-slate-300 bg-white/5 border-b border-white/10 flex items-center gap-2">
                   <BookOpenIcon className="w-4 h-4" />
                   Subjects
                 </div>
@@ -301,7 +301,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
             {suggestions.standards.length > 0 && (
               <>
                 {suggestions.subjects.length > 0 && (
-                  <div className="px-4 py-2 text-xs text-slate-300 bg-slate-800 border-b border-white/10 flex items-center gap-2">
+                  <div className="px-4 py-2 text-xs text-slate-300 bg-white/5 border-b border-white/10 flex items-center gap-2">
                     <AcademicCapIcon className="w-4 h-4" />
                     Standards
                   </div>
@@ -339,17 +339,17 @@ function StandardCard({ std, onAdd, onRemove, selected }: {
   selected: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4 flex flex-col gap-3 hover:bg-slate-900/80 transition-all duration-200 shadow-card hover:shadow-card-hover">
+    <div className="card p-5 flex flex-col gap-3 card-hover">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-sm text-slate-400 flex items-center gap-2 mb-1">
+          <div className="meta flex items-center gap-2 mb-1">
             <AcademicCapIcon className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">{std.subject} • {std.assessment_type} • {std.standards_type}</span>
           </div>
-          <div className="font-semibold text-slate-100 leading-tight">{std.standard_number}: {std.title}</div>
+          <div className="font-medium text-slate-100 leading-tight">{std.standard_number}: {std.title}</div>
         </div>
         {std.is_ue && (
-          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex-shrink-0 font-medium">
+          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex-shrink-0 font-medium">
             UE
           </span>
         )}

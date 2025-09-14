@@ -4,6 +4,9 @@ export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'],
+      },
       colors: {
         brand: {
           50: '#eef2ff',
@@ -61,8 +64,8 @@ export default {
       boxShadow: {
         glow: '0 0 80px rgba(99, 102, 241, 0.15)',
         'glow-sm': '0 0 20px rgba(99, 102, 241, 0.10)',
-        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        'card': '0px 4px 12px rgba(0, 0, 0, 0.10)',
+        'card-hover': '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.10)',
       },
       keyframes: {
         fadeIn: {
@@ -72,13 +75,28 @@ export default {
         fadeUp: {
           '0%': { opacity: '0', transform: 'translateY(12px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        fadeDown: {
+          '0%': { opacity: '0', transform: 'translateY(-12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' }
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' }
+        },
+        removeCard: {
+          '0%': { opacity: '1', transform: 'translateX(0) scale(1)', filter: 'blur(0px)' },
+          '100%': { opacity: '0', transform: 'translateX(12px) scale(0.98)', filter: 'blur(1px)' }
         }
       },
       animation: {
         'pulse-subtle': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'bounce-gentle': 'bounce 2s infinite',
         'reveal-in': 'fadeIn 600ms ease-out forwards',
-        'reveal-up': 'fadeUp 700ms ease-out forwards'
+        'reveal-up': 'fadeUp 700ms ease-out forwards',
+        'fade-down': 'fadeDown 300ms ease-out forwards',
+        'scale-in': 'scaleIn 250ms ease-out forwards',
+        'remove-card': 'removeCard 220ms ease-out forwards'
       },
     },
   },
