@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from ..models import standard_models
 from ..schemas.calculation import UserStandardInput
-from typing import List, Dict
+from ..schemas import calculation as calc_schemas
+from typing import List, Dict, Tuple
 import math
 
 
@@ -97,6 +98,53 @@ class ATARCalculator:
             })
 
         return all_year_results
+
+    # --- New: Public breakdown method ---
+    def calculate_breakdown(self) -> calc_schemas.CalculationBreakdownResponse:
+        years_breakdown: List[calc_schemas.YearlyBreakdown] = []
+        subjects_breakdowns: List[calc_schemas.SubjectSSPBreakdown] = []
+
+        available_years = sorted(list(self.all_distributions.keys()), reverse=True)
+        for year in available_years:
+            # Build best-90 breakdown and compute statistical value
+            best90, totals, excluded, stat_value = self._build_best90_breakdown(year)
+            if stat_value is None:
+                continue
+
+            # Convert stat value to estimated ATAR using distribution and participation rate
+            year_dist_data = self.all_distributions.get(year)
+            year_pop_data = self.participation_rates.get(year)
+            if not year_dist_data or not year_pop_data:
+                continue
+
+            students_per_band = round(float(year_pop_data) * 0.0005)
+            if students_per_band == 0:
+                continue
+
+            user_rank = 1
+            for entry in year_dist_data["distribution"]:
+                if stat_value >= entry["value"]:
+                    break
+                user_rank += entry["count"]
+            band_index = (user_rank - 1) // students_per_band
+            estimated_atar = max(0.0, round(99.95 - (band_index * 0.05), 2))
+
+            years_breakdown.append(calc_schemas.YearlyBreakdown(
+                year=year,
+                estimated_atar=estimated_atar,
+                statistical_value=stat_value,
+                best90=best90,
+                totals=totals,
+                excluded=excluded
+            ))
+
+            # Also compute SSP per-subject breakdown for the user's subjects
+            subjects_breakdowns.extend(self._build_subject_ssp_breakdowns(year))
+
+        return calc_schemas.CalculationBreakdownResponse(
+            years=years_breakdown,
+            subjects=subjects_breakdowns
+        )
 
     def _calculate_statistical_value_for_year(self, year: int) -> float | None:
         # Process standards using cross-year logic - use historical weights from the year each standard was taken
@@ -233,7 +281,222 @@ class ATARCalculator:
     def _get_standard_hierarchy(self, std_info):
         """Extract hierarchy calculation into separate method for clarity"""
         if std_info.is_ue:
-            return 1 if std_info.standards_type == 'Achievement Standard' else 2
-        elif std_info.standards_type == 'Achievement Standard':
+            return 1 if (std_info.standards_type or '').lower().startswith('achievement') else 2
+        elif (std_info.standards_type or '').lower().startswith('achievement'):
             return 3
         return 4
+
+    # --- New: Helpers for breakdown selection ---
+    def _priority_tier(self, std_info: standard_models.Standard) -> int:
+        is_achievement = (std_info.standards_type or '').lower().startswith('achievement')
+        is_unit = (std_info.standards_type or '').lower().startswith('unit')
+        if std_info.is_ue and is_achievement:
+            return 1
+        if std_info.is_ue and is_unit:
+            return 2
+        if (not std_info.is_ue) and is_achievement:
+            return 3
+        return 4
+
+    def _get_weight_for(self, std_num: int, grade: str, year: int, version: int | None) -> float | None:
+        year_weightings = [w for w in self.all_weightings.get(std_num, []) if w.academic_year == year]
+        if version is not None:
+            filtered = [w for w in year_weightings if w.standard_version == version]
+            if filtered:
+                year_weightings = filtered
+        elif year_weightings:
+            latest = max(year_weightings, key=lambda w: w.standard_version)
+            year_weightings = [latest]
+        if not year_weightings:
+            return None
+        return self._get_weight_for_grade(year_weightings[0], grade)
+
+    def _build_best90_breakdown(self, year: int) -> Tuple[List[calc_schemas.StandardContribution], calc_schemas.BreakdownTotals, List[calc_schemas.ExcludedItem], float | None]:
+        # Step 1: best result per standard
+        by_number: Dict[int, List[UserStandardInput]] = {}
+        for us in self.user_standards:
+            by_number.setdefault(us.standard_number, []).append(us)
+
+        candidates = []
+        for std_num, results in by_number.items():
+            std_info = self.all_standards_info.get(std_num)
+            if not std_info:
+                continue
+            best = self._select_best_standard_result(results, std_num)
+            if not best:
+                continue
+            weight_year = best.year_achieved if best.year_achieved else year
+            weight = self._get_weight_for(std_num, best.grade, weight_year, best.standard_version)
+            if weight is None or weight <= 0.001:
+                continue
+            tier = self._priority_tier(std_info)
+            candidates.append({
+                'std_info': std_info,
+                'std_num': std_num,
+                'grade': best.grade,
+                'year_achieved': weight_year,
+                'version': best.standard_version,
+                'credits': std_info.credits,
+                'weight': float(min(max(weight, 0.0), 1.0)),
+                'tier': tier
+            })
+
+        # Sort by tier then weight desc
+        candidates.sort(key=lambda x: (x['tier'], -x['weight']))
+
+        best90: List[calc_schemas.StandardContribution] = []
+        excluded: List[calc_schemas.ExcludedItem] = []
+        subject_used: Dict[str, float] = {}
+        total_used = 0.0
+        prorated_count = 0
+        rank = 0
+
+        for c in candidates:
+            if total_used >= 90:
+                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="not in top 90"))
+                continue
+            subject = c['std_info'].subject or "Unknown"
+            subj_used = subject_used.get(subject, 0.0)
+            subj_remaining = max(0.0, 24.0 - subj_used)
+            if subj_remaining <= 0.0:
+                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="subject cap 24 reached"))
+                continue
+
+            global_remaining = max(0.0, 90.0 - total_used)
+            if global_remaining <= 0.0:
+                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="not in top 90"))
+                continue
+
+            credits_avail = float(c['credits'])
+            credits_to_take = min(credits_avail, subj_remaining, global_remaining)
+            if credits_to_take <= 0.0:
+                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="no remaining capacity"))
+                continue
+
+            rank += 1
+            pro_rated = credits_to_take < credits_avail
+            if pro_rated:
+                prorated_count += 1
+
+            contribution = credits_to_take * c['weight']
+            new_subj_used = subj_used + credits_to_take
+            subject_used[subject] = new_subj_used
+            total_used += credits_to_take
+
+            best90.append(calc_schemas.StandardContribution(
+                selection_rank=rank,
+                standard_number=c['std_num'],
+                title=c['std_info'].title,
+                subject=subject,
+                is_ue=bool(c['std_info'].is_ue),
+                standards_type=c['std_info'].standards_type,
+                grade=c['grade'],
+                year_achieved=c['year_achieved'],
+                weight_applied=c['weight'],
+                credits_available=int(credits_avail),
+                credits_used=float(credits_to_take),
+                pro_rated=pro_rated,
+                contribution=float(contribution),
+                subject_credits_used_to_date=float(new_subj_used),
+                subject_capped=new_subj_used >= 24.0,
+                priority_tier=int(c['tier'])
+            ))
+
+        total_contribution = sum(x.contribution for x in best90)
+        totals = calc_schemas.BreakdownTotals(
+            total_contribution=float(total_contribution),
+            denominator_credits=90,
+            total_credits_used=float(total_used),
+            subject_caps={k: float(v) for k, v in subject_used.items()},
+            prorated_count=int(prorated_count)
+        )
+
+        if total_used <= 0.0:
+            return best90, totals, excluded, None
+
+        stat_value = float(total_contribution) / 90.0
+        return best90, totals, excluded, stat_value
+
+    def _build_subject_ssp_breakdowns(self, year: int) -> List[calc_schemas.SubjectSSPBreakdown]:
+        # Organize user's best result per standard by subject
+        by_number: Dict[int, List[UserStandardInput]] = {}
+        for us in self.user_standards:
+            by_number.setdefault(us.standard_number, []).append(us)
+
+        by_subject: Dict[str, List[Dict]] = {}
+        for std_num, results in by_number.items():
+            std_info = self.all_standards_info.get(std_num)
+            if not std_info:
+                continue
+            subject = std_info.subject or "Unknown"
+            best = self._select_best_standard_result(results, std_num)
+            if not best:
+                continue
+            weight_year = best.year_achieved if best.year_achieved else year
+            weight = self._get_weight_for(std_num, best.grade, weight_year, best.standard_version)
+            if weight is None or weight <= 0.001:
+                continue
+            tier = self._priority_tier(std_info)
+            by_subject.setdefault(subject, []).append({
+                'std_info': std_info,
+                'std_num': std_num,
+                'grade': best.grade,
+                'year_achieved': weight_year,
+                'credits': std_info.credits,
+                'weight': float(min(max(weight, 0.0), 1.0)),
+                'tier': tier
+            })
+
+        outputs: List[calc_schemas.SubjectSSPBreakdown] = []
+        for subject, items in by_subject.items():
+            # Sort by priority and weight
+            items.sort(key=lambda x: (x['tier'], -x['weight']))
+            used: List[calc_schemas.StandardContribution] = []
+            credits_mapped = 0.0
+            rank = 0
+            prorated = 0
+            for c in items:
+                if credits_mapped >= 18.0:
+                    break
+                avail = float(c['credits'])
+                remain = max(0.0, 18.0 - credits_mapped)
+                take = min(avail, remain)
+                if take <= 0.0:
+                    continue
+                rank += 1
+                is_pr = take < avail
+                prorated += 1 if is_pr else 0
+                contrib = take * c['weight']
+                credits_mapped += take
+                used.append(calc_schemas.StandardContribution(
+                    selection_rank=rank,
+                    standard_number=c['std_num'],
+                    title=c['std_info'].title,
+                    subject=subject,
+                    is_ue=bool(c['std_info'].is_ue),
+                    standards_type=c['std_info'].standards_type,
+                    grade=c['grade'],
+                    year_achieved=c['year_achieved'],
+                    weight_applied=c['weight'],
+                    credits_available=int(avail),
+                    credits_used=float(take),
+                    pro_rated=is_pr,
+                    contribution=float(contrib),
+                    subject_credits_used_to_date=float(credits_mapped),
+                    subject_capped=False,
+                    priority_tier=int(c['tier'])
+                ))
+
+            total_credits_available = sum(float(x['credits']) for x in items)
+            eligible = total_credits_available >= 18.0
+            ssp_score = (sum(u.contribution for u in used) / 18.0) if eligible else None
+            outputs.append(calc_schemas.SubjectSSPBreakdown(
+                subject=subject,
+                year=year,
+                eligible=eligible,
+                ssp_score=float(ssp_score) if ssp_score is not None else None,
+                denominator_credits=18,
+                items=used
+            ))
+
+        return outputs

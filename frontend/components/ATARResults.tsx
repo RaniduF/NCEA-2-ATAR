@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import type { ATARResult } from '../app/services/api';
+import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, SubjectSSPBreakdown } from '../app/services/api';
+import { downloadCSV } from '../app/services/csv';
 import { 
   ChartBarIcon, 
   CalendarDaysIcon, 
@@ -13,9 +14,10 @@ import {
 
 interface Props {
   results: ATARResult[] | null;
+  breakdown?: CalculationBreakdownResponse | null;
 }
 
-export function ATARResults({ results }: Props) {
+export function ATARResults({ results, breakdown }: Props) {
   if (!results) {
     return (
       <div className="text-center py-16">
@@ -44,6 +46,18 @@ export function ATARResults({ results }: Props) {
   const latestResult = data[data.length - 1];
   const earliestResult = data[0];
   const trend = latestResult.estimated_atar - earliestResult.estimated_atar;
+
+  const yearsMap: Record<number, YearlyBreakdown> = {};
+  const subjectsByYear: Record<number, SubjectSSPBreakdown[]> = {};
+  if (breakdown) {
+    for (const y of breakdown.years) yearsMap[y.year] = y;
+    for (const s of breakdown.subjects) {
+      if (!subjectsByYear[s.year]) subjectsByYear[s.year] = [];
+      subjectsByYear[s.year].push(s);
+    }
+  }
+  const availableYears = data.map(d => d.year);
+  const [activeYear, setActiveYear] = React.useState<number | null>(availableYears.length ? availableYears[availableYears.length - 1] : null);
 
   return (
     <div className="space-y-8">
@@ -117,11 +131,11 @@ export function ATARResults({ results }: Props) {
                   fontSize: 14
                 }} 
                 labelStyle={{ color: '#94a3b8' }}
-                formatter={(value: any, name: string) => [
-                  `${parseFloat(value).toFixed(2)}`,
+                formatter={(value: number | string): [string, string] => [
+                  `${parseFloat(String(value)).toFixed(2)}`,
                   'ATAR Score'
                 ]}
-                labelFormatter={(label) => `Year ${label}`}
+                labelFormatter={(label: number | string) => `Year ${label}`}
               />
               <Line 
                 type="monotone" 
@@ -191,6 +205,141 @@ export function ATARResults({ results }: Props) {
           </table>
         </div>
       </div>
+
+      {/* Credit Breakdown and Year Toggle */}
+      {breakdown && activeYear && yearsMap[activeYear] && (
+        <div className="card animate-reveal-up" style={{ animationDelay: '160ms' }}>
+          <div className="p-6 border-b border-white/10 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ChartBarIcon className="w-6 h-6 text-brand-400" />
+              <h3 className="text-lg font-semibold text-slate-200">Credit Breakdown (Top 90, subject cap 24, pro‑rating)</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const y = yearsMap[activeYear];
+                  const headers = ['Rank','Standard','Subject','UE','Type','Grade','Year','Credits Available','Credits Used','Pro-rated','Weight','Contribution'];
+                  const rows = y.best90.map(i => [
+                    i.selection_rank,
+                    `${i.standard_number}${i.title ? `: ${i.title}` : ''}`,
+                    i.subject ?? '',
+                    i.is_ue ? 'UE' : '',
+                    i.standards_type ?? '',
+                    i.grade,
+                    i.year_achieved ?? '',
+                    i.credits_available,
+                    i.credits_used,
+                    i.pro_rated ? 'Yes' : 'No',
+                    i.weight_applied,
+                    i.contribution
+                  ]);
+                  downloadCSV(`breakdown_${activeYear}.csv`, headers, rows);
+                }}
+                className="btn-ghost text-xs"
+              >Export CSV</button>
+              <select value={activeYear ?? ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYear(parseInt(e.target.value))} className="input text-sm">
+                {availableYears.map(y => (
+                  <option key={y} value={y} className="bg-slate-800">{y}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="meta">Estimated ATAR: <span className="font-semibold text-brand-300">{yearsMap[activeYear].estimated_atar.toFixed(2)}</span></div>
+              <div className="meta">Stat. value: <span className="font-mono text-slate-200">{yearsMap[activeYear].statistical_value.toFixed(6)}</span></div>
+              <div className="meta">Credits used: <span className="font-semibold">{yearsMap[activeYear].totals.total_credits_used.toFixed(2)}</span> / 90</div>
+              <div className="meta">Prorated items: <span className="font-semibold">{yearsMap[activeYear].totals.prorated_count}</span></div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-700/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left">#</th>
+                    <th className="px-4 py-3 text-left">Standard</th>
+                    <th className="px-4 py-3 text-left">Subject</th>
+                    <th className="px-4 py-3 text-left">UE</th>
+                    <th className="px-4 py-3 text-left">Type</th>
+                    <th className="px-4 py-3 text-left">Grade</th>
+                    <th className="px-4 py-3 text-right">Credits (used)</th>
+                    <th className="px-4 py-3 text-right">Weight</th>
+                    <th className="px-4 py-3 text-right">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {yearsMap[activeYear].best90.map(item => (
+                    <tr key={`${item.standard_number}-${item.selection_rank}`}>
+                      <td className="px-4 py-3 text-slate-300">{item.selection_rank}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-slate-200 font-medium">{item.standard_number}{item.title ? `: ${item.title}` : ''}</div>
+                        <div className="text-xs text-slate-400">Year {item.year_achieved} • Tier {item.priority_tier}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-300">{item.subject}</td>
+                      <td className="px-4 py-3">{item.is_ue ? <span className="badge-ue">UE</span> : '-'}</td>
+                      <td className="px-4 py-3 text-slate-300">{item.standards_type || '-'}</td>
+                      <td className="px-4 py-3 text-slate-300">{item.grade}</td>
+                      <td className="px-4 py-3 text-right text-slate-200">
+                        {item.credits_available}
+                        <span className="text-slate-400"> → </span>
+                        <span className="font-semibold">{item.credits_used.toFixed(2)}</span>
+                        {item.pro_rated && <span className="ml-2 badge-warning">Pro‑rated</span>}
+                        {item.subject_capped && <span className="ml-2 badge-info">Subject 24 cap hit</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">{item.weight_applied.toFixed(3)}</td>
+                      <td className="px-4 py-3 text-right font-mono">{item.contribution.toFixed(3)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Subject SSP Rankings */}
+      {breakdown && activeYear && subjectsByYear[activeYear] && (
+        <div className="card animate-reveal-up" style={{ animationDelay: '200ms' }}>
+          <div className="p-6 border-b border-white/10 flex items-center gap-3">
+            <AcademicCapIcon className="w-6 h-6 text-brand-400" />
+            <h3 className="text-lg font-semibold text-slate-200">Subject Rankings (SSP, 18 credits)</h3>
+            <button
+              onClick={() => {
+                const subs = subjectsByYear[activeYear] || [];
+                const headers = ['Subject','Eligible','SSP score'];
+                const rows = subs
+                  .slice()
+                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                  .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
+                downloadCSV(`ssp_${activeYear}.csv`, headers, rows);
+              }}
+              className="ml-auto btn-ghost text-xs"
+            >Export CSV</button>
+          </div>
+          <div className="p-6 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-700/50">
+                <tr>
+                  <th className="px-4 py-3 text-left">Subject</th>
+                  <th className="px-4 py-3 text-left">Eligible</th>
+                  <th className="px-4 py-3 text-right">SSP score</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {subjectsByYear[activeYear]
+                  .slice()
+                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                  .map(s => (
+                    <tr key={s.subject}>
+                      <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
+                      <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (\u2265 18 credits required)</span>}</td>
+                      <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Info Note */}
       <div className="panel p-4 border border-info-500/20 animate-reveal-in" style={{ animationDelay: '200ms' }}>

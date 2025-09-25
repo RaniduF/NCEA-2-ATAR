@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 class UserStandardInput(BaseModel):
     """
@@ -31,3 +31,63 @@ class ATARCalculationResponse(BaseModel):
     The final response model the API will send back.
     """
     results: List[EstimatedATARResult]
+
+
+# --- New: Detailed breakdown schemas ---
+
+class StandardContribution(BaseModel):
+    """
+    A single standard's contribution to a selection (best-90 or subject SSP).
+    """
+    selection_rank: int
+    standard_number: int
+    title: Optional[str] = None
+    subject: Optional[str] = None
+    is_ue: Optional[bool] = None
+    standards_type: Optional[str] = None
+    grade: str
+    year_achieved: Optional[int] = None
+    weight_applied: float
+    credits_available: int
+    credits_used: float
+    pro_rated: bool = False
+    contribution: float
+    subject_credits_used_to_date: float
+    subject_capped: bool = False
+    priority_tier: int
+
+
+class ExcludedItem(BaseModel):
+    standard_number: int
+    reason: str
+
+
+class BreakdownTotals(BaseModel):
+    total_contribution: float
+    denominator_credits: int
+    total_credits_used: float
+    subject_caps: Dict[str, float] = Field(default_factory=dict)
+    prorated_count: int = 0
+
+
+class YearlyBreakdown(BaseModel):
+    year: int
+    estimated_atar: float
+    statistical_value: float
+    best90: List[StandardContribution]
+    totals: BreakdownTotals
+    excluded: List[ExcludedItem] = Field(default_factory=list)
+
+
+class SubjectSSPBreakdown(BaseModel):
+    subject: str
+    year: int
+    eligible: bool
+    ssp_score: Optional[float] = None
+    denominator_credits: int = 18
+    items: List[StandardContribution] = Field(default_factory=list)
+
+
+class CalculationBreakdownResponse(BaseModel):
+    years: List[YearlyBreakdown]
+    subjects: List[SubjectSSPBreakdown]

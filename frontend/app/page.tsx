@@ -5,7 +5,7 @@ import { SearchStandards } from '../components/SearchStandards';
 import { SelectedStandards } from '../components/SelectedStandards';
 import { ATARResults } from '../components/ATARResults';
 import { PortfolioManager } from '../components/PortfolioManager';
-import { calculateATAR, type ATARResult, type Standard } from './services/api';
+import { calculateATAR, calculateATARBreakdown, type ATARResult, type Standard, type CalculationBreakdownResponse } from './services/api';
 import { portfolioService } from './services/portfolio';
 import { 
   BookmarkIcon, 
@@ -33,6 +33,7 @@ export default function Page() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [results, setResults] = useState<ATARResult[] | null>(null);
+  const [breakdown, setBreakdown] = useState<CalculationBreakdownResponse | null>(null);
   const [isPortfolioManagerOpen, setIsPortfolioManagerOpen] = useState(false);
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string | undefined>(undefined);
   const [currentPortfolioName, setCurrentPortfolioName] = useState<string | undefined>(undefined);
@@ -44,7 +45,7 @@ export default function Page() {
   const [existingPortfolios, setExistingPortfolios] = useState<SavedPortfolio[]>([]);
 
   // Helper to deeply compare item arrays ignoring order
-  const areItemArraysEqual = (a: SelectedItem[], b: SelectedItem[]) => {
+  const areItemArraysEqual = (a: SelectedItem[], b: SelectedItem[]): boolean => {
     if (a.length !== b.length) return false;
     const sortKey = (x: SelectedItem) => x.standard.standard_number;
     const sa = [...a].sort((x, y) => sortKey(x) - sortKey(y));
@@ -99,50 +100,52 @@ export default function Page() {
   // Enable ripple on buttons with .ripple class
   useRipple('.ripple');
 
-  const handleAddStandard = (standard: Standard) => {
+  const handleAddStandard = (standard: Standard): void => {
     if (selectedIds.has(standard.standard_number)) return;
     setSelectedItems(prev => [...prev, { standard, grade: 'Achieved' }]); // No year_achieved = iterative default
   };
 
-  const handleRemoveStandard = (standardNumber: number) => {
+  const handleRemoveStandard = (standardNumber: number): void => {
     setSelectedItems(prev => prev.filter(item => item.standard.standard_number !== standardNumber));
   };
 
-  const handleChangeGrade = (standardNumber: number, grade: Grade) => {
+  const handleChangeGrade = (standardNumber: number, grade: Grade): void => {
     setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, grade } : item));
   };
 
-  const handleChangeYear = (standardNumber: number, year_achieved: number | undefined) => {
+  const handleChangeYear = (standardNumber: number, year_achieved: number | undefined): void => {
     setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, year_achieved } : item));
   };
 
-  const handleChangeVersion = (standardNumber: number, standard_version: number | undefined) => {
+  const handleChangeVersion = (standardNumber: number, standard_version: number | undefined): void => {
     setSelectedItems(prev => prev.map(item => item.standard.standard_number === standardNumber ? { ...item, standard_version } : item));
   };
 
-  const handleClearPortfolio = () => {
+  const handleClearPortfolio = (): void => {
     setSelectedItems([]);
     setResults(null);
+    setBreakdown(null);
     portfolioService.clearAutoSave();
     setCurrentPortfolioId(undefined);
     setCurrentPortfolioName(undefined);
   };
 
-  const handleSavePortfolio = () => {
+  const handleSavePortfolio = (): void => {
     if (selectedItems.length === 0) return;
     setNewPortfolioName(currentPortfolioName || 'My Portfolio');
     setShowSaveModal(true);
   };
 
-  const handleLoadPortfolio = (payload: { id?: string; name?: string; items: SelectedItem[] }) => {
+  const handleLoadPortfolio = (payload: { id?: string; name?: string; items: SelectedItem[] }): void => {
     setSelectedItems(payload.items);
     setResults(null); // Clear previous calculation results
+    setBreakdown(null);
     portfolioService.clearAutoSave(); // Clear auto-save when loading explicit portfolio
     setCurrentPortfolioId(payload.id);
     setCurrentPortfolioName(payload.name);
   };
 
-  const handleConfirmCreate = () => {
+  const handleConfirmCreate = (): void => {
     const name = newPortfolioName.trim();
     if (!name) return;
     const saved = portfolioService.savePortfolio(name, selectedItems);
@@ -154,7 +157,7 @@ export default function Page() {
     setTimeout(() => setJustSaved(null), 1500);
   };
 
-  const handleOverwriteExisting = (id: string) => {
+  const handleOverwriteExisting = (id: string): void => {
     const updated = portfolioService.updatePortfolio(id, { items: selectedItems });
     if (updated) {
       portfolioService.clearAutoSave();
@@ -168,9 +171,10 @@ export default function Page() {
 
   // Rename handled inline in Portfolio Manager
 
-  const handleCalculate = async () => {
+  const handleCalculate = async (): Promise<void> => {
     setIsCalculating(true);
     setResults(null);
+    setBreakdown(null);
     try {
       const payload = selectedItems.map(item => ({ 
         standard_number: item.standard.standard_number, 
@@ -180,6 +184,8 @@ export default function Page() {
       }));
       const data = await calculateATAR(payload);
       setResults(data);
+      // Fire breakdown fetch in parallel; no need to block showing top-level results
+      calculateATARBreakdown(payload).then(setBreakdown).catch(console.error);
       // Smooth scroll to results after DOM updates
       requestAnimationFrame(() => {
         setTimeout(() => {
@@ -194,7 +200,7 @@ export default function Page() {
     }
   };
 
-  const totalCredits = selectedItems.reduce((sum, item) => sum + item.standard.credits, 0);
+  const totalCredits = selectedItems.reduce((sum: number, item: SelectedItem) => sum + item.standard.credits, 0);
 
   return (
     <div className="space-y-10 md:space-y-12">
@@ -297,7 +303,7 @@ export default function Page() {
           </div>
         </div>
         <div className="p-7 md:p-8">
-          <ATARResults results={results} />
+          <ATARResults results={results} breakdown={breakdown} />
         </div>
       </section>
 

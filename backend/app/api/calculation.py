@@ -41,3 +41,21 @@ async def calculate_atar_endpoint(
 
     return {"results": results}
 
+
+@router.post("/breakdown", response_model=calculation_schemas.CalculationBreakdownResponse)
+async def calculate_atar_breakdown_endpoint(
+        request: calculation_schemas.ATARCalculationRequest,
+        db: Session = Depends(get_db)
+):
+    """
+    Returns the best-90 credit breakdown and subject SSP breakdowns across all available years.
+    """
+    if not request.standards:
+        raise HTTPException(status_code=400, detail="No standards provided")
+
+    calculator = ATARCalculator(db, request.standards)
+    breakdown = calculator.calculate_breakdown()
+    if not breakdown.years:
+        raise HTTPException(status_code=404,
+                            detail="Could not calculate ATAR breakdown for any year with the provided standards.")
+    return breakdown

@@ -33,6 +33,57 @@ export interface ATARResult {
   statistical_value: number;
 }
 
+// --- Breakdown types ---
+export interface StandardContribution {
+  selection_rank: number;
+  standard_number: number;
+  title?: string | null;
+  subject?: string | null;
+  is_ue?: boolean;
+  standards_type?: string | null;
+  grade: Grade;
+  year_achieved?: number | null;
+  weight_applied: number;
+  credits_available: number;
+  credits_used: number;
+  pro_rated: boolean;
+  contribution: number;
+  subject_credits_used_to_date: number;
+  subject_capped: boolean;
+  priority_tier: number;
+}
+
+export interface BreakdownTotals {
+  total_contribution: number;
+  denominator_credits: number;
+  total_credits_used: number;
+  subject_caps: Record<string, number>;
+  prorated_count: number;
+}
+
+export interface YearlyBreakdown {
+  year: number;
+  estimated_atar: number;
+  statistical_value: number;
+  best90: StandardContribution[];
+  totals: BreakdownTotals;
+  excluded: { standard_number: number; reason: string }[];
+}
+
+export interface SubjectSSPBreakdown {
+  subject: string;
+  year: number;
+  eligible: boolean;
+  ssp_score?: number | null;
+  denominator_credits: number;
+  items: StandardContribution[];
+}
+
+export interface CalculationBreakdownResponse {
+  years: YearlyBreakdown[];
+  subjects: SubjectSSPBreakdown[];
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
@@ -62,6 +113,20 @@ export async function calculateATAR(standards: { standard_number: number; grade:
   }
   const data = await res.json();
   return data.results as ATARResult[];
+}
+
+export async function calculateATARBreakdown(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<CalculationBreakdownResponse> {
+  const url = `${API_BASE}/api/v1/calculate-atar/breakdown`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ standards }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to fetch ATAR breakdown: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<CalculationBreakdownResponse>;
 }
 
 export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
