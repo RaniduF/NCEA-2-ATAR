@@ -28,3 +28,5 @@ htmlcov/
 .vscode/
 # Environment variables
 .env
+credits_breakdown.csv
+subject_trends_data.csv

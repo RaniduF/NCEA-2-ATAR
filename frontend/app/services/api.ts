@@ -1,265 +1,188 @@
-// API Service Layer for NCEA to ATAR Calculator
-// Handles all backend communications with proper error handling and TypeScript types
+export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
-
-// Type definitions matching backend schemas
-export interface StandardResponse {
+export interface Standard {
   standard_number: number;
   title: string;
   credits: number;
-  assessment_type: 'Internal' | 'External';
-  standards_type?: string;
-  is_ue?: boolean;
-  subject: string;
-  search_keywords?: any;
+  assessment_type: string | null;
+  standards_type: string | null;
+  is_ue: boolean;
+  subject: string | null;
 }
 
-export interface StandardSearchResponse {
-  direct_results: StandardResponse[];
-  related_groups: {
-    name: string;
-    standards: StandardResponse[];
-  }[];
-  suggestion?: {
-    type: string;
-    value: string;
-  } | null;
+export interface StandardGroup {
+  name: string;
+  standards: Standard[];
 }
 
-export interface UserStandardInput {
-  standard_number: number;
-  grade: 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
+export interface SuggestionsResponse {
+  subjects: string[];
+  standards: string[];
 }
 
-export interface EstimatedATARResult {
+export interface StandardsSearchResponse {
+  direct_results: Standard[];
+  related_groups: StandardGroup[];
+  suggestion: null | { type: string; value: string };
+  subject_match: null | { name: string; standards: Standard[] };
+}
+
+export interface ATARResult {
   year: number;
   estimated_atar: number;
   statistical_value: number;
 }
 
-export interface ATARCalculationResponse {
-  results: EstimatedATARResult[];
+// --- Breakdown types ---
+export interface StandardContribution {
+  selection_rank: number;
+  standard_number: number;
+  title?: string | null;
+  subject?: string | null;
+  is_ue?: boolean;
+  standards_type?: string | null;
+  grade: Grade;
+  year_achieved?: number | null;
+  weight_applied: number;
+  credits_available: number;
+  credits_used: number;
+  pro_rated: boolean;
+  contribution: number;
+  subject_credits_used_to_date: number;
+  subject_capped: boolean;
+  priority_tier: number;
 }
 
-export interface APIError {
-  message: string;
-  status?: number;
-  details?: any;
+export interface BreakdownTotals {
+  total_contribution: number;
+  denominator_credits: number;
+  total_credits_used: number;
+  subject_caps: Record<string, number>;
+  prorated_count: number;
 }
 
-// Custom error class for API errors
-export class APIRequestError extends Error {
-  status: number;
-  details?: any;
-
-  constructor(message: string, status: number = 500, details?: any) {
-    super(message);
-    this.name = 'APIRequestError';
-    this.status = status;
-    this.details = details;
-  }
+export interface YearlyBreakdown {
+  year: number;
+  estimated_atar: number;
+  statistical_value: number;
+  best90: StandardContribution[];
+  totals: BreakdownTotals;
+  excluded: { standard_number: number; reason: string }[];
 }
 
-// Helper function for making API requests with error handling
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  
-  console.log(`Making API request to: ${url}`); // Debug logging
-  
-  try {
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    console.log(`API response status: ${response.status}`); // Debug logging
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      let errorDetails = null;
-
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.detail || errorData.message || errorMessage;
-        errorDetails = errorData;
-      } catch (e) {
-        // If we can't parse the error response, use the status text
-      }
-
-      throw new APIRequestError(errorMessage, response.status, errorDetails);
-    }
-
-    const data = await response.json();
-    return data as T;
-  } catch (error) {
-    if (error instanceof APIRequestError) {
-      throw error;
-    }
-
-    // Handle network errors, timeout, etc.
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new APIRequestError(
-        'Network error: Unable to connect to the server. Please check your internet connection and try again.',
-        0
-      );
-    }
-
-    throw new APIRequestError(
-      'An unexpected error occurred while communicating with the server.',
-      500,
-      error
-    );
-  }
+export interface SubjectSSPBreakdown {
+  subject: string;
+  year: number;
+  eligible: boolean;
+  ssp_score?: number | null;
+  denominator_credits: number;
+  items: StandardContribution[];
 }
 
-// API Service Functions
+export interface CalculationBreakdownResponse {
+  years: YearlyBreakdown[];
+  subjects: SubjectSSPBreakdown[];
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 /**
- * Search for NCEA standards
+ * Fetches subject and standard suggestions matching the query.
+ *
+ * @param q - Search query string to match against subjects and standards
+ * @returns SuggestionsResponse containing matching `subjects` and `standards`
  */
-export async function searchStandards(query: string): Promise<StandardSearchResponse> {
-  if (!query.trim()) {
-    return {
-      direct_results: [],
-      related_groups: [],
-      suggestion: null
-    };
-  }
-
-  const encodedQuery = encodeURIComponent(query.trim());
-  return apiRequest<StandardSearchResponse>(`/standards/?q=${encodedQuery}`);
+export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
+  const url = `${API_BASE}/api/v1/suggestions/?q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch suggestions');
+  return res.json();
 }
 
 /**
- * Get search suggestions for autocomplete
+ * Search standards matching the provided query string.
+ *
+ * @param q - The search query to send to the standards endpoint
+ * @returns The standards search response containing direct results, related groups, an optional suggestion, and an optional subject match
  */
-export async function getSearchSuggestions(query: string): Promise<string[]> {
-  if (!query.trim() || query.length < 2) {
-    return [];
-  }
-
-  const encodedQuery = encodeURIComponent(query.trim());
-  return apiRequest<string[]>(`/suggestions/?q=${encodedQuery}`);
+export async function searchStandards(q: string): Promise<StandardsSearchResponse> {
+  const url = `${API_BASE}/api/v1/standards/?q=${encodeURIComponent(q)}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to search standards');
+  return res.json();
 }
 
 /**
- * Calculate ATAR scores for given standards
+ * Calculate estimated ATAR results for a set of standards.
+ *
+ * @param standards - Array of standards to evaluate. Each item must include `standard_number` and `grade`, and may include `year_achieved` and `standard_version`.
+ * @returns An array of ATARResult objects containing year, estimated_atar, and statistical_value for the provided standards; returns an empty array if the response contains no results.
+ * @throws Error if the API responds with a non-OK status (includes HTTP status and response text).
  */
-export async function calculateATAR(standards: UserStandardInput[]): Promise<ATARCalculationResponse> {
-  if (!standards || standards.length === 0) {
-    throw new APIRequestError('No standards provided for calculation', 400);
-  }
-
-  return apiRequest<ATARCalculationResponse>('/calculate-atar/', {
+export async function calculateATAR(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<ATARResult[]> {
+  const url = `${API_BASE}/api/v1/calculate-atar/`;
+  const res = await fetch(url, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ standards }),
   });
-}
-
-/**
- * Utility function to convert frontend standard format to API format
- */
-export function convertToAPIFormat(
-  standardNumber: number,
-  grade: 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved'
-): UserStandardInput {
-  return {
-    standard_number: standardNumber,
-    grade
-  };
-}
-
-/**
- * Utility function to group standards by subject
- */
-export function groupStandardsBySubject(standards: StandardResponse[]): Record<string, StandardResponse[]> {
-  return standards.reduce((acc, standard) => {
-    const subject = standard.subject || 'Other';
-    if (!acc[subject]) {
-      acc[subject] = [];
-    }
-    acc[subject].push(standard);
-    return acc;
-  }, {} as Record<string, StandardResponse[]>);
-}
-
-/**
- * Utility function to check API health
- */
-export async function checkAPIHealth(): Promise<boolean> {
-  try {
-    // Derive base URL from API_BASE_URL by removing /api/v1 suffix
-    const baseUrl = API_BASE_URL.replace(/\/api\/v1$/, '');
-    
-    // Make direct call to root endpoint
-    const response = await fetch(`${baseUrl}/`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('API health check failed:', error);
-    return false;
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to calculate ATAR: ${res.status} ${text}`);
   }
+  const data = await res.json();
+  // Extract the results array from the response object
+  return Array.isArray(data.results) ? data.results : [];
 }
 
 /**
- * Debounced search function for performance optimization
+ * Fetches a detailed ATAR calculation breakdown for the provided standards.
+ *
+ * @param standards - An array of standard inputs, each with `standard_number`, `grade`, and optional `year_achieved` and `standard_version`.
+ * @returns A CalculationBreakdownResponse containing yearly breakdowns and subject-level SSP breakdowns.
+ * @throws Error if the API responds with a non-OK status; the error message includes the HTTP status and response text.
  */
-export function createDebouncedSearch<T extends any[], R>(
-  searchFunction: (...args: T) => Promise<R>,
-  delay: number = 300
-) {
-  let timeoutId: NodeJS.Timeout;
-  let pendingReject: ((reason?: any) => void) | null = null;
-
-  return (...args: T): Promise<R> => {
-    return new Promise((resolve, reject) => {
-      // Cancel any pending promise by rejecting it
-      if (pendingReject) {
-        pendingReject(new Error('Search cancelled due to new request'));
-        pendingReject = null;
-      }
-
-      clearTimeout(timeoutId);
-      
-      // Store the reject function for potential cancellation
-      pendingReject = reject;
-      
-      timeoutId = setTimeout(async () => {
-        // Clear the pending reject since we're about to execute
-        pendingReject = null;
-        
-        try {
-          const result = await searchFunction(...args);
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      }, delay);
-    });
-  };
+export async function calculateATARBreakdown(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<CalculationBreakdownResponse> {
+  const url = `${API_BASE}/api/v1/calculate-atar/breakdown`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ standards }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to fetch ATAR breakdown: ${res.status} ${text}`);
+  }
+  return res.json() as Promise<CalculationBreakdownResponse>;
 }
 
-// Create debounced versions of search functions
-export const debouncedSearchStandards = createDebouncedSearch(searchStandards, 300);
-export const debouncedGetSuggestions = createDebouncedSearch(getSearchSuggestions, 200);
+/**
+ * Fetches available years for a given standard, optionally scoped to a specific version.
+ *
+ * @param standardNumber - The numeric identifier of the standard
+ * @param version - Optional standard version to filter available years
+ * @returns An array of available years for the requested standard or version
+ * @throws Error if the network request fails or returns a non-OK response
+ */
+export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
+  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch available years');
+  const data = await res.json();
+  return data.available_years;
+}
 
-export default {
-  searchStandards,
-  getSearchSuggestions,
-  calculateATAR,
-  convertToAPIFormat,
-  groupStandardsBySubject,
-  checkAPIHealth,
-  debouncedSearchStandards,
-  debouncedGetSuggestions,
-}; 
+/**
+ * Fetches the available version numbers for a given standard.
+ *
+ * @param standardNumber - The numeric identifier of the standard
+ * @returns An array of available version numbers for the specified standard
+ * @throws If the HTTP request fails or returns a non-OK response
+ */
+export async function getAvailableVersions(standardNumber: number): Promise<number[]> {
+  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch available versions');
+  const data = await res.json();
+  return data.available_versions;
+} 

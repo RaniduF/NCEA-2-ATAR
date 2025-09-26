@@ -88,15 +88,32 @@ class TrendAnalysisResponse(BaseModel):
     declining_count: int
     stable_count: int
 
+
+# --- New: SSP (18-credit rule) models ---
+class SSPSubjectRanking(BaseModel):
+    rank: int
+    subject: str
+    ssp_score: float
+    eligible: bool
+    total_credits_available: int
+    ue_present: bool
+
+class SSPRankingResponse(BaseModel):
+    year: int
+    total_subjects: int
+    rankings: List[SSPSubjectRanking]
+
 def calculate_subject_score(standards_data: List[Dict]) -> float:
     """
-    Calculate the optimal score for a subject using the best 24 credits.
+    Compute a subject's optimal normalized excellence score by selecting up to 24 credits with the highest `weight_excellence`.
     
-    Args:
-        standards_data: List of dictionaries containing standard information
-        
+    Parameters:
+        standards_data (List[Dict]): List of standards where each dict includes at least:
+            - 'credits' (int or float): credit value of the standard
+            - 'weight_excellence' (float): excellence weight for the standard
+    
     Returns:
-        Normalized score (sum of weighted credits / 24)
+        float: Normalized score equal to (sum of selected credits * weight_excellence) / 24.
     """
     # Sort by excellence weight descending
     sorted_standards = sorted(standards_data, key=lambda x: x['weight_excellence'], reverse=True)
@@ -243,9 +260,22 @@ async def get_subject_trends(
     db: Session = Depends(get_db)
 ):
     """
-    Get year-over-year trend analysis for subjects.
+    Analyze year-over-year subject performance and classify per-subject trends.
     
-    This endpoint analyzes how subject performance has changed over time.
+    For each subject with at least `min_years` of score data, computes the change between the first and last available year,
+    assigns a TrendDirection (IMPROVING if change > 0.01, DECLINING if change < -0.01, STABLE otherwise), and records the
+    latest score and rank. Returns a TrendAnalysisResponse containing the list of SubjectTrend entries and counts of each
+    trend direction.
+    
+    Parameters:
+        min_years (Optional[int]): Minimum number of years of data required for a subject to be included in the analysis.
+    
+    Returns:
+        TrendAnalysisResponse: Contains `trends` (list of SubjectTrend) and `improving_count`, `declining_count`, `stable_count`.
+    
+    Raises:
+        HTTPException: 404 if there are fewer than two years of data available for analysis.
+        HTTPException: 500 for other errors encountered during processing.
     """
     try:
         # Get all available years
@@ -318,6 +348,145 @@ async def get_subject_trends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing trends: {str(e)}")
 
+
+@router.get("/ssp/{year}", response_model=SSPRankingResponse)
+async def get_ssp_rankings(
+    year: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Compute SSP subject rankings for a given academic year using the official 18-credit rule with pro-rating and priority tiers.
+    
+    Priority order: UE Achievement > UE Unit > Non-UE Achievement > Non-UE Unit. Subjects are scored by mapping up to 18 credits in priority order, pro-rating partial credits and capping `weight_excellence` to the [0.0, 1.0] range. A subject is marked eligible only if it has at least 18 total available credits; ineligible subjects receive an `ssp_score` of 0.0.
+    
+    Parameters:
+        year (int): Academic year to compute SSP rankings for.
+    
+    Returns:
+        SSPRankingResponse: Envelope containing the requested `year`, `total_subjects`, and a ranked `rankings` list of `SSPSubjectRanking` items. Each item includes:
+            - `rank`: 1-based rank position,
+            - `subject`: subject name,
+            - `ssp_score`: pro-rated SSP score (0.0 for ineligible subjects),
+            - `eligible`: `true` if the subject has >= 18 available credits,
+            - `total_credits_available`: total credits found for the subject,
+            - `ue_present`: whether any UE-approved standards exist for the subject.
+    """
+    try:
+        query = text("""
+            SELECT 
+                s.subject,
+                s.standard_number,
+                s.title,
+                s.credits,
+                s.assessment_type,
+                s.standards_type,
+                s.is_ue,
+                sw.weight_excellence
+            FROM standards s
+            JOIN standard_weightings sw ON s.standard_number = sw.standard_number
+            WHERE sw.academic_year = :year
+              AND sw.weight_excellence IS NOT NULL
+            ORDER BY s.subject
+        """)
+        rows = db.execute(query, {"year": year}).fetchall()
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"No data found for year {year}")
+
+        # Group rows by subject
+        subjects: dict[str, list[dict]] = {}
+        for r in rows:
+            subj = r.subject or "Unknown"
+            subjects.setdefault(subj, []).append({
+                'standard_number': r.standard_number,
+                'title': r.title,
+                'credits': int(r.credits),
+                'assessment_type': r.assessment_type,
+                'standards_type': r.standards_type,
+                'is_ue': bool(r.is_ue),
+                'weight_excellence': float(r.weight_excellence)
+            })
+
+        def tier(item: dict) -> int:
+            """
+            Map a standards item to a priority tier for SSP selection.
+            
+            Parameters:
+                item (dict): A mapping containing at least 'standards_type' (string) and 'is_ue' (bool).
+            
+            Returns:
+                int: Priority tier:
+                    1 — UE Achievement,
+                    2 — UE Unit,
+                    3 — non-UE Achievement,
+                    4 — all other cases.
+            """
+            stype = (item['standards_type'] or '').lower()
+            is_ach = stype.startswith('achievement')
+            is_unit = stype.startswith('unit')
+            if item['is_ue'] and is_ach:
+                return 1
+            if item['is_ue'] and is_unit:
+                return 2
+            if (not item['is_ue']) and is_ach:
+                return 3
+            return 4
+
+        rankings: list[dict] = []
+        for subject, items in subjects.items():
+            # Sort by priority tier then weight desc
+            items.sort(key=lambda x: (tier(x), -x['weight_excellence']))
+
+            credits_mapped = 0.0
+            total_contrib = 0.0
+            ue_present = any(i['is_ue'] for i in items)
+            total_available = sum(int(i['credits']) for i in items)
+            eligible = total_available >= 18
+
+            if eligible:
+                for it in items:
+                    if credits_mapped >= 18.0:
+                        break
+                    avail = float(it['credits'])
+                    remaining = max(0.0, 18.0 - credits_mapped)
+                    take = min(avail, remaining)
+                    if take <= 0:
+                        continue
+                    total_contrib += take * float(min(max(it['weight_excellence'], 0.0), 1.0))
+                    credits_mapped += take
+
+                ssp_score = total_contrib / 18.0 if credits_mapped > 0 else 0.0
+            else:
+                ssp_score = 0.0
+
+            rankings.append({
+                'subject': subject,
+                'ssp_score': ssp_score,
+                'eligible': eligible,
+                'total_credits_available': total_available,
+                'ue_present': ue_present
+            })
+
+        # Sort eligible first, then by ssp_score desc, then by subject
+        rankings.sort(key=lambda x: (not x['eligible'], -x['ssp_score'], x['subject']))
+        # Add ranks
+        output: list[SSPSubjectRanking] = []
+        for i, r in enumerate(rankings, 1):
+            output.append(SSPSubjectRanking(
+                rank=i,
+                subject=r['subject'],
+                ssp_score=float(r['ssp_score']),
+                eligible=bool(r['eligible']),
+                total_credits_available=int(r['total_credits_available']),
+                ue_present=bool(r['ue_present'])
+            ))
+
+        return SSPRankingResponse(year=year, total_subjects=len(output), rankings=output)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating SSP rankings: {e}") from e
+
 @router.get("/subject/{subject_name}/{year}", response_model=DetailedSubjectAnalysis)
 async def get_detailed_subject_analysis(
     subject_name: str,
@@ -325,10 +494,14 @@ async def get_detailed_subject_analysis(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed analysis for a specific subject and year.
+    Return a detailed analysis for a specific subject and academic year, including per-standard breakdown and the subject's optimal 24-credit score.
     
-    This endpoint provides a comprehensive breakdown of all standards
-    within a subject, showing which ones contribute to the optimal score.
+    Returns:
+        DetailedSubjectAnalysis: Analysis object containing subject, year, optimal_score, total_standards_available, total_credits_available, optional rank (None if unavailable), and standards_breakdown.
+    
+    Raises:
+        HTTPException 404: If no standards data exists for the given subject and year.
+        HTTPException 500: On unexpected errors during analysis.
     """
     try:
         query = text("""
