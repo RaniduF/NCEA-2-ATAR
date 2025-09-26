@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Install dependencies based on the preferred package manager
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 # Rebuild the source code only when needed
 FROM base AS builder
@@ -23,9 +23,10 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
+RUN apk add --no-cache libc6-compat
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -u 1001 -S -G nodejs nextjs
 
 COPY --from=builder /app/public ./public
 

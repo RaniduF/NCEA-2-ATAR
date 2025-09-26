@@ -41,7 +41,7 @@ export default function Page() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [justSaved, setJustSaved] = useState<null | 'saved' | 'renamed'>(null);
-  const resultsRef = useRef<HTMLDivElement | null>(null);
+  const resultsRef = useRef<HTMLElement | null>(null);
   const selectedIds = useMemo(() => new Set(selectedItems.map(i => i.standard.standard_number)), [selectedItems]);
   const [existingPortfolios, setExistingPortfolios] = useState<SavedPortfolio[]>([]);
 

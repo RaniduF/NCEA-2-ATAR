@@ -7,9 +7,10 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.main import app
 from app.api.calculation import get_db
+import os
 
 # --- Test Database Setup ---
-TEST_DATABASE_URL = settings.DATABASE_URL
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.DATABASE_URL)
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False,
                                    bind=engine)

@@ -112,7 +112,8 @@ export async function calculateATAR(standards: { standard_number: number; grade:
     throw new Error(`Failed to calculate ATAR: ${res.status} ${text}`);
   }
   const data = await res.json();
-  return data.results as ATARResult[];
+  // Extract the results array from the response object
+  return Array.isArray(data.results) ? data.results : [];
 }
 
 export async function calculateATARBreakdown(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<CalculationBreakdownResponse> {

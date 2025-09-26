@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from ..models import standard_models
 from ..schemas.calculation import UserStandardInput
 from ..schemas import calculation as calc_schemas
@@ -58,6 +59,20 @@ class ATARCalculator:
         """Fetches the weighted population for each year."""
         rates = self.db.query(standard_models.ParticipationRate).all()
         return {r.academic_year: r.weighted_statnz_population for r in rates}
+
+    def _get_latest_weight_year(self) -> int:
+        """Get the latest available academic year from standard weightings.
+        
+        Returns:
+            int: The latest academic year available in the database, 
+                 or 2024 as fallback if no data is found.
+        """
+        try:
+            latest_year = self.db.query(func.max(standard_models.StandardWeighting.academic_year)).scalar()
+            return latest_year if latest_year is not None else 2024
+        except Exception:
+            # Fallback to safe default if query fails
+            return 2024
 
     def _estimate_atar_from_stat(self, stat_value: float, year: int) -> float | None:
         dist = self.all_distributions.get(year)
@@ -236,7 +251,7 @@ class ATARCalculator:
         
         # Sort by grade priority first, then by weight
         def get_sort_key(user_std):
-            weight_year = user_std.year_achieved if user_std.year_achieved else 2024  # Default to iterative mode (latest year)
+            weight_year = user_std.year_achieved if user_std.year_achieved else self._get_latest_weight_year()  # Default to latest available year
             weight_version = user_std.standard_version
             
             year_weightings = [w for w in self.all_weightings.get(std_num, []) 

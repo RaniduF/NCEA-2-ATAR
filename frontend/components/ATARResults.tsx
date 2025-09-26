@@ -19,7 +19,8 @@ interface Props {
 
 export function ATARResults({ results, breakdown }: Props) {
   const data = useMemo(() => {
-    const normalized = results ?? [];
+    // Ensure results is always an array, even if API returns unexpected format
+    const normalized = Array.isArray(results) ? results : [];
     return [...normalized].sort((a, b) => a.year - b.year);
   }, [results]);
   const hasAnyResults = data.length > 0;

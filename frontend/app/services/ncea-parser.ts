@@ -104,7 +104,8 @@ export class NCEAPortalParser {
     // First 4 parts are always: standard_number, version, assessment_type, title
     const standardNumber = parseInt(parts[0]);
     const version = parseInt(parts[1]);
-    const assessmentType = parts[2] as 'IN' | 'EX';
+    const rawAsm = (parts[2] ?? '').toString().toUpperCase();
+    const assessmentType: 'IN' | 'EX' = rawAsm.startsWith('EX') ? 'EX' : 'IN';
     const title = parts[3];
     
     if (!standardNumber || !version || !assessmentType || !title) {
@@ -128,12 +129,12 @@ export class NCEAPortalParser {
     }
     
     // Credits are typically near the end before result
-    // Look for a number between 2-6 in the latter part of the array
-    for (let i = Math.max(4, allParts.length - 4); i < allParts.length; i++) {
+    // Look for a reasonable credit count (1–40) in the latter part of the array
+    for (let i = Math.max(4, allParts.length - 6); i < allParts.length; i++) {
       const part = allParts[i]?.trim();
       if (part && /^\d{1,2}$/.test(part)) {
-        const num = parseInt(part);
-        if (num >= 2 && num <= 6 && credits === 0) {
+        const num = parseInt(part, 10);
+        if (num >= 1 && num <= 40 && credits === 0) {
           credits = num;
         }
       }
