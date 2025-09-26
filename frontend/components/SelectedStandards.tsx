@@ -23,6 +23,16 @@ interface Props {
   onChangeVersion: (standardNumber: number, standard_version: number | undefined) => void;
 }
 
+/**
+ * Render and manage a grouped list of selected standards with per-item controls (grade, year, version), expand-to-show advanced options, lazy-loaded metadata, and animated removal.
+ *
+ * @param items - Selected standards to display; items are grouped by subject and rendered with per-standard controls.
+ * @param onRemove - Callback invoked with the standard number after the standard's removal animation completes.
+ * @param onChangeGrade - Callback invoked with the standard number and the new `Grade` when a grade is changed.
+ * @param onChangeYear - Callback invoked with the standard number and the chosen year, or `undefined` to mark the year as iterative/default.
+ * @param onChangeVersion - Callback invoked with the standard number and the chosen version number, or `undefined` to use the default/latest version.
+ * @returns A React element that renders the interactive list of selected standards.
+ */
 export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear, onChangeVersion }: Props) {
   const [expandedStandards, setExpandedStandards] = useState<Set<number>>(new Set());
   const [availableYearsByStandard, setAvailableYearsByStandard] = useState<Record<number, number[]>>({});

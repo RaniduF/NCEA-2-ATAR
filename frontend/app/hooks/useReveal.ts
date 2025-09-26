@@ -1,5 +1,14 @@
 import { useEffect } from 'react';
 
+/**
+ * Registers reveal animations for elements matching a selector when they enter the viewport.
+ *
+ * Adds an animation class to each matched element when it becomes visible (and removes the `reveal` class).
+ * If IntersectionObserver is unavailable, applies the animation classes immediately as a fallback.
+ *
+ * @param selector - CSS selector for target elements to reveal. Defaults to `'.reveal'`.
+ * @param rootMargin - IntersectionObserver `rootMargin` controlling when elements trigger. Defaults to `'0px 0px -10% 0px'`.
+ */
 export function useReveal(selector: string = '.reveal', rootMargin: string = '0px 0px -10% 0px') {
   useEffect(() => {
     if (typeof window === 'undefined') return;

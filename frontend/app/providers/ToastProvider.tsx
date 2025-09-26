@@ -47,6 +47,13 @@ const TYPE_STYLES: Record<ToastType, string> = {
   warning: 'border-amber-500/40 bg-amber-500/15',
 };
 
+/**
+ * Provides a context and UI for displaying toast notifications.
+ *
+ * Exposes an API (via context) with `showToast`, convenience methods `showSuccess`, `showError`, `showInfo`, `showWarning`, and `dismiss`; manages toast state, auto-dismiss timers, and renders a stacked list of toast cards with type-specific styling and icons alongside the provider's children.
+ *
+ * @returns The ToastContext provider element that renders its children and the active toast notifications.
+ */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastInstance[]>([]);
   const idRef = useRef(0);
@@ -123,6 +130,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Retrieve the toast context API for showing and dismissing toasts.
+ *
+ * @returns The `ToastContextValue` providing `showToast`, `showSuccess`, `showError`, `showInfo`, `showWarning`, and `dismiss`.
+ * @throws Error if called outside of a `ToastProvider`
+ */
 export function useToast(): ToastContextValue {
   const context = useContext(ToastContext);
   if (!context) {

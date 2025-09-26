@@ -28,10 +28,16 @@ def get_db():
 async def get_search_suggestions(q: str | None = None,
                                  db: Session = Depends(get_db)):
     """
-    Provides real-time search suggestions.
-    This performs a fast, prefix-based search on subjects first, then primary keywords.
-    Returns a structured response with subjects at the top.
-    """
+                                 Produce subject and standard search suggestions for a query string.
+                                 
+                                 Parameters:
+                                 	q (str | None): The user's search term. If omitted or shorter than 2 characters, the function returns empty suggestion lists.
+                                 
+                                 Returns:
+                                 	dict: A mapping with two keys:
+                                 		- "subjects": list of up to three subject names ranked by relevance.
+                                 		- "standards": list of formatted strings "STANDARD_NUMBER • Title" combining matches found by standard-number prefix (if the query is numeric) and by primary search keywords.
+                                 """
     if not q or len(q) < 2:
         # Don't return suggestions for very short queries
         return {"subjects": [], "standards": []}

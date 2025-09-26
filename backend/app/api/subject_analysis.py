@@ -105,13 +105,15 @@ class SSPRankingResponse(BaseModel):
 
 def calculate_subject_score(standards_data: List[Dict]) -> float:
     """
-    Calculate the optimal score for a subject using the best 24 credits.
+    Compute a subject's optimal normalized excellence score by selecting up to 24 credits with the highest `weight_excellence`.
     
-    Args:
-        standards_data: List of dictionaries containing standard information
-        
+    Parameters:
+        standards_data (List[Dict]): List of standards where each dict includes at least:
+            - 'credits' (int or float): credit value of the standard
+            - 'weight_excellence' (float): excellence weight for the standard
+    
     Returns:
-        Normalized score (sum of weighted credits / 24)
+        float: Normalized score equal to (sum of selected credits * weight_excellence) / 24.
     """
     # Sort by excellence weight descending
     sorted_standards = sorted(standards_data, key=lambda x: x['weight_excellence'], reverse=True)
@@ -258,9 +260,22 @@ async def get_subject_trends(
     db: Session = Depends(get_db)
 ):
     """
-    Get year-over-year trend analysis for subjects.
+    Analyze year-over-year subject performance and classify per-subject trends.
     
-    This endpoint analyzes how subject performance has changed over time.
+    For each subject with at least `min_years` of score data, computes the change between the first and last available year,
+    assigns a TrendDirection (IMPROVING if change > 0.01, DECLINING if change < -0.01, STABLE otherwise), and records the
+    latest score and rank. Returns a TrendAnalysisResponse containing the list of SubjectTrend entries and counts of each
+    trend direction.
+    
+    Parameters:
+        min_years (Optional[int]): Minimum number of years of data required for a subject to be included in the analysis.
+    
+    Returns:
+        TrendAnalysisResponse: Contains `trends` (list of SubjectTrend) and `improving_count`, `declining_count`, `stable_count`.
+    
+    Raises:
+        HTTPException: 404 if there are fewer than two years of data available for analysis.
+        HTTPException: 500 for other errors encountered during processing.
     """
     try:
         # Get all available years
@@ -340,8 +355,21 @@ async def get_ssp_rankings(
     db: Session = Depends(get_db)
 ):
     """
-    SSP subject rankings per official 18-credit rule with pro-rating and priority tiers:
-    Priority: UE Achievement > UE Unit > Non-UE Achievement > Non-UE Unit; within tier sort by weight_excellence desc.
+    Compute SSP subject rankings for a given academic year using the official 18-credit rule with pro-rating and priority tiers.
+    
+    Priority order: UE Achievement > UE Unit > Non-UE Achievement > Non-UE Unit. Subjects are scored by mapping up to 18 credits in priority order, pro-rating partial credits and capping `weight_excellence` to the [0.0, 1.0] range. A subject is marked eligible only if it has at least 18 total available credits; ineligible subjects receive an `ssp_score` of 0.0.
+    
+    Parameters:
+        year (int): Academic year to compute SSP rankings for.
+    
+    Returns:
+        SSPRankingResponse: Envelope containing the requested `year`, `total_subjects`, and a ranked `rankings` list of `SSPSubjectRanking` items. Each item includes:
+            - `rank`: 1-based rank position,
+            - `subject`: subject name,
+            - `ssp_score`: pro-rated SSP score (0.0 for ineligible subjects),
+            - `eligible`: `true` if the subject has >= 18 available credits,
+            - `total_credits_available`: total credits found for the subject,
+            - `ue_present`: whether any UE-approved standards exist for the subject.
     """
     try:
         query = text("""
@@ -379,6 +407,19 @@ async def get_ssp_rankings(
             })
 
         def tier(item: dict) -> int:
+            """
+            Map a standards item to a priority tier for SSP selection.
+            
+            Parameters:
+                item (dict): A mapping containing at least 'standards_type' (string) and 'is_ue' (bool).
+            
+            Returns:
+                int: Priority tier:
+                    1 — UE Achievement,
+                    2 — UE Unit,
+                    3 — non-UE Achievement,
+                    4 — all other cases.
+            """
             stype = (item['standards_type'] or '').lower()
             is_ach = stype.startswith('achievement')
             is_unit = stype.startswith('unit')
@@ -453,10 +494,14 @@ async def get_detailed_subject_analysis(
     db: Session = Depends(get_db)
 ):
     """
-    Get detailed analysis for a specific subject and year.
+    Return a detailed analysis for a specific subject and academic year, including per-standard breakdown and the subject's optimal 24-credit score.
     
-    This endpoint provides a comprehensive breakdown of all standards
-    within a subject, showing which ones contribute to the optimal score.
+    Returns:
+        DetailedSubjectAnalysis: Analysis object containing subject, year, optimal_score, total_standards_available, total_credits_available, optional rank (None if unavailable), and standards_breakdown.
+    
+    Raises:
+        HTTPException 404: If no standards data exists for the given subject and year.
+        HTTPException 500: On unexpected errors during analysis.
     """
     try:
         query = text("""

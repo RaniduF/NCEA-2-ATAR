@@ -25,7 +25,22 @@ import sys
 
 class SubjectAnalyzer:
     def __init__(self, db_config: Dict[str, str]):
-        """Initialize the analyzer with database configuration."""
+        """
+        Create a SubjectAnalyzer configured for the given database connection settings.
+        
+        Parameters:
+            db_config (Dict[str, str]): Database connection parameters. Expected keys include
+                'host', 'port', 'database', 'user', and 'password'. Missing or incorrect keys
+                will delay connection until connect_to_database() is called with valid settings.
+        
+        The initializer also sets up internal storage and default scoring/sanitation configuration:
+        - Data holders: connection, standards_df, weightings_df, merged_df.
+        - Credits breakdown capture: credits_breakdown_rows.
+        - Scoring controls: max_standards, target_credits, normalization_mode.
+        - Weight sanitation controls: cap_excellence, cap_merit, apply_shrink, shrink_prior_excellence,
+          shrink_prior_merit, shrink_r_high, shrink_r_zero_e, one_weight_threshold, one_weight_replacement.
+        - Caching maps: used_standards_by_key, total_credits_available_by_key.
+        """
         self.db_config = db_config
         self.connection = None
         self.standards_df = None
@@ -56,7 +71,14 @@ class SubjectAnalyzer:
         self.total_credits_available_by_key: Dict[Tuple[str, int], int] = {}
         
     def connect_to_database(self) -> bool:
-        """Establish connection to the MySQL database."""
+        """
+        Open a MySQL connection using the analyzer's db_config and store it on the instance.
+        
+        Attempts to connect using values in self.db_config and assigns the resulting connection object to self.connection.
+        
+        Returns:
+            bool: `True` if a connection was successfully established and stored on the instance, `False` otherwise.
+        """
         try:
             self.connection = mysql.connector.connect(
                 host=self.db_config.get('host', 'localhost'),
@@ -74,7 +96,14 @@ class SubjectAnalyzer:
             return False
     
     def load_data(self) -> bool:
-        """Load standards and weightings data from the database."""
+        """
+        Load achievement standards and their weightings from the configured database and merge them into the analyzer.
+        
+        This method requires an active database connection. It queries the `standards` table for achievement standards and the `standard_weightings` table for non-null excellence weights, then merges the results on `standard_number`. On success it populates `self.standards_df`, `self.weightings_df`, and `self.merged_df`.
+        
+        Returns:
+            bool: `True` if data was loaded and merged successfully, `False` if there was no active connection or a database error occurred.
+        """
         if not self.connection or not self.connection.is_connected():
             print("❌ No database connection available")
             return False
@@ -117,8 +146,20 @@ class SubjectAnalyzer:
             return False
     
     def _sanitize_weight(self, weight_value: float, grade: str = 'Excellence') -> float:
-        """Apply capping and shrinkage to mitigate over-weighted niche standards.
-        Enforce strict penalty for raw==1.0 by mapping to self.one_weight_replacement.
+        """
+        Normalize and adjust a raw standard weight by capping, optional shrinkage toward a grade-specific prior, and penalizing weights near 1.0.
+        
+        Parameters:
+            weight_value: The raw weight value (may be None). `None` is treated as 0.
+            grade: Grade category used to select capping and shrink priors (commonly 'Excellence' or 'Merit').
+        
+        Returns:
+            A sanitized weight between 0.0 and 1.0 after applying:
+              - mapping of `None` to 0,
+              - clamping to [0, 1],
+              - strict replacement when the weight meets or exceeds `one_weight_threshold` (mapped to `one_weight_replacement`),
+              - grade-specific cap (`cap_excellence` / `cap_merit`), and
+              - optional linear shrinkage toward the grade-specific prior when `apply_shrink` is enabled.
         """
         if weight_value is None:
             return 0.0
@@ -148,11 +189,22 @@ class SubjectAnalyzer:
     
     def calculate_subject_score(self, subject_df: pd.DataFrame) -> float:
         """
-        Calculate the optimal score for a subject using configured rules.
-        - Sort by sanitized excellence weight descending
-        - Optionally cap by number of standards (self.max_standards)
-        - Optionally cap by target credits (self.target_credits > 0)
-        - Normalization per self.normalization_mode
+        Compute the subject's optimal score according to the analyzer's configured selection and normalization rules.
+        
+        Parameters:
+            subject_df (pd.DataFrame): Rows for a single subject/year. Required columns: `weight_excellence` and `credits`. Optional columns used for breakdowns: `standard_number`, `title`, `subject`, `academic_year`, `standard_version`.
+        
+        Returns:
+            float: The computed optimal score for the subject.
+        
+        Details:
+            - Standards are ordered by sanitized excellence weight and selected until `max_standards` (if set) or `target_credits` (if > 0) are reached.
+            - Contribution per selected standard is either the sanitized weight (`normalization_mode == 'unweighted'`) or `credits_taken * sanitized_weight` otherwise.
+            - Denominator selection:
+                - 'unweighted': number of selected standards (minimum 1)
+                - 'dynamic_credits': sum of credits used (minimum 1)
+                - 'fixed': `target_credits` if set and > 0, otherwise 24
+            - Side effects: records the chosen standards and totals in `used_standards_by_key` and `total_credits_available_by_key`, and appends per-standard rows to `credits_breakdown_rows`.
         """
         # Use sanitized weights for ordering and contribution
         subject_df = subject_df.copy()
@@ -253,7 +305,25 @@ class SubjectAnalyzer:
         return total_contribution / denom if denom else 0.0
     
     def calculate_comprehensive_metrics(self) -> pd.DataFrame:
-        """Calculate multiple metrics for each subject by year."""
+        """
+        Compute per-subject, per-year performance and descriptive metrics used for reporting.
+        
+        For each subject in each academic year present in the loaded dataset, computes an optimal subject score (via internal scoring logic) and a set of descriptive statistics including counts, credit totals, basic weight statistics, credit efficiency, high-weight standard counts, UE approval flag, and a credit-weighted average excellence weight. Results are returned as one row per subject-year suitable for tabular reporting and downstream trend analysis.
+        
+        Returns:
+            pd.DataFrame: Rows keyed by `academic_year` and `subject` with columns:
+                - optimal_score: Computed optimal score for the subject-year.
+                - total_standards: Number of standards available for the subject-year.
+                - total_credits_available: Sum of credits available.
+                - avg_weight_excellence: Arithmetic mean of `weight_excellence`.
+                - max_weight_excellence: Maximum `weight_excellence`.
+                - min_weight_excellence: Minimum `weight_excellence`.
+                - weight_std_dev: Standard deviation of `weight_excellence`.
+                - credits_efficiency: Fraction of a 24-credit cap fulfilled (value in [0,1]).
+                - high_weight_standards: Count of standards with `weight_excellence` > 0.9.
+                - ue_approved: `True` if any standard is UE-approved.
+                - weighted_avg_excellence: Credit-weighted average of `weight_excellence`.
+        """
         if self.merged_df is None:
             print("❌ No data loaded")
             return pd.DataFrame()
@@ -294,7 +364,29 @@ class SubjectAnalyzer:
         return pd.DataFrame(results)
     
     def analyze_year_over_year_trends(self, metrics_df: pd.DataFrame) -> pd.DataFrame:
-        """Analyze trends in subject performance over years."""
+        """
+        Compute year-over-year trends for each subject and rank recent performance.
+        
+        For each subject with data for more than one year, calculate the change in optimal score and the change in average excellence weight between the first and last available years, classify the overall direction as 'Improving' (score change > 0.01), 'Declining' (score change < -0.01), or 'Stable' (otherwise), and attach the latest year's score and rank. The function prefers `weighted_avg_excellence` when available; otherwise it uses `avg_weight_excellence`.
+        
+        Parameters:
+            metrics_df (pd.DataFrame): Metrics per subject-year containing at minimum the columns
+                `subject`, `academic_year`, and `optimal_score`, and either `weighted_avg_excellence`
+                or `avg_weight_excellence`.
+        
+        Returns:
+            pd.DataFrame: A DataFrame with one row per subject that has multiple years of data and the
+            following columns:
+              - subject: subject name
+              - years_available: number of years present for the subject
+              - first_year: earliest academic year in the series
+              - last_year: latest academic year in the series
+              - score_change: difference between last and first `optimal_score`
+              - avg_weight_change: difference between last and first average excellence weight
+              - trend_direction: 'Improving', 'Declining', or 'Stable' (thresholds: >0.01, < -0.01, else stable)
+              - latest_score: `optimal_score` in the latest year
+              - latest_rank: rank of the subject in the latest year by `optimal_score` (1 = highest)
+        """
         trends = []
         
         for subject in metrics_df['subject'].unique():
@@ -333,7 +425,29 @@ class SubjectAnalyzer:
         return trends_df.sort_values('latest_score', ascending=False)
     
     def get_detailed_subject_breakdown(self, subject: str, year: int) -> Dict:
-        """Get detailed breakdown for a specific subject and year."""
+        """
+        Return a detailed breakdown of standards, credits, and the computed optimal score for a subject in a given year.
+        
+        If the subject/year has no data available, returns an empty dictionary.
+        
+        Returns:
+            dict: A mapping with the following keys:
+                - subject (str): Subject name.
+                - year (int): Academic year.
+                - optimal_score (float): Computed optimal subject score using configured scoring rules.
+                - total_standards_available (int): Number of standards available for the subject/year.
+                - total_credits_available (float): Sum of credits available for the subject/year.
+                - standards_breakdown (List[dict]): Ordered list (by sanitized excellence weight descending) of per-standard dictionaries with keys:
+                    - standard_number (int/str): Standard identifier.
+                    - title (str): Standard title.
+                    - credits (float): Credits declared for the standard.
+                    - weight_excellence_raw (float): Original recorded excellence weight.
+                    - weight_excellence_sanitized (float): Sanitized/examined excellence weight used for scoring.
+                    - assessment_type (str): Assessment type for the standard.
+                    - is_ue (bool): Whether the standard is approved for university entrance.
+                    - standard_version (optional): Version identifier if present in the data.
+                    - effective_credits (float): Credits actually used for scoring (0 if the standard was not selected).
+        """
         if self.merged_df is None:
             return {}
         
@@ -394,7 +508,16 @@ class SubjectAnalyzer:
         return breakdown
     
     def generate_report(self, output_format: str = 'console', filename: Optional[str] = None) -> None:
-        """Generate comprehensive analysis report."""
+        """
+        Produce and export the full subject analysis report and related datasets.
+        
+        Calculates comprehensive subject metrics and year-over-year trends, assembles a textual report, and either prints it to the console or writes it to a text file. In addition to the rendered report, exports three CSV datasets: metrics, trends, and the credits breakdown used for per-standard/subject analysis. If no merged data or no metrics are available, the function returns without producing files.
+        
+        Parameters:
+            output_format (str): Destination for the report; either 'console' to print or 'file' to write a text file.
+            filename (Optional[str]): File path to write the report when output_format is 'file'. If omitted, a timestamped filename is generated.
+        
+        """
         if self.merged_df is None:
             print("❌ No data available for report generation")
             return
@@ -440,7 +563,24 @@ class SubjectAnalyzer:
         print(f"🔎 Credits breakdown exported to: {breakdown_filename}")
     
     def _format_report(self, metrics_df: pd.DataFrame, trends_df: pd.DataFrame) -> str:
-        """Format the comprehensive analysis report."""
+        """
+        Assemble a human-readable multi-section text report summarizing subject analysis metrics and trends.
+        
+        Parameters:
+            metrics_df (pd.DataFrame): DataFrame of per-subject, per-year metrics including columns such as
+                'academic_year', 'subject', 'optimal_score', 'avg_weight_excellence', and 'credits_efficiency'.
+            trends_df (pd.DataFrame): DataFrame of subject-level trend summaries including columns such as
+                'subject', 'score_change', 'trend_direction', and 'latest_rank'.
+        
+        Returns:
+            report (str): A formatted string containing:
+                - Header with generation timestamp, subject count, and year range.
+                - Executive summary listing top subjects for the latest year.
+                - Year-by-year rankings with scores, average weights, and efficiency indicators.
+                - Trend analysis highlighting top improving and declining subjects with score changes and ranks.
+                - Statistical insights (mean, median, std, best/worst scores) for the latest year and a top-quartile list.
+                - Footer with methodology notes.
+        """
         report_lines = []
         
         # Header
@@ -541,7 +681,13 @@ class SubjectAnalyzer:
             print("🔌 Database connection closed")
 
     def export_credits_breakdown(self, filename: str = "credits_breakdown.csv") -> None:
-        """Export the captured credits breakdown rows to CSV for debugging ranking behavior."""
+        """
+        Write the captured per-standard credits breakdown to a CSV file.
+        
+        If no breakdown rows have been recorded, creates an empty CSV containing the expected headers.
+        Parameters:
+            filename (str): Path to the output CSV file (defaults to "credits_breakdown.csv").
+        """
         if not self.credits_breakdown_rows:
             # No rows captured; create empty file with headers
             pd.DataFrame(columns=[
@@ -555,7 +701,11 @@ class SubjectAnalyzer:
         df.to_csv(filename, index=False)
 
 def main():
-    """Main function to run the enhanced subject analyzer."""
+    """
+    Run the command-line enhanced NCEA Subject Weight Analyzer.
+    
+    Parses command-line options to configure the SubjectAnalyzer (database connection, scoring, and weight sanitation), connects to the database, loads data, and either generates a comprehensive report or a detailed subject/year breakdown. Exports CSVs (metrics, trends, credits breakdown) when producing reports, handles interactive fallbacks for missing configuration, reports errors on failure, and ensures the database connection is closed on exit.
+    """
     parser = argparse.ArgumentParser(description='Enhanced NCEA Subject Weight Analyzer')
     parser.add_argument('--host', default='localhost', help='Database host')
     parser.add_argument('--port', default=3307, type=int, help='Database port')

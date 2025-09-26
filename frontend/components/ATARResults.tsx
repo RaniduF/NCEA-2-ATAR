@@ -17,6 +17,17 @@ interface Props {
   breakdown?: CalculationBreakdownResponse | null;
 }
 
+/**
+ * Render an interactive ATAR results view including summary cards, a trend chart, detailed yearly results,
+ * optional credit breakdown (Top 90) and subject SSP rankings, and CSV export controls.
+ *
+ * Renders appropriate empty states when `results` is null or contains no entries. When `breakdown` is
+ * provided the component exposes a year selector to view per-year breakdown details and subject SSP data.
+ *
+ * @param results - An array of ATARResult objects (or null). If not an array the component treats it as empty; results are sorted by year.
+ * @param breakdown - Optional CalculationBreakdownResponse providing per-year breakdowns and subject SSP data used by the Credit Breakdown and Subject Rankings sections.
+ * @returns A React element that displays the ATAR UI (cards, chart, tables, and export controls).
+ */
 export function ATARResults({ results, breakdown }: Props) {
   const data = useMemo(() => {
     // Ensure results is always an array, even if API returns unexpected format

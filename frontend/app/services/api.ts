@@ -86,6 +86,12 @@ export interface CalculationBreakdownResponse {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
+/**
+ * Fetches subject and standard suggestions matching the query.
+ *
+ * @param q - Search query string to match against subjects and standards
+ * @returns SuggestionsResponse containing matching `subjects` and `standards`
+ */
 export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
   const url = `${API_BASE}/api/v1/suggestions/?q=${encodeURIComponent(q)}`;
   const res = await fetch(url, { cache: 'no-store' });
@@ -93,6 +99,12 @@ export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
   return res.json();
 }
 
+/**
+ * Search standards matching the provided query string.
+ *
+ * @param q - The search query to send to the standards endpoint
+ * @returns The standards search response containing direct results, related groups, an optional suggestion, and an optional subject match
+ */
 export async function searchStandards(q: string): Promise<StandardsSearchResponse> {
   const url = `${API_BASE}/api/v1/standards/?q=${encodeURIComponent(q)}`;
   const res = await fetch(url, { cache: 'no-store' });
@@ -100,6 +112,13 @@ export async function searchStandards(q: string): Promise<StandardsSearchRespons
   return res.json();
 }
 
+/**
+ * Calculate estimated ATAR results for a set of standards.
+ *
+ * @param standards - Array of standards to evaluate. Each item must include `standard_number` and `grade`, and may include `year_achieved` and `standard_version`.
+ * @returns An array of ATARResult objects containing year, estimated_atar, and statistical_value for the provided standards; returns an empty array if the response contains no results.
+ * @throws Error if the API responds with a non-OK status (includes HTTP status and response text).
+ */
 export async function calculateATAR(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<ATARResult[]> {
   const url = `${API_BASE}/api/v1/calculate-atar/`;
   const res = await fetch(url, {
@@ -116,6 +135,13 @@ export async function calculateATAR(standards: { standard_number: number; grade:
   return Array.isArray(data.results) ? data.results : [];
 }
 
+/**
+ * Fetches a detailed ATAR calculation breakdown for the provided standards.
+ *
+ * @param standards - An array of standard inputs, each with `standard_number`, `grade`, and optional `year_achieved` and `standard_version`.
+ * @returns A CalculationBreakdownResponse containing yearly breakdowns and subject-level SSP breakdowns.
+ * @throws Error if the API responds with a non-OK status; the error message includes the HTTP status and response text.
+ */
 export async function calculateATARBreakdown(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<CalculationBreakdownResponse> {
   const url = `${API_BASE}/api/v1/calculate-atar/breakdown`;
   const res = await fetch(url, {
@@ -130,6 +156,14 @@ export async function calculateATARBreakdown(standards: { standard_number: numbe
   return res.json() as Promise<CalculationBreakdownResponse>;
 }
 
+/**
+ * Fetches available years for a given standard, optionally scoped to a specific version.
+ *
+ * @param standardNumber - The numeric identifier of the standard
+ * @param version - Optional standard version to filter available years
+ * @returns An array of available years for the requested standard or version
+ * @throws Error if the network request fails or returns a non-OK response
+ */
 export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
   const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
   const res = await fetch(url, { cache: 'no-store' });
@@ -138,6 +172,13 @@ export async function getAvailableYears(standardNumber: number, version?: number
   return data.available_years;
 }
 
+/**
+ * Fetches the available version numbers for a given standard.
+ *
+ * @param standardNumber - The numeric identifier of the standard
+ * @returns An array of available version numbers for the specified standard
+ * @throws If the HTTP request fails or returns a non-OK response
+ */
 export async function getAvailableVersions(standardNumber: number): Promise<number[]> {
   const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
   const res = await fetch(url, { cache: 'no-store' });

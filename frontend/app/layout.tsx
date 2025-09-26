@@ -75,6 +75,13 @@ export const viewport: Viewport = {
   themeColor: '#0D1117',
 };
 
+/**
+ * Application root layout that provides the global HTML shell, themed header, and container for page content.
+ *
+ * Renders the top-level HTML and body elements, applies site-wide fonts and theme styles, includes a decorative radial background and a sticky header with branding and a Beta badge, and wraps page content with a toast provider.
+ *
+ * @returns A React element containing the application's HTML structure (html, body, header, and main) with themed styles and the supplied `children` rendered inside the main content area.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.className} ${inter.variable}`}>

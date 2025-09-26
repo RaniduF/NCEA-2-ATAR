@@ -5,7 +5,24 @@ import argparse
 def sanitize_weight(weight_value: float, cap: float = 0.99, apply_shrink: bool = True,
                     prior: float = 0.95, r_high: float = 0.6,
                     one_threshold: float = 1.0, one_replacement: float = 0.5) -> float:
-    if weight_value is None:
+    """
+                    Sanitize and optionally shrink a raw weight into a stable value within [0.0, 1.0].
+                    
+                    If `weight_value` is None this returns 0.0. The input is clamped to [0.0, 1.0]. If the clamped value is greater than or equal to `one_threshold`, the function returns `one_replacement`. Otherwise the value is capped at `cap`. If `apply_shrink` is True the capped value is moved toward `prior` using a shrink factor `r` (uses `r_high` when the value is very close to `cap`, otherwise `r` is 1.0). The result is clamped to [0.0, 1.0] before returning.
+                    
+                    Parameters:
+                        weight_value (float | None): Raw input weight to sanitize.
+                        cap (float): Upper cap applied before shrink (default 0.99).
+                        apply_shrink (bool): If False returns the capped value directly; if True applies shrink toward `prior` (default True).
+                        prior (float): Baseline value the weight is shrunk toward (default 0.95).
+                        r_high (float): Shrink multiplier used when the value is very close to `cap` (default 0.6).
+                        one_threshold (float): Threshold at or above which the weight is replaced by `one_replacement` (default 1.0).
+                        one_replacement (float): Replacement value used when `weight_value` >= `one_threshold` (default 0.5).
+                    
+                    Returns:
+                        float: Sanitized weight in the range [0.0, 1.0].
+                    """
+                    if weight_value is None:
         return 0.0
     w = float(weight_value)
     w = max(0.0, min(1.0, w))
@@ -30,7 +47,37 @@ def calculate_subject_score(subject_df, breakdown_rows, subject_name=None, acade
                             r_high: float = 0.6, r_zero_e: float = 0.4,
                             one_threshold: float = 1.0, one_replacement: float = 0.5):
     # Prepare sanitized weight
-    subject_df = subject_df.copy()
+    """
+                            Compute a normalized subject score by selecting standards (optionally capped) and aggregating their sanitized excellence weights.
+                            
+                            Parameters:
+                                subject_df (pandas.DataFrame): Rows for a single subject/year. Must contain columns:
+                                    - 'credits' (numeric): credit value for the standard
+                                    - 'weight_excellence' (numeric): raw excellence weight to be sanitized
+                                    - 'standard_number' (str|int): identifier included in the breakdown
+                                    - 'standard_version' (optional): version included in the breakdown if present
+                                breakdown_rows (list): Mutable list that will be appended with a dict per selected standard containing
+                                    subject, academic_year, standard identifiers, raw/sanitized weights, penalized_one flag, and effective_credits.
+                                subject_name (str|None): Subject label recorded in breakdown entries.
+                                academic_year (str|int|None): Academic year recorded in breakdown entries.
+                                normalization_mode (str): One of 'fixed', 'dynamic_credits', or 'unweighted'.
+                                    - 'fixed': normalize by target_credits (or 24 when target_credits is not positive)
+                                    - 'dynamic_credits': normalize by total credits mapped (at least 1)
+                                    - 'unweighted': normalize by count of selected standards (at least 1)
+                                target_credits (int): Desired credit target used when selecting standards and for 'fixed' normalization.
+                                max_standards (int|None): Maximum number of standards to select; None means no limit.
+                                cap (float): Upper clamp applied to raw weights before optional shrinkage.
+                                apply_shrink (bool): Whether to apply shrinkage towards the prior when sanitizing weights.
+                                prior (float): Shrinkage prior value used when apply_shrink is True.
+                                r_high (float): Higher shrinkage factor applied when a weight is very close to `cap`.
+                                r_zero_e (float): (Unused here) present for API compatibility with sanitize_weight.
+                                one_threshold (float): Raw weight value at or above which the standard is considered a penalized one.
+                                one_replacement (float): Replacement value used by sanitize_weight when raw weight >= one_threshold.
+                            
+                            Returns:
+                                float: The normalized subject score computed as sum of contributions divided by the selected denominator.
+                            """
+                            subject_df = subject_df.copy()
     subject_df['sanitized_weight_excellence'] = subject_df['weight_excellence'].apply(
         lambda v: sanitize_weight(v, cap, apply_shrink, prior, r_high, one_threshold, one_replacement)
     )
@@ -92,6 +139,11 @@ def calculate_subject_score(subject_df, breakdown_rows, subject_name=None, acade
 
 
 def main():
+    """
+    Run the CLI-driven subject weight analysis pipeline: load CSVs, compute sanitized subject scores, print ranked subjects, and export a per-standard credits breakdown CSV.
+    
+    Reads standard details and weightings from fixed CSV paths, merges and filters them to form the set of achievement standards, then groups by academic year and subject to compute a normalized score per subject using configurable normalization and shrinkage parameters supplied via command-line flags. Results are printed to stdout and a breakdown of selected standards is written to credits_breakdown.csv.
+    """
     parser = argparse.ArgumentParser(description='CSV-based Subject Weight Analyzer')
     parser.add_argument('--norm', choices=['fixed', 'dynamic_credits', 'unweighted'], default='fixed')
     parser.add_argument('--target-credits', type=int, default=24)
@@ -120,6 +172,18 @@ def main():
     credits_breakdown_rows = []
     
     def scorer(group):
+        """
+        Compute the normalized subject score for a grouped standards DataFrame for a single subject and academic year.
+        
+        Parameters:
+            group (pandas.DataFrame): Rows for a single (academic_year, subject) group; must include 'academic_year' and 'subject' columns and the standard-level fields used by the scoring pipeline.
+        
+        Returns:
+            float: The subject's normalized score.
+        
+        Notes:
+            This function also appends per-standard breakdown entries to the enclosing `credits_breakdown_rows` list as a side effect.
+        """
         year = group['academic_year'].iloc[0]
         subject = group['subject'].iloc[0]
         return calculate_subject_score(
