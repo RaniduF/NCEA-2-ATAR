@@ -1,5 +1,13 @@
 import { useEffect } from 'react';
 
+/**
+ * Adds a pointer-driven ripple visual effect to elements matching the provided selector.
+ *
+ * Hooks into document pointerdown events to create a positioned `.ripple-span` element on the target,
+ * removes the ripple when its animation ends (with a 1000ms fallback), and cleans up listeners on unmount or selector change.
+ *
+ * @param selector - CSS selector for elements that should receive the ripple effect; defaults to `'.ripple'`
+ */
 export function useRipple(selector: string = '.ripple') {
   useEffect(() => {
     if (typeof window === 'undefined') return;

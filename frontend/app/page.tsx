@@ -30,6 +30,14 @@ export interface SelectedItem {
   standard_version?: number;
 }
 
+/**
+ * Renders the main page for building an NCEA profile, managing portfolios, and calculating ATAR estimates.
+ *
+ * The component provides UI for searching and selecting standards, adjusting grades/years/versions,
+ * saving/loading portfolios (including auto-save), and triggering ATAR calculation and breakdown requests.
+ *
+ * @returns The React element for the NCEA profile builder page.
+ */
 export default function Page() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);

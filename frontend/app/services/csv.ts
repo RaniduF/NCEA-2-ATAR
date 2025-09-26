@@ -1,3 +1,12 @@
+/**
+ * Generates a CSV from the provided headers and rows and triggers a browser download using the given filename.
+ *
+ * The CSV uses CRLF ("\r\n") line endings and includes a UTF-8 BOM. Null or undefined cells are written as empty strings; cells containing quotes, commas, or newlines are quoted and internal quotes are doubled.
+ *
+ * @param filename - Download filename (include extension, e.g., "export.csv")
+ * @param headers - Array of header values for the first CSV row
+ * @param rows - Array of data rows; each row is an array of cell values (string | number | null | undefined)
+ */
 export function downloadCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
   const escapeCell = (cell: string | number | null | undefined) => {
     if (cell === null || cell === undefined) return '';

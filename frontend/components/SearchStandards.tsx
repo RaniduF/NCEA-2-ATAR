@@ -18,6 +18,14 @@ interface Props {
   selectedStandardIds: Set<number>;
 }
 
+/**
+ * Search UI component for finding subjects or standards, displaying live suggestions and grouped search results, and enabling adding or removing standards.
+ *
+ * @param onAdd - Callback invoked with a `Standard` when the user adds a standard.
+ * @param onRemove - Callback invoked with a standard number when the user removes a standard.
+ * @param selectedStandardIds - Set of standard numbers that are currently selected.
+ * @returns The rendered SearchStandards React component tree.
+ */
 export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props) {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestionsResponse>({ subjects: [], standards: [] });
@@ -340,6 +348,15 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   );
 }
 
+/**
+ * Renders a card for a single standard showing its metadata, credits, and an Add/Remove action.
+ *
+ * @param std - Standard data to display (subject, title, standard_number, credits, is_ue, etc.).
+ * @param onAdd - Invoked with `std` when the Add button is clicked.
+ * @param onRemove - Invoked with `std.standard_number` when the Remove button is clicked.
+ * @param selected - When true, displays the Remove action; otherwise displays the Add action.
+ * @returns The rendered standard card element.
+ */
 function StandardCard({ std, onAdd, onRemove, selected }: { 
   std: Standard; 
   onAdd: (s: Standard) => void; 

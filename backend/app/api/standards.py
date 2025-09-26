@@ -55,12 +55,20 @@ def get_db():
 async def search_standards(q: str | None = None,
                            db: Session = Depends(get_db)):
     """
-    Performs a multi-stage, contextual search for NCEA standards.
-    - Prioritizes full subject matches.
-    - Then, checks for aliases/numbers.
-    - Then, performs a keyword search.
-    - NEW: If no results, attempts a fuzzy search to provide a "Did you mean?" suggestion.
-    """
+                           Search for NCEA standards by subject, alias/number, or keyword and return matching standards with related groups and optional suggestions.
+                           
+                           Performs a staged search: prefers exact subject matches, then alias/standard-number matches, then keyword matches, and finally offers a fuzzy-subject suggestion when nothing else matches.
+                           
+                           Parameters:
+                               q (str | None): The user's search query; when None or empty, returns no results.
+                           
+                           Returns:
+                               dict: A response object with the following keys:
+                                   - direct_results (list[Standard]): Standards that directly match the query (empty if none).
+                                   - related_groups (list[dict]): Each dict contains "name" (str) and "standards" (list[Standard]) for related subject groups.
+                                   - suggestion (None | dict): `None` when no suggestion; otherwise an object like {"type": "subject", "value": "<Suggested Subject>"}.
+                                   - subject_match (None | ...): Present (set to `None`) in responses returned after finding a top standard.
+                           """
     if not q:
         return {"direct_results": [], "related_groups": [], "suggestion": None}
 
@@ -161,7 +169,20 @@ async def search_standards(q: str | None = None,
 
 @router.get("/{standard_number}/available-years")  # noqa: B008
 def get_available_years_for_standard(standard_number: int, version: Optional[int] = None, db: Session = Depends(get_db)):
-    """Get available years for a specific standard and optional version"""
+    """
+    Retrieve available academic years for a standard, optionally filtered by version.
+    
+    Parameters:
+        standard_number (int): The identifier of the standard to query.
+        version (int | None): If provided, restrict results to this standard version.
+    
+    Returns:
+        dict: {
+            "standard_number": standard_number,
+            "version": version,
+            "available_years": list[int]  # available academic years sorted descending
+        }
+    """
     query = db.query(standard_models.StandardWeighting.academic_year)\
         .filter(standard_models.StandardWeighting.standard_number == standard_number)
     
@@ -177,7 +198,12 @@ def get_available_years_for_standard(standard_number: int, version: Optional[int
 
 @router.get("/{standard_number}/available-versions")  # noqa: B008
 def get_available_versions_for_standard(standard_number: int, db: Session = Depends(get_db)):
-    """Get available versions for a specific standard"""
+    """
+    List available standard versions for a given standard number.
+    
+    Returns:
+        dict: {"standard_number": int, "available_versions": List[int]} where "available_versions" is a list of available versions ordered descending.
+    """
     available_versions = db.query(standard_models.StandardWeighting.standard_version)\
         .filter(standard_models.StandardWeighting.standard_number == standard_number)\
         .distinct()\

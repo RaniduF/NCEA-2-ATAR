@@ -17,6 +17,12 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False,
 
 
 def override_get_db():
+    """
+    Provide a SQLAlchemy Session connected to the test database and ensure it is closed after use.
+    
+    Returns:
+        sqlalchemy.orm.Session: A database session bound to the test database, yielded for use by the caller and closed when finished.
+    """
     try:
         db = TestingSessionLocal()
         yield db
@@ -86,6 +92,11 @@ def test_calculate_breakdown_success():
 
 
 def test_calculate_breakdown_empty():
+    """
+    Verify the breakdown endpoint returns a 400 response when the request contains an empty standards list.
+    
+    Sends a POST to /api/v1/calculate-atar/breakdown with {"standards": []} and asserts the response status code is 400.
+    """
     r = client.post("/api/v1/calculate-atar/breakdown", json={"standards": []})
     assert r.status_code == 400
 

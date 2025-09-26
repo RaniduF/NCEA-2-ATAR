@@ -34,6 +34,14 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Renders a modal Portfolio Manager UI for viewing, importing, exporting, renaming, duplicating, deleting, and loading saved portfolios.
+ *
+ * @param onLoadPortfolio - Callback invoked with portfolio data when the user loads a portfolio into the parent context.
+ * @param isOpen - Controls whether the manager is visible.
+ * @param onClose - Callback invoked to request closing the manager.
+ * @returns The portfolio manager UI when open, otherwise null.
+ */
 export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [portfolios, setPortfolios] = useState<SavedPortfolio[]>([]);
   const [storageInfo, setStorageInfo] = useState({ used: 0, available: 0, portfolioCount: 0 });
