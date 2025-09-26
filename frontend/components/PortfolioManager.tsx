@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { portfolioService, type SavedPortfolio } from '../app/services/portfolio';
 import { nceaParser, type ParseResult } from '../app/services/ncea-parser';
 import type { SelectedItem } from '../app/page';
@@ -26,6 +26,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { FolderIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
 import { calculateATAR, type ATARResult } from '../app/services/api';
+import { useToast } from '../app/providers/ToastProvider';
 
 interface Props {
   onLoadPortfolio: (payload: { id?: string; name?: string; items: SelectedItem[] }) => void;
@@ -52,24 +53,9 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [newPortfolioName, setNewPortfolioName] = useState('NCEA Import');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const { showError, showInfo, showWarning } = useToast();
 
-  useEffect(() => {
-    if (isOpen) {
-      loadPortfolios();
-    }
-  }, [isOpen]);
-
-  // Lock body scroll when the manager is open
-  useEffect(() => {
-    if (!isOpen) return;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isOpen]);
-
-  const loadPortfolios = () => {
+  const loadPortfolios = useCallback(() => {
     const savedPortfolios = portfolioService.getPortfolios();
     const info = portfolioService.getStorageInfo();
     setPortfolios(savedPortfolios);
@@ -84,15 +70,31 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
       setSelectedId(null);
       setRenamingId(null);
     }
-  };
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadPortfolios();
+    }
+  }, [isOpen, loadPortfolios]);
+
+  // Lock body scroll when the manager is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
 
   // Load preview lazily when selection changes
   useEffect(() => {
     const id = selectedId;
-    if (!id) return;
-    if (atarPreviewById[id]) return;
+    if (!id || atarPreviewById[id]) return;
     const p = portfolios.find(x => x.id === id);
     if (!p) return;
+    let isCancelled = false;
     (async () => {
       setAtarPreviewById(prev => ({ ...prev, [id]: { loading: true, results: null } }));
       try {
@@ -103,12 +105,19 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           standard_version: item.standard_version
         }));
         const results = await calculateATAR(payload);
-        setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results } }));
+        if (!isCancelled) {
+          setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results } }));
+        }
       } catch (e: any) {
-        setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results: null, error: 'Failed to preview ATAR' } }));
+        if (!isCancelled) {
+          setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results: null, error: 'Failed to preview ATAR' } }));
+        }
       }
     })();
-  }, [selectedId, portfolios]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedId, portfolios, atarPreviewById]);
 
   const handleRenameCommit = (p: SavedPortfolio) => {
     const name = renamingValue.trim();
@@ -178,7 +187,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           if (imported) {
             loadPortfolios();
           } else {
-            alert('Failed to import portfolio. Please check the file format.');
+            showError('Failed to import portfolio. Please check the file format.');
           }
         };
         reader.readAsText(file);
@@ -189,7 +198,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
   const handleParseNCEAText = async () => {
     if (!nceaText.trim()) {
-      alert('Please paste your NCEA portal text first');
+      showInfo('Please paste your NCEA portal text first');
       return;
     }
 
@@ -199,7 +208,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
       setParseResult(result);
     } catch (error) {
       console.error('Error parsing NCEA text:', error);
-      alert('Failed to parse NCEA portal text. Please check the format and try again.');
+      showError('Failed to parse NCEA portal text. Please check the format and try again.');
     } finally {
       setIsParsingNCEA(false);
     }
@@ -207,7 +216,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
   const handleImportParsedStandards = (name: string) => {
     if (!parseResult?.validStandards.length) {
-      alert('No valid standards to import');
+      showWarning('No valid standards to import');
       return;
     }
 
@@ -227,7 +236,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
   const handleLoadParsedStandards = () => {
     if (!parseResult?.validStandards.length) {
-      alert('No valid standards to load');
+      showWarning('No valid standards to load');
       return;
     }
 
@@ -355,7 +364,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
               <BookmarkIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
               <div className="text-slate-400 text-lg font-medium mb-2">No saved portfolios yet</div>
               <p className="text-slate-500 text-sm max-w-md mx-auto">
-                Build your NCEA portfolio and click "Save Portfolio" to store it for later use, or import from your NCEA portal.
+                Build your NCEA portfolio and click &ldquo;Save Portfolio&rdquo; to store it for later use, or import from your NCEA portal.
               </p>
             </div>
           ) : (
@@ -407,7 +416,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                                     <PencilSquareIcon className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
-                                <div className="text-sm text-slate-400">ATAR {latestATAR}</div>
+                              <div className="text-sm text-slate-400">ATAR {latestATAR}</div>
                               </div>
                             )}
                           </div>
@@ -640,7 +649,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-start gap-2">
                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
                          <span>
-                           {parseResult.missingGrades} standard(s) did not have a grade on NZQA. We've defaulted these to Achieved. Please review and manually adjust grades if needed.
+                           {parseResult.missingGrades} standard(s) did not have a grade on NZQA. We&apos;ve defaulted these to Achieved. Please review and manually adjust grades if needed.
                          </span>
                        </div>
                      )}
@@ -776,7 +785,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                </button>
              </div>
              <div className="p-5 space-y-4">
-               <p className="text-slate-300 text-sm">Are you sure you want to delete "{deleteTarget.name}"? This cannot be undone.</p>
+               <p className="text-slate-300 text-sm">Are you sure you want to delete &ldquo;{deleteTarget.name}&rdquo;? This cannot be undone.</p>
                <div className="flex items-center justify-end gap-2">
                  <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">Cancel</button>
                  <button onClick={confirmDeletePortfolio} className="btn-danger">Delete</button>

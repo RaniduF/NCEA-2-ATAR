@@ -80,8 +80,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
     el.style.height = `${currentHeight}px`;
     el.style.willChange = 'height, opacity, transform, filter';
     // Force reflow then collapse to 0 height
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    el.offsetHeight;
+    void el.offsetHeight;
     requestAnimationFrame(() => {
       el.style.height = '0px';
     });

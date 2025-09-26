@@ -19,6 +19,7 @@ import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useReveal } from './hooks/useReveal';
 import { useRipple } from './hooks/useRipple';
 import type { SavedPortfolio } from './services/portfolio';
+import { useToast } from './providers/ToastProvider';
 
 export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
 
@@ -171,6 +172,8 @@ export default function Page() {
 
   // Rename handled inline in Portfolio Manager
 
+  const { showError } = useToast();
+
   const handleCalculate = async (): Promise<void> => {
     setIsCalculating(true);
     setResults(null);
@@ -194,7 +197,7 @@ export default function Page() {
       });
     } catch (err) {
       console.error(err);
-      alert('Failed to calculate ATAR. Please try again.');
+      showError('Failed to calculate ATAR. Please try again.');
     } finally {
       setIsCalculating(false);
     }
@@ -224,7 +227,7 @@ export default function Page() {
               <BookmarkSolidIcon className="w-6 h-6 text-brand-400" />
               <div>
                 <h2 className="text-xl md:text-2xl font-semibold">Selected standards</h2>
-                <p className="text-slate-300 text-sm">Adjust grades and remove anything you don't want to include.</p>
+                <p className="text-slate-300 text-sm">Adjust grades and remove anything you don&apos;t want to include.</p>
               </div>
             </div>
             {selectedItems.length > 0 && (

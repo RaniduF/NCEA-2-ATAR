@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, SubjectSSPBreakdown } from '../app/services/api';
 import { downloadCSV } from '../app/services/csv';
@@ -18,6 +18,32 @@ interface Props {
 }
 
 export function ATARResults({ results, breakdown }: Props) {
+  const data = useMemo(() => {
+    const normalized = results ?? [];
+    return [...normalized].sort((a, b) => a.year - b.year);
+  }, [results]);
+  const hasAnyResults = data.length > 0;
+
+  const yearsMap: Record<number, YearlyBreakdown> = {};
+  const subjectsByYear: Record<number, SubjectSSPBreakdown[]> = {};
+  if (breakdown) {
+    for (const y of breakdown.years) yearsMap[y.year] = y;
+    for (const s of breakdown.subjects) {
+      if (!subjectsByYear[s.year]) subjectsByYear[s.year] = [];
+      subjectsByYear[s.year].push(s);
+    }
+  }
+  const availableYears = useMemo(() => data.map(d => d.year), [data]);
+  const [activeYear, setActiveYear] = useState<number | null>(
+    availableYears.length ? availableYears[availableYears.length - 1] : null
+  );
+  useEffect(() => {
+    setActiveYear(prev => {
+      if (prev && availableYears.includes(prev)) return prev;
+      return availableYears.length ? availableYears[availableYears.length - 1] : null;
+    });
+  }, [availableYears]);
+
   if (!results) {
     return (
       <div className="text-center py-16">
@@ -29,8 +55,8 @@ export function ATARResults({ results, breakdown }: Props) {
       </div>
     );
   }
-  
-  if (results.length === 0) {
+
+  if (!hasAnyResults) {
     return (
       <div className="text-center py-16">
         <AcademicCapIcon className="w-16 h-16 text-amber-400 mx-auto mb-4" />
@@ -42,22 +68,9 @@ export function ATARResults({ results, breakdown }: Props) {
     );
   }
 
-  const data = [...results].sort((a, b) => a.year - b.year);
   const latestResult = data[data.length - 1];
   const earliestResult = data[0];
   const trend = latestResult.estimated_atar - earliestResult.estimated_atar;
-
-  const yearsMap: Record<number, YearlyBreakdown> = {};
-  const subjectsByYear: Record<number, SubjectSSPBreakdown[]> = {};
-  if (breakdown) {
-    for (const y of breakdown.years) yearsMap[y.year] = y;
-    for (const s of breakdown.subjects) {
-      if (!subjectsByYear[s.year]) subjectsByYear[s.year] = [];
-      subjectsByYear[s.year].push(s);
-    }
-  }
-  const availableYears = data.map(d => d.year);
-  const [activeYear, setActiveYear] = React.useState<number | null>(availableYears.length ? availableYears[availableYears.length - 1] : null);
 
   return (
     <div className="space-y-8">
