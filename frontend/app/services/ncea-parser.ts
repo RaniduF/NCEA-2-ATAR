@@ -38,7 +38,13 @@ export class NCEAPortalParser {
       case 'M': return 'Merit';
       case 'A': return 'Achieved';
       case 'N': return 'Not Achieved';
-      default: return 'Achieved'; // Default for empty or unknown results
+      // WARNING: Defaulting to 'Achieved' for empty or unknown results.
+      // This means that any missing, malformed, or unrecognized result codes will be treated as 'Achieved'.
+      // This can significantly impact ATAR calculations or other downstream uses of this data,
+      // as it may artificially inflate a student's results. If the data source or requirements change,
+      // or if you expect non-standard result codes, review this logic carefully.
+      // Consider logging a warning or tracking the number of such cases for audit purposes.
+      default: return 'Achieved';
     }
   }
 
