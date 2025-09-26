@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from sqlalchemy.sql.expression import func
+from sqlalchemy import func
 
 # --- Path Setup & Imports ---
 from ..db import session
@@ -99,13 +99,14 @@ async def get_search_suggestions(q: str | None = None,
         "limit_count": 7 - len(standards_by_number)
     }).fetchall()
     
+    kw_numbers = [row[0] for row in keyword_results]
     standards_by_keyword = []
-    for result in keyword_results:
-        standard = db.query(standard_models.Standard).filter(
-            standard_models.Standard.standard_number == result[0]
-        ).first()
-        if standard:
-            standards_by_keyword.append(standard)
+    if kw_numbers:
+        standards_by_keyword = (
+            db.query(standard_models.Standard)
+            .filter(standard_models.Standard.standard_number.in_(kw_numbers))
+            .all()
+        ) 
     
     # Combine and format standards
     all_standards = standards_by_number + standards_by_keyword

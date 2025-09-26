@@ -30,34 +30,29 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   const [removingStandardIds, setRemovingStandardIds] = useState<Set<number>>(new Set());
   const itemRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
-  const toggleExpanded = async (standardNumber: number) => {
+  const toggleExpanded = (standardNumber: number) => {
+    const expanding = !expandedStandards.has(standardNumber);
     setExpandedStandards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(standardNumber)) {
-        newSet.delete(standardNumber);
-      } else {
-        newSet.add(standardNumber);
-        // Load available versions and years for this standard if not already loaded
-        if (!availableVersionsByStandard[standardNumber]) {
-          getAvailableVersions(standardNumber).then(versions => {
-            setAvailableVersionsByStandard(prev => ({
-              ...prev,
-              [standardNumber]: versions
-            }));
-            // Don't auto-set version - let it remain undefined to use latest by default
-          }).catch(console.error);
-        }
-        if (!availableYearsByStandard[standardNumber]) {
-          getAvailableYears(standardNumber).then(years => {
-            setAvailableYearsByStandard(prev => ({
-              ...prev,
-              [standardNumber]: years
-            }));
-          }).catch(console.error);
-        }
-      }
-      return newSet;
+      const next = new Set(prev);
+      if (next.has(standardNumber)) next.delete(standardNumber);
+      else next.add(standardNumber);
+      return next;
     });
+    if (expanding) {
+      if (!availableVersionsByStandard[standardNumber]) {
+        getAvailableVersions(standardNumber)
+          .then(versions => {
+            const sorted = [...versions].sort((a, b) => b - a);
+            setAvailableVersionsByStandard(prev => ({ ...prev, [standardNumber]: sorted }));
+          })
+          .catch(console.error);
+      }
+      if (!availableYearsByStandard[standardNumber]) {
+        getAvailableYears(standardNumber)
+          .then(years => setAvailableYearsByStandard(prev => ({ ...prev, [standardNumber]: years })))
+          .catch(console.error);
+      }
+    }
   };
 
   const startRemove = (standardNumber: number) => {
@@ -102,13 +97,14 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   };
 
   const handleVersionChange = (standardNumber: number, version: string) => {
-    const versionNum = parseInt(version);
+    const versionNum = Number(version);
     onChangeVersion(standardNumber, versionNum);
     // Reload available years for this specific version
-    getAvailableYears(standardNumber, versionNum).then(years => {
+    getAvailableVersions(standardNumber).then(versions => {
+      const sorted = [...versions].sort((a, b) => b - a);
       setAvailableYearsByStandard(prev => ({
         ...prev,
-        [standardNumber]: years
+        [standardNumber]: sorted
       }));
     }).catch(console.error);
   };
@@ -243,7 +239,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                         <select
                           value={displayVersion}
                           onChange={e => {
-                            const selectedVersion = parseInt(e.target.value);
+                            const selectedVersion = Number(e.target.value);
                             if (selectedVersion === defaultVersion) {
                               onChangeVersion(standard.standard_number, undefined);
                             } else {
@@ -272,7 +268,7 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                             if (value === 'Iterative') {
                               onChangeYear(standard.standard_number, undefined);
                             } else {
-                              onChangeYear(standard.standard_number, parseInt(value));
+                              onChangeYear(standard.standard_number, Number(value));
                             }
                           }}
                           className="input text-sm"

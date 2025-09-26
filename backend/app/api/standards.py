@@ -111,6 +111,7 @@ async def search_standards(q: str | None = None,
     if top_standard:
         related_groups_response = []
         if top_standard.search_keywords and 'groups' in top_standard.search_keywords:
+            subject_cache = {}
             for group_name in top_standard.search_keywords['groups']:
                 # Skip general subject groups (like "Physics") and only include specific categories
                 # (like "Physics Externals", "Physics Internals")
@@ -119,9 +120,14 @@ async def search_standards(q: str | None = None,
                     
                 # Get all standards from the subject first
                 subject_name = group_name.replace(' Externals', '').replace(' Internals', '')
-                subject_standards = db.query(standard_models.Standard).filter(
-                    func.lower(standard_models.Standard.subject) == subject_name.lower()
-                ).all()
+                subject_lower = subject_name.lower()
+                if subject_lower in subject_cache:
+                    subject_standards = subject_cache[subject_lower]
+                else:
+                    subject_standards = db.query(standard_models.Standard).filter(
+                        func.lower(standard_models.Standard.subject) == subject_lower
+                    ).all()
+                    subject_cache[subject_lower] = subject_standards
                 
                 # Filter by assessment type based on group name
                 if group_name.endswith(' Externals'):
@@ -153,7 +159,7 @@ async def search_standards(q: str | None = None,
     return {"direct_results": [], "related_groups": [], "suggestion": None}
 
 
-@router.get("/{standard_number}/available-years")
+@router.get("/{standard_number}/available-years")  # noqa: B008
 def get_available_years_for_standard(standard_number: int, version: Optional[int] = None, db: Session = Depends(get_db)):
     """Get available years for a specific standard and optional version"""
     query = db.query(standard_models.StandardWeighting.academic_year)\
@@ -166,10 +172,10 @@ def get_available_years_for_standard(standard_number: int, version: Optional[int
         .order_by(standard_models.StandardWeighting.academic_year.desc())\
         .all()
     
-    years = [year[0] for year in available_years]
+    years = [int(year[0]) for year in available_years]
     return {"standard_number": standard_number, "version": version, "available_years": years}
 
-@router.get("/{standard_number}/available-versions")
+@router.get("/{standard_number}/available-versions")  # noqa: B008
 def get_available_versions_for_standard(standard_number: int, db: Session = Depends(get_db)):
     """Get available versions for a specific standard"""
     available_versions = db.query(standard_models.StandardWeighting.standard_version)\

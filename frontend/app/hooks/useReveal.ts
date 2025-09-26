@@ -6,6 +6,18 @@ export function useReveal(selector: string = '.reveal', rootMargin: string = '0p
     const elements = Array.from(document.querySelectorAll<HTMLElement>(selector));
     if (elements.length === 0) return;
 
+    if (!('IntersectionObserver' in window)) {
+      elements.forEach(el => {
+        if (el.classList.contains('reveal-up')) {
+          el.classList.add('animate-reveal-up');
+        } else {
+          el.classList.add('animate-reveal-in');
+        }
+        el.classList.remove('reveal');
+      });
+      return;
+    }
+
     const onIntersect: IntersectionObserverCallback = (entries, observer) => {
       entries.forEach(entry => {
         const el = entry.target as HTMLElement;

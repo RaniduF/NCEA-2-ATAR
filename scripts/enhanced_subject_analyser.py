@@ -18,13 +18,10 @@ Features:
 import pandas as pd
 import mysql.connector
 from mysql.connector import Error
-import json
 import argparse
 from datetime import datetime
-import numpy as np
 from typing import Dict, List, Optional, Tuple
 import sys
-import os
 
 class SubjectAnalyzer:
     def __init__(self, db_config: Dict[str, str]):
@@ -175,12 +172,12 @@ class SubjectAnalyzer:
         if 'subject' in subject_df.columns and not subject_df['subject'].empty:
             try:
                 subject_name = subject_df['subject'].iloc[0]
-            except Exception:
+            except (IndexError, KeyError, ValueError, TypeError):
                 subject_name = None
         if 'academic_year' in subject_df.columns and not subject_df['academic_year'].empty:
             try:
                 academic_year = int(subject_df['academic_year'].iloc[0])
-            except Exception:
+            except (IndexError, KeyError, ValueError, TypeError):
                 academic_year = None
         
         for _, row in subject_df.iterrows():
@@ -614,23 +611,24 @@ def main():
     analyzer.one_weight_threshold = args.one_weight_threshold
     analyzer.one_weight_replacement = args.one_weight_replacement
     
-    try:
-        if analyzer.max_standards is None:
-            try:
-                user_input = input("Enter max standards per subject (e.g., 4/5/6, blank for no limit): ").strip()
-                analyzer.max_standards = int(user_input) if user_input else None
-            except Exception:
-                analyzer.max_standards = None
-        if args.norm is None:
-            try:
-                prompt = "Choose normalization [fixed | dynamic_credits | unweighted] (default: fixed): "
-                user_input = input(prompt).strip().lower()
-                analyzer.normalization_mode = user_input if user_input in {'fixed','dynamic_credits','unweighted'} else 'fixed'
-            except Exception:
-                analyzer.normalization_mode = 'fixed'
-    except EOFError:
-        # Non-interactive environment; keep defaults
-        pass
+    if sys.stdin and sys.stdin.isatty():
+        try:
+            if analyzer.max_standards is None:
+                try:
+                    user_input = input("Enter max standards per subject (e.g., 4/5/6, blank for no limit): ").strip()
+                    analyzer.max_standards = int(user_input) if user_input else None
+                except (ValueError, TypeError):
+                    analyzer.max_standards = None
+            if args.norm is None:
+                try:
+                    prompt = "Choose normalization [fixed | dynamic_credits | unweighted] (default: fixed): "
+                    user_input = input(prompt).strip().lower()
+                    analyzer.normalization_mode = user_input if user_input in {'fixed','dynamic_credits','unweighted'} else 'fixed'
+                except (ValueError, TypeError):
+                    analyzer.normalization_mode = 'fixed'
+        except EOFError:
+            # Non-interactive environment; keep defaults
+            pass
     
     try:
         # Connect and load data

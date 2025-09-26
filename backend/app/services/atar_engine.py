@@ -59,6 +59,22 @@ class ATARCalculator:
         rates = self.db.query(standard_models.ParticipationRate).all()
         return {r.academic_year: r.weighted_statnz_population for r in rates}
 
+    def _estimate_atar_from_stat(self, stat_value: float, year: int) -> float | None:
+        dist = self.all_distributions.get(year)
+        pop = self.participation_rates.get(year)
+        if not dist or not pop:
+            return None
+        students_per_band = round(float(pop) * 0.0005)
+        if students_per_band == 0:
+            return None
+        user_rank = 1
+        for entry in dist["distribution"]:
+            if stat_value >= entry["value"]:
+                break
+            user_rank += entry["count"]
+        band_index = (user_rank - 1) // students_per_band
+        return max(0.0, round(99.95 - (band_index * 0.05), 2))
+
     def calculate_for_all_years(self) -> List[Dict]:
         """The main public method with dynamic ATAR band calculation."""
         all_year_results = []
@@ -69,31 +85,13 @@ class ATARCalculator:
             user_stat_value = self._calculate_statistical_value_for_year(year)
             if user_stat_value is None: continue
 
-            year_dist_data = self.all_distributions.get(year)
-            year_pop_data = self.participation_rates.get(year)
-            if not year_dist_data or not year_pop_data: continue
-
-            students_per_band = round(float(year_pop_data) * 0.0005) # 0.05%
-            if students_per_band == 0: continue
-
-            # --- Rank Calculation ---
-            user_rank = 1
-            for entry in year_dist_data["distribution"]:
-                if user_stat_value >= entry["value"]:
-                    break
-                user_rank += entry["count"]
-
-            # --- Final ATAR Conversion (Corrected Logic) ---
-            # The ATAR scale has 2000 bands from 99.95 down to 0.00 in 0.05 increments.
-            # We calculate the user's position on this full scale.
-            band_index = (user_rank - 1) // students_per_band
-
-            estimated_atar = 99.95 - (band_index * 0.05)
+            estimated_atar = self._estimate_atar_from_stat(user_stat_value, year)
+            if estimated_atar is None:
+                continue
 
             all_year_results.append({
                 "year": year,
-                "estimated_atar": max(0.0, round(estimated_atar, 2)),
-                # Ensure ATAR is not negative
+                "estimated_atar": estimated_atar,
                 "statistical_value": user_stat_value
             })
 
@@ -112,22 +110,9 @@ class ATARCalculator:
                 continue
 
             # Convert stat value to estimated ATAR using distribution and participation rate
-            year_dist_data = self.all_distributions.get(year)
-            year_pop_data = self.participation_rates.get(year)
-            if not year_dist_data or not year_pop_data:
+            estimated_atar = self._estimate_atar_from_stat(stat_value, year)
+            if estimated_atar is None:
                 continue
-
-            students_per_band = round(float(year_pop_data) * 0.0005)
-            if students_per_band == 0:
-                continue
-
-            user_rank = 1
-            for entry in year_dist_data["distribution"]:
-                if stat_value >= entry["value"]:
-                    break
-                user_rank += entry["count"]
-            band_index = (user_rank - 1) // students_per_band
-            estimated_atar = max(0.0, round(99.95 - (band_index * 0.05), 2))
 
             years_breakdown.append(calc_schemas.YearlyBreakdown(
                 year=year,
@@ -454,7 +439,6 @@ class ATARCalculator:
             used: List[calc_schemas.StandardContribution] = []
             credits_mapped = 0.0
             rank = 0
-            prorated = 0
             for c in items:
                 if credits_mapped >= 18.0:
                     break
@@ -465,7 +449,6 @@ class ATARCalculator:
                     continue
                 rank += 1
                 is_pr = take < avail
-                prorated += 1 if is_pr else 0
                 contrib = take * c['weight']
                 credits_mapped += take
                 used.append(calc_schemas.StandardContribution(
