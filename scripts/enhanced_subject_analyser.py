@@ -306,7 +306,11 @@ class SubjectAnalyzer:
             if len(subject_data) > 1:
                 # Calculate year-over-year changes
                 score_change = subject_data['optimal_score'].iloc[-1] - subject_data['optimal_score'].iloc[0]
-                avg_weight_change = subject_data['avg_weight_excellence'].iloc[-1] - subject_data['avg_weight_excellence'].iloc[0]
+                # Use credit-weighted average to better reflect meaningful change
+                if 'weighted_avg_excellence' in subject_data.columns:
+                    avg_weight_change = subject_data['weighted_avg_excellence'].iloc[-1] - subject_data['weighted_avg_excellence'].iloc[0]
+                else:
+                    avg_weight_change = subject_data['avg_weight_excellence'].iloc[-1] - subject_data['avg_weight_excellence'].iloc[0]
                 
                 trends.append({
                     'subject': subject,
