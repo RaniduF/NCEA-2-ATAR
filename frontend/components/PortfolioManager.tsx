@@ -55,14 +55,15 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const { showError, showInfo, showWarning } = useToast();
 
-  const loadPortfolios = useCallback(() => {
+  const loadPortfolios = (idToSelect?: string) => {
     const savedPortfolios = portfolioService.getPortfolios();
     const info = portfolioService.getStorageInfo();
     setPortfolios(savedPortfolios);
     setStorageInfo(info);
     // Initialize selection
     if (savedPortfolios.length > 0) {
-      if (!selectedId || !savedPortfolios.find(p => p.id === selectedId)) {
+      const desired = idToSelect ?? selectedId;
+      if (!desired || !savedPortfolios.find(p => p.id === desired)) {
         setSelectedId(savedPortfolios[0].id);
         setRenamingId(null);
       }
@@ -70,7 +71,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
       setSelectedId(null);
       setRenamingId(null);
     }
-  }, [selectedId]);
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -169,8 +170,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
   const handleDuplicatePortfolio = (p: SavedPortfolio) => {
     const duplicated = portfolioService.savePortfolio(`${p.name} (Copy)`, p.items, p.description);
-    loadPortfolios();
-    setSelectedId(duplicated.id);
+    loadPortfolios(duplicated.id);
   };
 
   const handleImportPortfolio = () => {

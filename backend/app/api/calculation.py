@@ -42,7 +42,7 @@ async def calculate_atar_endpoint(
     return {"results": results}
 
 
-@router.post("/breakdown", response_model=calculation_schemas.CalculationBreakdownResponse)
+@router.post("/breakdown", response_model=calculation_schemas.CalculationBreakdownResponse)  # noqa: B008
 async def calculate_atar_breakdown_endpoint(
         request: calculation_schemas.ATARCalculationRequest,
         db: Session = Depends(get_db)

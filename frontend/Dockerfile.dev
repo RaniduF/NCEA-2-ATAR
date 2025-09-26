@@ -3,10 +3,10 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
 
 # Copy source code
 COPY . .

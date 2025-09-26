@@ -74,7 +74,7 @@ def test_calculate_breakdown_success():
     assert abs(calc_stat - y0["statistical_value"]) < 1e-6
 
     # Subject caps should not exceed 24
-    for subj, used in (totals.get("subject_caps") or {}).items():
+    for _subj, used in (totals.get("subject_caps") or {}).items():
         assert used <= 24.0 + 1e-6
 
     # SSP section present

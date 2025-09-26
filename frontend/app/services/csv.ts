@@ -2,7 +2,7 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   const escapeCell = (cell: string | number | null | undefined) => {
     if (cell === null || cell === undefined) return '';
     const s = String(cell);
-    if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+    if (s.includes('"') || s.includes(',') || s.includes('\n') || s.includes('\r')) {
       return '"' + s.replace(/"/g, '""') + '"';
     }
     return s;
@@ -12,7 +12,9 @@ export function downloadCSV(filename: string, headers: string[], rows: (string |
   for (const row of rows) {
     lines.push(row.map(escapeCell).join(','));
   }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const bom = '\uFEFF';
+  const content = bom + lines.join('\r\n');
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

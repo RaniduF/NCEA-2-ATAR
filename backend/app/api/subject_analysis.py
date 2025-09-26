@@ -425,9 +425,9 @@ async def get_ssp_rankings(
                 'ue_present': ue_present
             })
 
-        # Sort by ssp_score desc then subject name
-        rankings.sort(key=lambda x: (-x['ssp_score'], x['subject']))
-        # Add ranks (skip ranking ineligible at end but still assign increasing numbers)
+        # Sort eligible first, then by ssp_score desc, then by subject
+        rankings.sort(key=lambda x: (not x['eligible'], -x['ssp_score'], x['subject']))
+        # Add ranks
         output: list[SSPSubjectRanking] = []
         for i, r in enumerate(rankings, 1):
             output.append(SSPSubjectRanking(
@@ -444,7 +444,7 @@ async def get_ssp_rankings(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating SSP rankings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error calculating SSP rankings: {e}") from e
 
 @router.get("/subject/{subject_name}/{year}", response_model=DetailedSubjectAnalysis)
 async def get_detailed_subject_analysis(

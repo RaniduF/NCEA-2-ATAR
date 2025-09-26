@@ -187,8 +187,14 @@ export default function Page() {
       }));
       const data = await calculateATAR(payload);
       setResults(data);
-      // Fire breakdown fetch in parallel; no need to block showing top-level results
-      calculateATARBreakdown(payload).then(setBreakdown).catch(console.error);
+      // Fire breakdown fetch in parallel; guard against stale responses
+      const reqId = crypto.randomUUID();
+      let activeId = reqId;
+      calculateATARBreakdown(payload)
+        .then((b) => {
+          if (activeId === reqId) setBreakdown(b);
+        })
+        .catch(console.error);
       // Smooth scroll to results after DOM updates
       requestAnimationFrame(() => {
         setTimeout(() => {

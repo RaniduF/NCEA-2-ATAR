@@ -101,4 +101,5 @@ export default {
     },
   },
   plugins: [],
-} satisfies Config; 
+} satisfies Config;
+safelist: ['animate-reveal-in', 'animate-reveal-up']

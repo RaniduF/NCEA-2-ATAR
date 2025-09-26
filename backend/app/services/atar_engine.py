@@ -171,7 +171,7 @@ class ATARCalculator:
             # If no version specified, use latest version for that year
             if weight_version is None and year_weightings:
                 # Use the latest version for that year
-                latest_version = max(year_weightings, key=lambda w: w.standard_version)
+                latest_version = max(year_weightings, key=lambda w: w.standard_version or 0)
                 year_weightings = [latest_version]
             
             # Fallback to current year if historical year not available
@@ -249,7 +249,7 @@ class ATARCalculator:
                     year_weightings = version_weightings
             elif year_weightings:
                 # Use latest version for that year
-                latest_version = max(year_weightings, key=lambda w: w.standard_version)
+                latest_version = max(year_weightings, key=lambda w: w.standard_version or 0)
                 year_weightings = [latest_version]
             
             weight = 0.0
@@ -290,7 +290,7 @@ class ATARCalculator:
             if filtered:
                 year_weightings = filtered
         elif year_weightings:
-            latest = max(year_weightings, key=lambda w: w.standard_version)
+            latest = max(year_weightings, key=lambda w: w.standard_version or 0)
             year_weightings = [latest]
         if not year_weightings:
             return None

@@ -65,18 +65,20 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       setSuggestions({ subjects: [], standards: [] });
       return;
     }
+    let canceled = false;
+    const trimmed = query.trim();
     const t = setTimeout(async () => {
       try {
         setLoadingSuggest(true);
-        const s = await getSuggestions(query.trim());
-        setSuggestions(s);
+        const s = await getSuggestions(trimmed);
+        if (!canceled) setSuggestions(s);
       } catch (e) {
         console.error(e);
       } finally {
-        setLoadingSuggest(false);
+        if (!canceled) setLoadingSuggest(false);
       }
     }, 200);
-    return () => clearTimeout(t);
+    return () => { canceled = true; clearTimeout(t); };
   }, [query, showSuggestions]);
 
   const performSearch = async (q: string) => {
@@ -312,7 +314,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
                   </div>
                 )}
                 {suggestions.standards.map((standard, idx) => {
-                  const standardNumber = standard.split(' • ')[0];
+                  const match = standard.match(/^\d+/);
+                  const standardNumber = match ? match[0] : standard;
                   return (
                     <button
                       key={`standard-${idx}`}

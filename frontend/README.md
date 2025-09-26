@@ -10,7 +10,7 @@ React (Next.js) + Tailwind frontend for the NCEA to ATAR estimator.
 npm install
 ```
 
-2. Set backend API (optional; defaults to http://localhost:8000):
+2. Set backend API (optional; defaults to <http://localhost:8000>):
 
 ```bash
 $env:NEXT_PUBLIC_API_BASE_URL="http://localhost:8000" # PowerShell
@@ -24,7 +24,7 @@ export NEXT_PUBLIC_API_BASE_URL="http://localhost:8000" # bash
 npm run dev
 ```
 
-Open http://localhost:3000.
+Open <http://localhost:3000>.
 
 ## Features
 - Search for subjects or standards with live suggestions

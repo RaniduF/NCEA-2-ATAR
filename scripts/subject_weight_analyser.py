@@ -3,7 +3,7 @@ import argparse
 
 
 def sanitize_weight(weight_value: float, cap: float = 0.99, apply_shrink: bool = True,
-                    prior: float = 0.95, r_high: float = 0.6, r_zero_e: float = 0.4,
+                    prior: float = 0.95, r_high: float = 0.6,
                     one_threshold: float = 1.0, one_replacement: float = 0.5) -> float:
     if weight_value is None:
         return 0.0
@@ -32,7 +32,7 @@ def calculate_subject_score(subject_df, breakdown_rows, subject_name=None, acade
     # Prepare sanitized weight
     subject_df = subject_df.copy()
     subject_df['sanitized_weight_excellence'] = subject_df['weight_excellence'].apply(
-        lambda v: sanitize_weight(v, cap, apply_shrink, prior, r_high, r_zero_e, one_threshold, one_replacement)
+        lambda v: sanitize_weight(v, cap, apply_shrink, prior, r_high, one_threshold, one_replacement)
     )
     subject_df = subject_df.sort_values(by='sanitized_weight_excellence', ascending=False)
     
@@ -48,9 +48,9 @@ def calculate_subject_score(subject_df, breakdown_rows, subject_name=None, acade
         
         available_credits = row['credits']
         if target_credits and target_credits > 0:
-            credits_to_take = min(row['credits'], max(0, target_credits - credits_mapped))
+            credits_to_take = min(available_credits, max(0, target_credits - credits_mapped))
         else:
-            credits_to_take = row['credits']
+            credits_to_take = available_credits
         
         if credits_to_take <= 0:
             continue
@@ -84,8 +84,7 @@ def calculate_subject_score(subject_df, breakdown_rows, subject_name=None, acade
     if normalization_mode == 'unweighted':
         denom = max(1, selected_count)
     elif normalization_mode == 'dynamic_credits':
-        denom = max(1, int(sum(r['effective_credits'] for r in breakdown_rows
-                               if r['subject'] == subject_name and r['academic_year'] == academic_year)))
+        denom = max(1, int(credits_mapped))
     else:
         denom = target_credits if (target_credits and target_credits > 0) else 24
     
