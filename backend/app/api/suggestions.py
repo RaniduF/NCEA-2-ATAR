@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy import bindparam
 from sqlalchemy import func
 
 # --- Path Setup & Imports ---
@@ -76,28 +77,34 @@ async def get_search_suggestions(q: str | None = None,
     # Then find by keywords (excluding those already found by number)
     excluded_numbers = [std.standard_number for std in standards_by_number]
     
-    # Build dynamic exclusion clause for SQL
-    if excluded_numbers:
-        excluded_clause = f"AND s.standard_number NOT IN ({','.join(map(str, excluded_numbers))})"
-    else:
-        excluded_clause = ""
-    
-    keyword_query = text(f"""
+    # Apply exclusion via expanding bind parameter for SQL
+    keyword_sql = """
                  SELECT DISTINCT s.standard_number, s.title
                  FROM standards s,
                       JSON_TABLE(
                               s.search_keywords,
                               '$.primary[*]' COLUMNS (value VARCHAR(100) PATH '$')
                       ) AS jp
-                 WHERE jp.value LIKE :search_term 
-                 {excluded_clause}
-                 LIMIT :limit_count;
-                 """)
+                 WHERE jp.value LIKE :search_term
+                 """
 
-    keyword_results = db.execute(keyword_query, {
+    params = {
         "search_term": f"{search_term}%",
         "limit_count": 7 - len(standards_by_number)
-    }).fetchall()
+    }
+
+    if excluded_numbers:
+        keyword_sql += "AND s.standard_number NOT IN :excluded_list\n"
+        params["excluded_list"] = excluded_numbers
+
+    keyword_sql += "LIMIT :limit_count;"
+
+    keyword_query = text(keyword_sql)
+
+    if excluded_numbers:
+        keyword_query = keyword_query.bindparams(bindparam("excluded_list", expanding=True))
+
+    keyword_results = db.execute(keyword_query, params).fetchall()
     
     kw_numbers = [row[0] for row in keyword_results]
     standards_by_keyword = []
