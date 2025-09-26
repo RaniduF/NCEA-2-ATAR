@@ -28,6 +28,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const [showSuggestions, setShowSuggestions] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   const updateDropdownPos = () => {
     const el = inputRef.current;
@@ -35,6 +36,10 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     const rect = el.getBoundingClientRect();
     setDropdownPos({ left: rect.left, top: rect.bottom + 8, width: rect.width });
   };
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0)) {
@@ -268,7 +273,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
         </div>
       )}
 
-      {createPortal(
+      {isClient && createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
             className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-hidden"

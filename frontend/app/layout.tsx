@@ -2,8 +2,80 @@ import './globals.css';
 import React from 'react';
 import { AcademicCapIcon, CalculatorIcon } from '@heroicons/react/24/solid';
 import { Inter } from 'next/font/google';
+import type { Metadata } from 'next';
+import type { Viewport } from 'next';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' });
+
+export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  title: {
+    default: 'NCEA to ATAR Calculator | Academic Edition',
+    template: '%s | NCEA to ATAR Calculator',
+  },
+  description:
+    'Estimate your Australian ATAR from NCEA standards. Analyse subjects, credits, and achieve University Entrance confidence.',
+  applicationName: 'NCEA → ATAR Estimator',
+  category: 'education',
+  keywords: [
+    'NCEA',
+    'ATAR',
+    'University Entrance',
+    'NZQA',
+    'calculator',
+    'credits',
+    'standards',
+    'subject analysis',
+    'New Zealand',
+    'Australia',
+  ],
+  authors: [{ name: 'NCEA to ATAR Team' }],
+  creator: 'NCEA to ATAR',
+  publisher: 'NCEA to ATAR',
+  openGraph: {
+    type: 'website',
+    url: '/',
+    title: 'NCEA to ATAR Calculator | Academic Edition',
+    description:
+      'Estimate your ATAR from NCEA results with subject analysis and suggestions.',
+    siteName: 'NCEA to ATAR',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'NCEA to ATAR Calculator',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NCEA to ATAR Calculator | Academic Edition',
+    description: 'Estimate your ATAR from NCEA results.',
+    images: ['/og-image.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-snippet': -1,
+      'max-image-preview': 'large',
+      'max-video-preview': -1,
+    },
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
+  alternates: {
+    canonical: '/',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0D1117',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
