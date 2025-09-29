@@ -17,7 +17,7 @@ html, body {
 
 /* Selection and scrollbar */
 ::selection { @apply bg-brand-500/40 text-white; }
-::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar { width: 0.625rem; height: 0.625rem; }
 ::-webkit-scrollbar-thumb { @apply bg-slate-700/80 rounded-full border border-slate-600/50; }
 ::-webkit-scrollbar-track { @apply bg-slate-800/40; }
 

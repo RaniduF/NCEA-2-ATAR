@@ -15,6 +15,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Ensure a public directory exists even if the repo doesn't provide one
+RUN mkdir -p public
+
 # Build the app
 RUN npm run build
 
@@ -28,7 +31,7 @@ RUN apk add --no-cache libc6-compat
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -u 1001 -S -G nodejs nextjs
 
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

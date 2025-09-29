@@ -318,9 +318,9 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
 
   if (!isOpen) return null;
  
-   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-reveal-in">
-      <div className="card w-full max-w-[1100px] max-h-[85vh] overflow-hidden animate-scale-in">
+  return (
+   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-reveal-in">
+      <div className="card w-full max-w-[min(92vw,68.75rem)] max-h-[85vh] overflow-hidden animate-scale-in">
         <div className="p-6 border-b border-white/10 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <FolderIcon className="w-8 h-8 text-brand-400" />
@@ -366,7 +366,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           />
         </div>
 
-        <div className="p-6 overflow-hidden max-h-[calc(85vh-140px)]">
+        <div className="p-6 overflow-hidden max-h-[calc(85vh-8.75rem)]">
           {portfolios.length === 0 ? (
             <div className="text-center py-16">
               <BookmarkIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
@@ -389,7 +389,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                     return (
                       <div
                         key={p.id}
-                        className={`panel px-4 py-3 min-h-[52px] relative group cursor-pointer ${isSelected ? 'ring-1 ring-brand-500/40 bg-slate-800/50' : 'card-hover'}`}
+                        className={`panel px-4 py-3 min-h-[3.25rem] relative group cursor-pointer ${isSelected ? 'ring-1 ring-brand-500/40 bg-slate-800/50' : 'card-hover'}`}
                         onClick={() => { setSelectedId(p.id); setOpenMenuId(null); setRenamingId(null); setRenamingValue(p.name); }}
                         role="button"
                         tabIndex={0}
@@ -564,7 +564,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
        {/* NCEA Import Modal */}
        {showNCEAImport && (
          <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-60 animate-reveal-in">
-           <div className="card w-full max-w-4xl max-h-[90vh] overflow-hidden animate-scale-in">
+           <div className="card w-full max-w-[min(92vw,56rem)] max-h-[90vh] overflow-hidden animate-scale-in">
              <div className="p-6 border-b border-white/10 flex items-center justify-between">
                <div className="flex items-center gap-3">
                  <CloudArrowUpIcon className="w-8 h-8 text-brand-400" />
@@ -751,7 +751,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
              {/* Name Modal */}
              {parseResult && showNameModal && (
                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
-                 <div className="card w-full max-w-md overflow-hidden animate-scale-in">
+                 <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
                    <div className="p-5 border-b border-white/10 flex items-center justify-between">
                      <h4 className="text-slate-200 font-semibold">Name Your Portfolio</h4>
                      <button onClick={() => setShowNameModal(false)} className="btn-ghost">
@@ -785,7 +785,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
        {/* Delete Confirmation Modal */}
        {showDeleteModal && deleteTarget && (
          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
-           <div className="card w-full max-w-md overflow-hidden animate-scale-in">
+           <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
              <div className="p-5 border-b border-white/10 flex items-center justify-between">
                <h4 className="text-slate-200 font-semibold">Delete Portfolio</h4>
                <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">

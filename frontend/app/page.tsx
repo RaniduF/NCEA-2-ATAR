@@ -327,7 +327,7 @@ export default function Page() {
       {/* Create/Overwrite Portfolio Modal */}
       {showSaveModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-reveal-in">
-          <div className="card w-full max-w-2xl animate-scale-in overflow-hidden">
+          <div className="card w-full max-w-[min(92vw,40rem)] animate-scale-in overflow-hidden">
             <div className="p-5 border-b border-white/10">
               <div className="text-lg font-semibold text-slate-200">Save Portfolio</div>
               <div className="text-xs text-slate-400 mt-1">Create a new portfolio or overwrite an existing one</div>
@@ -364,7 +364,7 @@ export default function Page() {
                           title={`Overwrite "${p.name}" with current selections`}
                         >
                           <div className="font-medium text-slate-200 truncate">{p.name}</div>
-                          <div className="text-[11px] text-slate-500">Updated {new Date(p.updatedAt).toLocaleString()}</div>
+                          <div className="text-[0.6875rem] text-slate-500">Updated {new Date(p.updatedAt).toLocaleString()}</div>
                         </button>
                       ))
                   )}

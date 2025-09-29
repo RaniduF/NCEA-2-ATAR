@@ -42,7 +42,18 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     const el = inputRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setDropdownPos({ left: rect.left, top: rect.bottom + 8, width: rect.width });
+    const margin = 8; // viewport margin to avoid touching edges
+    let width = rect.width;
+    // If input is wider than viewport, clamp width to viewport with margins
+    const maxViewportWidth = Math.max(0, window.innerWidth - margin * 2);
+    if (width > maxViewportWidth) width = maxViewportWidth;
+    // Clamp left so the dropdown stays fully within viewport
+    let left = rect.left;
+    if (left + width > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - margin - width);
+    }
+    const top = rect.bottom + 8;
+    setDropdownPos({ left, top, width });
   };
 
   useEffect(() => {
@@ -66,6 +77,18 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       window.removeEventListener('scroll', onResizeOrScroll, true);
     };
   }, [showSuggestions]);
+
+  // Keep dropdown aligned when input width changes (e.g., responsive layout)
+  useEffect(() => {
+    if (!isClient) return;
+    const el = inputRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (showSuggestions) updateDropdownPos();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isClient, showSuggestions]);
 
   // Debounced suggestions
   useEffect(() => {
@@ -287,7 +310,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
             className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-hidden"
-            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width }}
+            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: 'min(60vh, calc(100vh - 1rem - ' + dropdownPos.top + 'px))', overflowY: 'auto' }}
           >
             {suggestions.subjects.length > 0 && (
               <>
