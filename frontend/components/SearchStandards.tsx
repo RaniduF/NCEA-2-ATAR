@@ -35,14 +35,40 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   const updateDropdownPos = () => {
     const el = inputRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setDropdownPos({ left: rect.left, top: rect.bottom + 8, width: rect.width });
+    const margin = 8; // viewport margin to avoid touching edges
+    let width = rect.width;
+    // If input is wider than viewport, clamp width to viewport with margins
+    const maxViewportWidth = Math.max(0, window.innerWidth - margin * 2);
+    if (width > maxViewportWidth) width = maxViewportWidth;
+    // Clamp left so the dropdown stays fully within viewport
+    let left = rect.left;
+    if (left + width > window.innerWidth - margin) {
+      left = Math.max(margin, window.innerWidth - margin - width);
+    }
+    const gap = 8;
+    const topCandidate = rect.bottom + gap;
+
+    const remInPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const availableBelow = window.innerHeight - remInPx - topCandidate;
+    const availableAbove = rect.top - remInPx;
+    const maxHeightLimit = window.innerHeight * 0.6;
+
+    let maxHeight = Math.min(Math.max(availableBelow, 0), maxHeightLimit);
+    let top = topCandidate;
+
+    if (maxHeight < 120 && availableAbove > availableBelow) {
+      maxHeight = Math.min(Math.max(availableAbove, 0), maxHeightLimit);
+      top = Math.max(margin, rect.top - gap - maxHeight);
+    }
+
+    setDropdownPos({ left, top, width, maxHeight });
   };
 
   useEffect(() => {
@@ -66,6 +92,18 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       window.removeEventListener('scroll', onResizeOrScroll, true);
     };
   }, [showSuggestions]);
+
+  // Keep dropdown aligned when input width changes (e.g., responsive layout)
+  useEffect(() => {
+    if (!isClient) return;
+    const el = inputRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (showSuggestions) updateDropdownPos();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isClient, showSuggestions]);
 
   // Debounced suggestions
   useEffect(() => {
@@ -286,8 +324,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       {isClient && createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-hidden"
-            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width }}
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-y-auto"
+            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: `${dropdownPos.maxHeight}px` }}
           >
             {suggestions.subjects.length > 0 && (
               <>
@@ -364,22 +402,30 @@ function StandardCard({ std, onAdd, onRemove, selected }: {
   selected: boolean;
 }) {
   return (
-    <div className="card p-5 flex flex-col gap-3 card-hover">
-      <div className="flex items-start justify-between gap-3">
+    <div className="card p-5 flex flex-col card-hover h-full">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
-          <div className="meta flex items-center gap-2 mb-1">
-            <AcademicCapIcon className="w-4 h-4 flex-shrink-0" />
-            <span className="truncate">{std.subject} • {std.assessment_type} • {std.standards_type}</span>
+          {/* Standard number with icon */}
+          <div className="flex items-center gap-2 mb-2">
+            <AcademicCapIcon className="w-5 h-5 flex-shrink-0 text-brand-400" />
+            <span className="text-lg font-semibold text-slate-100">{std.standard_number}</span>
           </div>
-          <div className="font-medium text-slate-100 leading-tight">{std.standard_number}: {std.title}</div>
+          {/* Standard title - clamped to 2 lines with fixed height */}
+          <div className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2 h-[2.8rem]">
+            {std.title}
+          </div>
+          {/* Meta info */}
+          <div className="text-xs text-slate-500 truncate">
+            {std.subject} • {std.assessment_type} • {std.standards_type}
+          </div>
         </div>
         {std.is_ue && (
-          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex-shrink-0 font-medium">
+          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex-shrink-0 font-medium h-fit">
             UE
           </span>
         )}
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pt-3 mt-auto border-t border-white/5">
         <div className="text-slate-300 text-sm font-medium">{std.credits} credits</div>
         {selected ? (
           <button
