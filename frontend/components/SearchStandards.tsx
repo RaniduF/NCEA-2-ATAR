@@ -387,16 +387,16 @@ function StandardCard({ std, onAdd, onRemove, selected }: {
   selected: boolean;
 }) {
   return (
-    <div className="card p-5 flex flex-col gap-3 card-hover">
-      <div className="flex items-start justify-between gap-3">
+    <div className="card p-5 flex flex-col card-hover h-full">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
           {/* Standard number with icon */}
           <div className="flex items-center gap-2 mb-2">
             <AcademicCapIcon className="w-5 h-5 flex-shrink-0 text-brand-400" />
             <span className="text-lg font-semibold text-slate-100">{std.standard_number}</span>
           </div>
-          {/* Standard title - clamped to 2 lines */}
-          <div className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2">
+          {/* Standard title - clamped to 2 lines with fixed height */}
+          <div className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2 h-[2.8rem]">
             {std.title}
           </div>
           {/* Meta info */}
@@ -410,7 +410,7 @@ function StandardCard({ std, onAdd, onRemove, selected }: {
           </span>
         )}
       </div>
-      <div className="flex items-center justify-between pt-2 border-t border-white/5">
+      <div className="flex items-center justify-between pt-3 mt-auto border-t border-white/5">
         <div className="text-slate-300 text-sm font-medium">{std.credits} credits</div>
         {selected ? (
           <button
