@@ -35,7 +35,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   const updateDropdownPos = () => {
@@ -53,7 +53,15 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       left = Math.max(margin, window.innerWidth - margin - width);
     }
     const top = rect.bottom + 8;
-    setDropdownPos({ left, top, width });
+    
+    // Compute maxHeight to prevent negative values and ensure dropdown fits in viewport
+    const remInPx = 16; // 1rem = 16px (standard default)
+    const availableSpace = window.innerHeight - top - remInPx;
+    const clampedAvailableSpace = Math.max(0, availableSpace);
+    const maxHeight60vh = window.innerHeight * 0.6;
+    const maxHeight = Math.min(clampedAvailableSpace, maxHeight60vh);
+    
+    setDropdownPos({ left, top, width, maxHeight });
   };
 
   useEffect(() => {
@@ -309,8 +317,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       {isClient && createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-hidden"
-            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: 'min(60vh, calc(100vh - 1rem - ' + dropdownPos.top + 'px))', overflowY: 'auto' }}
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-y-auto"
+            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: `${dropdownPos.maxHeight}px` }}
           >
             {suggestions.subjects.length > 0 && (
               <>
