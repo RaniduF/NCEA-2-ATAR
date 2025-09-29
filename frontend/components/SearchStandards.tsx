@@ -52,15 +52,22 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     if (left + width > window.innerWidth - margin) {
       left = Math.max(margin, window.innerWidth - margin - width);
     }
-    const top = rect.bottom + 8;
-    
-    // Compute maxHeight to prevent negative values and ensure dropdown fits in viewport
-    const remInPx = 16; // 1rem = 16px (standard default)
-    const availableSpace = window.innerHeight - top - remInPx;
-    const clampedAvailableSpace = Math.max(0, availableSpace);
-    const maxHeight60vh = window.innerHeight * 0.6;
-    const maxHeight = Math.min(clampedAvailableSpace, maxHeight60vh);
-    
+    const gap = 8;
+    const topCandidate = rect.bottom + gap;
+
+    const remInPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const availableBelow = window.innerHeight - remInPx - topCandidate;
+    const availableAbove = rect.top - remInPx;
+    const maxHeightLimit = window.innerHeight * 0.6;
+
+    let maxHeight = Math.min(Math.max(availableBelow, 0), maxHeightLimit);
+    let top = topCandidate;
+
+    if (maxHeight < 120 && availableAbove > availableBelow) {
+      maxHeight = Math.min(Math.max(availableAbove, 0), maxHeightLimit);
+      top = Math.max(margin, rect.top - gap - maxHeight);
+    }
+
     setDropdownPos({ left, top, width, maxHeight });
   };
 
