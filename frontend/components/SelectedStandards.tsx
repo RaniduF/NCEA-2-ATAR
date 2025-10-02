@@ -145,11 +145,11 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   // Helper function to get grade color
   const getGradeColor = (grade: Grade) => {
     switch (grade) {
-      case 'Excellence': return 'text-amber-300 border-amber-300/30';
-      case 'Merit': return 'text-sky-300 border-sky-300/30';
-      case 'Achieved': return 'text-emerald-300 border-emerald-300/30';
-      case 'Not Achieved': return 'text-red-300 border-red-300/30';
-      default: return 'text-slate-300 border-slate-300/30';
+      case 'Excellence': return 'text-amber-300';
+      case 'Merit': return 'text-sky-300';
+      case 'Achieved': return 'text-emerald-300';
+      case 'Not Achieved': return 'text-red-300';
+      default: return 'text-slate-300';
     }
   };
 

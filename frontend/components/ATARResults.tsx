@@ -178,6 +178,20 @@ export function ATARResults({ results, breakdown }: Props) {
     console.log('Parsed statistical value for ReferenceLine:', val, 'isNaN:', isNaN(val));
     return isNaN(val) ? null : val;
   }, [currentYearResult, histogramChartData]);
+  
+  // Calculate the position of the user's value as a percentage for gradient positioning
+  const userPositionPercent = useMemo(() => {
+    if (!userStatisticalValue || histogramChartData.length === 0) return 0;
+    
+    const minVal = histogramChartData[0].statistical_value;
+    const maxVal = histogramChartData[histogramChartData.length - 1].statistical_value;
+    const range = maxVal - minVal;
+    
+    if (range === 0) return 0;
+    
+    const position = ((userStatisticalValue - minVal) / range) * 100;
+    return Math.max(0, Math.min(100, position)); // Clamp between 0-100
+  }, [userStatisticalValue, histogramChartData]);
 
   if (!results) {
     return (
@@ -232,10 +246,10 @@ export function ATARResults({ results, breakdown }: Props) {
         
         <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '80ms' }}>
           <div className="flex items-center gap-3 mb-2">
-            <CalendarDaysIcon className="w-5 h-5 text-emerald-400" />
+            <CalendarDaysIcon className="w-5 h-5 text-slate-400" />
             <h3 className="font-semibold text-slate-200">Year Range</h3>
           </div>
-          <div className="text-2xl font-bold text-emerald-400">
+          <div className="text-2xl font-bold text-slate-200">
             {earliestResult.year} - {latestResult!.year}
           </div>
           <div className="text-xs text-slate-400 mt-1">{data.length} years</div>
@@ -243,10 +257,10 @@ export function ATARResults({ results, breakdown }: Props) {
         
         <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '160ms' }}>
           <div className="flex items-center gap-3 mb-2">
-            <ChartBarIcon className="w-5 h-5 text-purple-400" />
+            <ChartBarIcon className="w-5 h-5 text-brand-300" />
             <h3 className="font-semibold text-slate-200">Percentile Rank</h3>
           </div>
-          <div className="text-2xl font-bold text-purple-400">
+          <div className="text-2xl font-bold text-brand-300">
             Top {percentileRank.toFixed(2)}%
           </div>
           <div className="text-xs text-slate-400 mt-1">
@@ -282,14 +296,19 @@ export function ATARResults({ results, breakdown }: Props) {
           <div className="h-80 w-full reveal reveal-in">
             <ResponsiveContainer>
               <AreaChart 
-                key={`chart-${histogramYear}-${histogramChartData.length}`}
+                key={`chart-${histogramYear}-${histogramChartData.length}-${userPositionPercent.toFixed(2)}`}
                 data={histogramChartData} 
                 margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
               >
                 <defs>
-                  <linearGradient id="densityGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
+                  {/* Horizontal gradient that's shaded left of user's line, transparent to the right */}
+                  <linearGradient id="densityGradient" x1="0" y1="0" x2="1" y2="0">
+                    {/* Shaded from start to user's position */}
+                    <stop offset="0%" stopColor="#6366f1" stopOpacity={0.6}/>
+                    <stop offset={`${userPositionPercent}%`} stopColor="#6366f1" stopOpacity={0.5}/>
+                    {/* Transition to transparent after user's position */}
+                    <stop offset={`${userPositionPercent}%`} stopColor="#6366f1" stopOpacity={0.05}/>
+                    <stop offset="100%" stopColor="#6366f1" stopOpacity={0.05}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
@@ -311,6 +330,17 @@ export function ATARResults({ results, breakdown }: Props) {
                   axisLine={false}
                   label={{ value: 'Density (KDE)', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
                 />
+                {/* Single area chart with uniform gradient */}
+                <Area 
+                  type="monotone" 
+                  dataKey="density" 
+                  stroke="#6366f1" 
+                  strokeWidth={2}
+                  fill="url(#densityGradient)"
+                  isAnimationActive={false}
+                  activeDot={{ r: 5, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
+                  dot={false}
+                />
                 <Tooltip 
                   contentStyle={{ 
                     background: 'rgba(15,23,42,0.95)', 
@@ -320,18 +350,9 @@ export function ATARResults({ results, breakdown }: Props) {
                     fontSize: 14
                   }} 
                   labelStyle={{ color: '#94a3b8' }}
-                  formatter={(value: number): [string, string] => [
-                    value.toFixed(4),
-                    'Density'
-                  ]}
+                  formatter={(value: number) => [value.toFixed(4), 'Density']}
                   labelFormatter={(label: number) => `Stat Value: ${label.toFixed(6)}`}
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="density" 
-                  stroke="#6366f1" 
-                  strokeWidth={2}
-                  fill="url(#densityGradient)"
+                  wrapperStyle={{ zIndex: 100 }}
                 />
                 {userStatisticalValue !== null && currentYearResult && histogramChartData.length > 0 && (
                   <ReferenceLine 
@@ -364,7 +385,8 @@ export function ATARResults({ results, breakdown }: Props) {
           <p className="text-xs text-slate-300 mb-2">
             <strong>About this distribution:</strong> This density plot uses Kernel Density Estimation (KDE) to show 
             the smoothed distribution of statistical values for {histogramYear}. 
-            The orange dashed line indicates your statistical value and corresponding ATAR.
+            The <span className="text-[#f59e0b] font-semibold">orange dashed line</span> indicates your statistical value and corresponding ATAR. 
+            The <span className="text-[#6366f1] font-semibold">shaded area to the left</span> represents students you performed better than.
           </p>
           <p className="text-xs text-slate-400">
             <strong>Note on the left spike:</strong> The spike at low statistical values represents students in the age cohort 
@@ -506,8 +528,8 @@ export function ATARResults({ results, breakdown }: Props) {
                         {item.credits_available}
                         <span className="text-slate-400"> → </span>
                         <span className="font-semibold">{item.credits_used.toFixed(2)}</span>
-                        {item.pro_rated && <span className="ml-2 badge-warning">Pro‑rated</span>}
-                        {item.subject_capped && <span className="ml-2 badge-info">Subject 24 cap hit</span>}
+                        {item.pro_rated && <span className="ml-2 px-2 py-0.5 text-[0.6875rem] rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/50">Pro‑rated</span>}
+                        {item.subject_capped && <span className="ml-2 px-2 py-0.5 text-[0.6875rem] rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/50">Subject 24 cap</span>}
                       </td>
                       <td className="px-4 py-3 text-right font-mono">{item.weight_applied.toFixed(3)}</td>
                       <td className="px-4 py-3 text-right font-mono">{item.contribution.toFixed(3)}</td>
@@ -566,16 +588,16 @@ export function ATARResults({ results, breakdown }: Props) {
       )}
 
       {/* Info Note */}
-      <div className="panel p-4 border border-info-500/20 animate-reveal-in" style={{ animationDelay: '200ms' }}>
+      <div className="panel p-4 border border-slate-700/50 animate-reveal-in" style={{ animationDelay: '200ms' }}>
         <div className="flex items-start gap-3">
-          <InformationCircleIcon className="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-info-200">
-            <p className="font-medium mb-1">About ATAR Rankings</p>
-            <p className="text-info-300 mb-2">
-              ATAR is a <strong>ranking system</strong>, not a score. Each year is independent—your ATAR depends on how 
+          <InformationCircleIcon className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-slate-300">
+            <p className="font-medium mb-1 text-slate-200">About ATAR Rankings</p>
+            <p className="text-slate-400 mb-2">
+              ATAR is a <strong className="text-slate-200">ranking system</strong>, not a score. Each year is independent—your ATAR depends on how 
               you perform relative to your entire age cohort, including those who left school or study under other systems.
             </p>
-            <p className="text-info-300">
+            <p className="text-slate-400">
               An ATAR of 99.95 means you're in the top 0.05% of your cohort. These estimates use historical distributions 
               and may vary from official calculations. Each year's distribution reflects that cohort's performance.
             </p>
