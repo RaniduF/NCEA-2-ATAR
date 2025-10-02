@@ -84,6 +84,17 @@ export interface CalculationBreakdownResponse {
   subjects: SubjectSSPBreakdown[];
 }
 
+export interface DistributionDataPoint {
+  statistical_value: number;
+  frequency: number;
+}
+
+export interface DistributionResponse {
+  year: number;
+  distribution: DistributionDataPoint[];
+  participation_rate: number | null;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 /**
@@ -185,4 +196,18 @@ export async function getAvailableVersions(standardNumber: number): Promise<numb
   if (!res.ok) throw new Error('Failed to fetch available versions');
   const data = await res.json();
   return data.available_versions;
+}
+
+/**
+ * Fetches the ATAR distribution data for a given academic year.
+ *
+ * @param year - The academic year to fetch distribution data for
+ * @returns Distribution data including statistical values, frequencies, and participation rate
+ * @throws If the HTTP request fails or returns a non-OK response
+ */
+export async function getDistribution(year: number): Promise<DistributionResponse> {
+  const url = `${API_BASE}/api/v1/calculate-atar/distributions/${year}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to fetch distribution data');
+  return res.json();
 } 

@@ -79,3 +79,58 @@ async def calculate_atar_breakdown_endpoint(
         raise HTTPException(status_code=404,
                             detail="Could not calculate ATAR breakdown for any year with the provided standards.")
     return breakdown
+
+
+@router.get("/distributions/{year}")
+async def get_distributions_endpoint(
+        year: int,
+        db: Session = Depends(get_db)
+):
+    """
+    Fetch the ATAR distribution data for a specific academic year.
+    
+    Parameters:
+        year (int): The academic year to fetch distribution data for.
+    
+    Returns:
+        dict: A dictionary containing:
+            - year (int): The academic year
+            - distribution (list): List of dicts with 'statistical_value' and 'frequency'
+            - participation_rate (float): The weighted StatNZ population for that year
+    
+    Raises:
+        HTTPException: 404 if no distribution data exists for the specified year.
+    """
+    from ..models import standard_models
+    
+    # Fetch distribution data
+    distributions = db.query(standard_models.ATARDistribution).filter(
+        standard_models.ATARDistribution.academic_year == year
+    ).order_by(
+        standard_models.ATARDistribution.statistical_value.asc()
+    ).all()
+    
+    if not distributions:
+        raise HTTPException(status_code=404, detail=f"No distribution data found for year {year}")
+    
+    # Fetch participation rate
+    participation = db.query(standard_models.ParticipationRate).filter(
+        standard_models.ParticipationRate.academic_year == year
+    ).first()
+    
+    participation_rate = float(participation.weighted_statnz_population) if participation else None
+    
+    # Format response
+    distribution_data = [
+        {
+            "statistical_value": float(d.statistical_value),
+            "frequency": d.frequency
+        }
+        for d in distributions
+    ]
+    
+    return {
+        "year": year,
+        "distribution": distribution_data,
+        "participation_rate": participation_rate
+    }

@@ -1,15 +1,18 @@
 'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, SubjectSSPBreakdown } from '../app/services/api';
+import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, SubjectSSPBreakdown, DistributionResponse } from '../app/services/api';
+import { getDistribution } from '../app/services/api';
 import { downloadCSV } from '../app/services/csv';
 import { 
   ChartBarIcon, 
   CalendarDaysIcon, 
   AcademicCapIcon,
   ArrowTrendingUpIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
 interface Props {
@@ -18,15 +21,18 @@ interface Props {
 }
 
 /**
- * Render an interactive ATAR results view including summary cards, a trend chart, detailed yearly results,
+ * Render an interactive ATAR results view including summary cards, a statistical distribution histogram, detailed yearly results,
  * optional credit breakdown (Top 90) and subject SSP rankings, and CSV export controls.
+ *
+ * Displays ATAR as a ranking system where each year is independent. The histogram shows the density distribution
+ * of statistical values for a selected year with an indicator for the user's position. Years can be cycled through.
  *
  * Renders appropriate empty states when `results` is null or contains no entries. When `breakdown` is
  * provided the component exposes a year selector to view per-year breakdown details and subject SSP data.
  *
  * @param results - An array of ATARResult objects (or null). If not an array the component treats it as empty; results are sorted by year.
  * @param breakdown - Optional CalculationBreakdownResponse providing per-year breakdowns and subject SSP data used by the Credit Breakdown and Subject Rankings sections.
- * @returns A React element that displays the ATAR UI (cards, chart, tables, and export controls).
+ * @returns A React element that displays the ATAR UI (cards, histogram, tables, and export controls).
  */
 export function ATARResults({ results, breakdown }: Props) {
   const data = useMemo(() => {
@@ -49,12 +55,129 @@ export function ATARResults({ results, breakdown }: Props) {
   const [activeYear, setActiveYear] = useState<number | null>(
     availableYears.length ? availableYears[availableYears.length - 1] : null
   );
+  
+  // ALL HOOKS MUST BE AT THE TOP - State for histogram visualization
+  const latestResult = data.length > 0 ? data[data.length - 1] : null;
+  const [histogramYear, setHistogramYear] = useState<number>(latestResult?.year || 2024);
+  const [distributionData, setDistributionData] = useState<DistributionResponse | null>(null);
+  const [isLoadingDistribution, setIsLoadingDistribution] = useState(false);
+  
   useEffect(() => {
     setActiveYear(prev => {
       if (prev && availableYears.includes(prev)) return prev;
       return availableYears.length ? availableYears[availableYears.length - 1] : null;
     });
   }, [availableYears]);
+  
+  // Update histogram year when results change
+  useEffect(() => {
+    if (latestResult && histogramYear === 2024 && latestResult.year !== 2024) {
+      setHistogramYear(latestResult.year);
+    }
+  }, [latestResult, histogramYear]);
+  
+  // Fetch distribution data when histogram year changes
+  useEffect(() => {
+    if (!hasAnyResults) return;
+    
+    const fetchDistribution = async () => {
+      setIsLoadingDistribution(true);
+      try {
+        const dist = await getDistribution(histogramYear);
+        setDistributionData(dist);
+      } catch (error) {
+        console.error('Failed to fetch distribution data:', error);
+      } finally {
+        setIsLoadingDistribution(false);
+      }
+    };
+    
+    fetchDistribution();
+  }, [histogramYear, hasAnyResults]);
+  
+  // Prepare histogram data - properly bin and smooth the discrete data
+  const histogramChartData = useMemo(() => {
+    if (!distributionData || distributionData.distribution.length === 0) return [];
+    
+    // Step 1: Aggregate data into bins (handle discrete/clumped values)
+    const binSize = 0.005; // Bin width - adjust for smoothness (smaller = more detail)
+    const bins = new Map<number, number>();
+    
+    // Find min and max for binning
+    const values = distributionData.distribution.map(d => d.statistical_value);
+    const minVal = Math.min(...values);
+    const maxVal = Math.max(...values);
+    
+    // Bin the data
+    for (const point of distributionData.distribution) {
+      const binKey = Math.floor(point.statistical_value / binSize) * binSize;
+      bins.set(binKey, (bins.get(binKey) || 0) + point.frequency);
+    }
+    
+    // Step 2: Convert to array and sort
+    const binnedData = Array.from(bins.entries())
+      .map(([value, freq]) => ({ value, freq }))
+      .sort((a, b) => a.value - b.value);
+    
+    if (binnedData.length === 0) return [];
+    
+    // Step 3: Apply Gaussian kernel smoothing (simple KDE)
+    const bandwidth = 0.015; // Kernel bandwidth - larger = smoother
+    const totalFrequency = distributionData.distribution.reduce((sum, d) => sum + d.frequency, 0);
+    const result: { statistical_value: number; density: number }[] = [];
+    
+    // Create evaluation points
+    const numPoints = 500; // Number of points to evaluate density at
+    const step = (maxVal - minVal) / numPoints;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const x = minVal + i * step;
+      let densitySum = 0;
+      
+      // Gaussian kernel: K(u) = (1/sqrt(2π)) * exp(-u²/2)
+      for (const bin of binnedData) {
+        const u = (x - bin.value) / bandwidth;
+        const kernel = Math.exp(-0.5 * u * u) / Math.sqrt(2 * Math.PI);
+        densitySum += kernel * bin.freq;
+      }
+      
+      // Normalize by bandwidth and total frequency
+      const density = (densitySum / (bandwidth * totalFrequency)) * 100; // Scale for visibility
+      
+      result.push({
+        statistical_value: x,
+        density: density
+      });
+    }
+    
+    return result;
+  }, [distributionData]);
+  
+  // Get the result for the current histogram year - memoized for reactivity
+  const currentYearResult = useMemo(() => {
+    const result = data.find(r => r.year === histogramYear) || latestResult;
+    if (result) {
+      console.log('Reference line at statistical value:', result.statistical_value, 'for year:', histogramYear, 'Type:', typeof result.statistical_value);
+    }
+    return result;
+  }, [data, histogramYear, latestResult]);
+  
+  // Extract statistical value as a separate variable for better reactivity
+  const userStatisticalValue = useMemo(() => {
+    if (!currentYearResult) return null;
+    const val = Number(currentYearResult.statistical_value);
+    
+    // Log chart data bounds for debugging
+    if (histogramChartData.length > 0) {
+      const minVal = histogramChartData[0].statistical_value;
+      const maxVal = histogramChartData[histogramChartData.length - 1].statistical_value;
+      console.log('Chart domain:', minVal, 'to', maxVal);
+      console.log('User value:', val, 'Within bounds:', val >= minVal && val <= maxVal);
+    }
+    
+    console.log('Parsed statistical value for ReferenceLine:', val, 'isNaN:', isNaN(val));
+    return isNaN(val) ? null : val;
+  }, [currentYearResult, histogramChartData]);
 
   if (!results) {
     return (
@@ -80,9 +203,19 @@ export function ATARResults({ results, breakdown }: Props) {
     );
   }
 
-  const latestResult = data[data.length - 1];
+  // Now we can safely use latestResult since we've passed the early returns
+  // TypeScript doesn't know this, so we use non-null assertion
   const earliestResult = data[0];
-  const trend = latestResult.estimated_atar - earliestResult.estimated_atar;
+  // Calculate percentile rank: ATAR 99.95 = top 0.05%, so percentile = 100 - ATAR
+  const percentileRank = 100 - latestResult!.estimated_atar;
+  
+  // Cycle to next year (with looping) - goes from newest to oldest
+  const cycleYear = () => {
+    const currentIndex = data.findIndex(r => r.year === histogramYear);
+    // Decrement to go backwards (2024 -> 2023 -> 2022)
+    const nextIndex = (currentIndex - 1 + data.length) % data.length;
+    setHistogramYear(data[nextIndex].year);
+  };
 
   return (
     <div className="space-y-8">
@@ -93,8 +226,8 @@ export function ATARResults({ results, breakdown }: Props) {
             <ArrowTrendingUpIcon className="w-5 h-5 text-brand-400" />
             <h3 className="font-semibold text-slate-200">Latest ATAR</h3>
           </div>
-          <div className="text-2xl font-bold text-brand-400">{latestResult.estimated_atar.toFixed(2)}</div>
-          <div className="text-xs text-slate-400 mt-1">{latestResult.year}</div>
+          <div className="text-2xl font-bold text-brand-400">{latestResult!.estimated_atar.toFixed(2)}</div>
+          <div className="text-xs text-slate-400 mt-1">{latestResult!.year}</div>
         </div>
         
         <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '80ms' }}>
@@ -103,7 +236,7 @@ export function ATARResults({ results, breakdown }: Props) {
             <h3 className="font-semibold text-slate-200">Year Range</h3>
           </div>
           <div className="text-2xl font-bold text-emerald-400">
-            {earliestResult.year} - {latestResult.year}
+            {earliestResult.year} - {latestResult!.year}
           </div>
           <div className="text-xs text-slate-400 mt-1">{data.length} years</div>
         </div>
@@ -111,67 +244,133 @@ export function ATARResults({ results, breakdown }: Props) {
         <div className="panel p-5 animate-reveal-in" style={{ animationDelay: '160ms' }}>
           <div className="flex items-center gap-3 mb-2">
             <ChartBarIcon className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-slate-200">Trend</h3>
+            <h3 className="font-semibold text-slate-200">Percentile Rank</h3>
           </div>
-          <div className={`${trend >= 0 ? 'text-success-400' : 'text-error-400'} text-2xl font-bold`}>
-            {trend >= 0 ? '+' : ''}{trend.toFixed(2)}
+          <div className="text-2xl font-bold text-purple-400">
+            Top {percentileRank.toFixed(2)}%
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {trend >= 0 ? 'Improving' : 'Declining'} over time
+            Of the cohort ({latestResult!.year})
           </div>
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Distribution Histogram */}
       <div className="card p-6 animate-reveal-up">
-        <div className="flex items-center gap-3 mb-6">
-          <ChartBarIcon className="w-6 h-6 text-brand-400" />
-          <h3 className="text-lg font-semibold text-slate-200">ATAR Trend</h3>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <ChartBarIcon className="w-6 h-6 text-brand-400" />
+            <h3 className="text-lg font-semibold text-slate-200">Statistical Value Distribution</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-400">{histogramYear}</span>
+            <button 
+              onClick={cycleYear}
+              className="btn-ghost p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
+              title="Cycle to next year"
+            >
+              <ChevronRightIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-        <div className="h-80 w-full reveal reveal-in">
-          <ResponsiveContainer>
-            <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis 
-                dataKey="year" 
-                stroke="#94a3b8" 
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis 
-                domain={[0, 100]} 
-                stroke="#94a3b8" 
-                fontSize={12}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `${value}`}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  background: 'rgba(15,23,42,0.95)', 
-                  border: '1px solid rgba(255,255,255,0.1)', 
-                  borderRadius: 12, 
-                  color: 'white',
-                  fontSize: 14
-                }} 
-                labelStyle={{ color: '#94a3b8' }}
-                formatter={(value: number | string): [string, string] => [
-                  `${parseFloat(String(value)).toFixed(2)}`,
-                  'ATAR Score'
-                ]}
-                labelFormatter={(label: number | string) => `Year ${label}`}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="estimated_atar" 
-                stroke="#6366f1" 
-                strokeWidth={3} 
-                dot={{ fill: '#6366f1', strokeWidth: 2, r: 6 }}
-                activeDot={{ r: 8, fill: '#6366f1', stroke: '#ffffff', strokeWidth: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        
+        {isLoadingDistribution ? (
+          <div className="h-80 w-full flex items-center justify-center">
+            <div className="text-slate-400">Loading distribution...</div>
+          </div>
+        ) : histogramChartData.length > 0 ? (
+          <div className="h-80 w-full reveal reveal-in">
+            <ResponsiveContainer>
+              <AreaChart 
+                key={`chart-${histogramYear}-${histogramChartData.length}`}
+                data={histogramChartData} 
+                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              >
+                <defs>
+                  <linearGradient id="densityGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                <XAxis 
+                  dataKey="statistical_value"
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                  stroke="#94a3b8" 
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value: number) => value.toFixed(2)}
+                  label={{ value: 'Statistical Value', position: 'insideBottom', offset: -10, fill: '#94a3b8' }}
+                />
+                <YAxis 
+                  stroke="#94a3b8" 
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  label={{ value: 'Density (KDE)', angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    background: 'rgba(15,23,42,0.95)', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    borderRadius: 12, 
+                    color: 'white',
+                    fontSize: 14
+                  }} 
+                  labelStyle={{ color: '#94a3b8' }}
+                  formatter={(value: number): [string, string] => [
+                    value.toFixed(4),
+                    'Density'
+                  ]}
+                  labelFormatter={(label: number) => `Stat Value: ${label.toFixed(6)}`}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="density" 
+                  stroke="#6366f1" 
+                  strokeWidth={2}
+                  fill="url(#densityGradient)"
+                />
+                {userStatisticalValue !== null && currentYearResult && histogramChartData.length > 0 && (
+                  <ReferenceLine 
+                    key={`refline-${userStatisticalValue}`}
+                    x={userStatisticalValue} 
+                    stroke="#f59e0b" 
+                    strokeWidth={3}
+                    strokeDasharray="5 5"
+                    ifOverflow="extendDomain"
+                    label={{ 
+                      value: `Your Score: ${currentYearResult.estimated_atar.toFixed(2)} ATAR`, 
+                      position: 'top',
+                      fill: '#f59e0b',
+                      fontSize: 13,
+                      fontWeight: 'bold',
+                      offset: 10
+                    }}
+                  />
+                )}
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-80 w-full flex items-center justify-center">
+            <div className="text-slate-400">No distribution data available</div>
+          </div>
+        )}
+        
+        <div className="mt-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+          <p className="text-xs text-slate-300 mb-2">
+            <strong>About this distribution:</strong> This density plot uses Kernel Density Estimation (KDE) to show 
+            the smoothed distribution of statistical values for {histogramYear}. 
+            The orange dashed line indicates your statistical value and corresponding ATAR.
+          </p>
+          <p className="text-xs text-slate-400">
+            <strong>Note on the left spike:</strong> The spike at low statistical values represents students in the age cohort 
+            who didn't sit NCEA (left school at 16 or studied under other systems). This is included to accurately 
+            represent the full cohort as per NZQA methodology. Click the arrow button to cycle through years.
+          </p>
         </div>
       </div>
 
@@ -371,10 +570,14 @@ export function ATARResults({ results, breakdown }: Props) {
         <div className="flex items-start gap-3">
           <InformationCircleIcon className="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-info-200">
-            <p className="font-medium mb-1">About these estimates</p>
+            <p className="font-medium mb-1">About ATAR Rankings</p>
+            <p className="text-info-300 mb-2">
+              ATAR is a <strong>ranking system</strong>, not a score. Each year is independent—your ATAR depends on how 
+              you perform relative to your entire age cohort, including those who left school or study under other systems.
+            </p>
             <p className="text-info-300">
-              ATAR estimates are calculated using historical data and statistical modeling. 
-              Results may vary based on actual university entrance requirements and annual cohort performance.
+              An ATAR of 99.95 means you're in the top 0.05% of your cohort. These estimates use historical distributions 
+              and may vary from official calculations. Each year's distribution reflects that cohort's performance.
             </p>
           </div>
         </div>
