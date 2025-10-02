@@ -12,7 +12,8 @@ import {
   ArrowTrendingUpIcon,
   InformationCircleIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
 interface Props {
@@ -55,6 +56,11 @@ export function ATARResults({ results, breakdown }: Props) {
   const [activeYear, setActiveYear] = useState<number | null>(
     availableYears.length ? availableYears[availableYears.length - 1] : null
   );
+  const [activeYearForSubjects, setActiveYearForSubjects] = useState<number | null>(
+    availableYears.length ? availableYears[availableYears.length - 1] : null
+  );
+  const [isCreditBreakdownExpanded, setIsCreditBreakdownExpanded] = useState(false);
+  const [showAllTopStandards, setShowAllTopStandards] = useState(false);
   
   // ALL HOOKS MUST BE AT THE TOP - State for histogram visualization
   const latestResult = data.length > 0 ? data[data.length - 1] : null;
@@ -64,6 +70,10 @@ export function ATARResults({ results, breakdown }: Props) {
   
   useEffect(() => {
     setActiveYear(prev => {
+      if (prev && availableYears.includes(prev)) return prev;
+      return availableYears.length ? availableYears[availableYears.length - 1] : null;
+    });
+    setActiveYearForSubjects(prev => {
       if (prev && availableYears.includes(prev)) return prev;
       return availableYears.length ? availableYears[availableYears.length - 1] : null;
     });
@@ -231,6 +241,21 @@ export function ATARResults({ results, breakdown }: Props) {
     setHistogramYear(data[nextIndex].year);
   };
 
+  // Helper to get all standards sorted by contribution (what-if at max grade)
+  const getStandardsByContribution = (year: number) => {
+    if (!breakdown || !yearsMap[year]) return [];
+    
+    const yearData = yearsMap[year];
+    // Sort all standards by contribution to show which are most valuable
+    return [...yearData.best90].sort((a, b) => b.contribution - a.contribution);
+  };
+
+  // Helper to determine max grade for a standard
+  const getMaxGradeForStandard = (standardsType: string | null | undefined) => {
+    const isUnitStandard = standardsType === 'Unit Standard';
+    return isUnitStandard ? 'Achieved' : 'Excellence';
+  };
+
   return (
     <div className="space-y-8">
       {/* Summary Cards */}
@@ -390,7 +415,7 @@ export function ATARResults({ results, breakdown }: Props) {
           </p>
           <p className="text-xs text-slate-400">
             <strong>Note on the left spike:</strong> The spike at low statistical values represents students in the age cohort 
-            who didn't sit NCEA (left school at 16 or studied under other systems). This is included to accurately 
+            who didn&apos;t sit NCEA (left school at 16 or studied under other systems). This is included to accurately 
             represent the full cohort as per NZQA methodology. Click the arrow button to cycle through years.
           </p>
         </div>
@@ -452,15 +477,169 @@ export function ATARResults({ results, breakdown }: Props) {
         </div>
       </div>
 
-      {/* Credit Breakdown and Year Toggle */}
-      {breakdown && activeYear && yearsMap[activeYear] && (
+      {/* Subject SSP Rankings */}
+      {breakdown && activeYearForSubjects && subjectsByYear[activeYearForSubjects] && (
         <div className="card animate-reveal-up" style={{ animationDelay: '160ms' }}>
           <div className="p-6 border-b border-white/10 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              <AcademicCapIcon className="w-6 h-6 text-brand-400" />
+              <h3 className="text-lg font-semibold text-slate-200">Subject Rankings (SSP, 18 credits)</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  const subs = subjectsByYear[activeYearForSubjects] || [];
+                  const headers = ['Subject','Eligible','SSP score'];
+                  const rows = subs
+                    .slice()
+                    .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                    .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
+                  downloadCSV(`ssp_${activeYearForSubjects}.csv`, headers, rows);
+                }}
+                className="btn-ghost text-xs"
+              >Export CSV</button>
+              <select 
+                value={activeYearForSubjects ?? ''} 
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYearForSubjects(parseInt(e.target.value))} 
+                className="input text-sm"
+              >
+                {availableYears.map(y => (
+                  <option key={y} value={y} className="bg-slate-800">{y}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="p-6 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-700/50">
+                <tr>
+                  <th className="px-4 py-3 text-left">Subject</th>
+                  <th className="px-4 py-3 text-left">Eligible</th>
+                  <th className="px-4 py-3 text-right">SSP score</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {subjectsByYear[activeYearForSubjects]
+                  .slice()
+                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                  .map(s => (
+                    <tr key={s.subject}>
+                      <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
+                      <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (\u2265 18 credits required)</span>}</td>
+                      <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Standards Ranked by Value */}
+      {breakdown && activeYearForSubjects && yearsMap[activeYearForSubjects] && (
+        <div className="card p-6 animate-reveal-up" style={{ animationDelay: '180ms' }}>
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <ArrowTrendingUpIcon className="w-6 h-6 text-amber-400" />
+              <div>
+                <h3 className="text-lg font-semibold text-slate-200">Potential Best Standards</h3>
+                <p className="text-xs text-slate-400 mt-0.5">What your standards are worth at all E&apos;s</p>
+              </div>
+            </div>
+            <div className="meta">
+              {getStandardsByContribution(activeYearForSubjects).length} standard{getStandardsByContribution(activeYearForSubjects).length === 1 ? '' : 's'}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {getStandardsByContribution(activeYearForSubjects)
+              .slice(0, showAllTopStandards ? undefined : 6)
+              .map((item, index) => {
+                const maxGrade = getMaxGradeForStandard(item.standards_type);
+                const isAtMaxGrade = item.grade === maxGrade;
+                const maxGradeLetter = maxGrade === 'Excellence' ? 'E' : 'A';
+                const weightPercentage = (item.weight_applied * 100).toFixed(1);
+                return (
+                  <div
+                    key={`${item.standard_number}-${item.selection_rank}`}
+                    className={`p-4 rounded-lg border transition-all ${
+                      isAtMaxGrade
+                        ? 'bg-emerald-500/10 border-emerald-500/30'
+                        : 'bg-slate-800/50 border-slate-700/50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          isAtMaxGrade ? 'bg-emerald-500/20' : 'bg-slate-700/50'
+                        }`}>
+                          <span className={`font-bold text-sm ${
+                            isAtMaxGrade ? 'text-emerald-300' : 'text-slate-300'
+                          }`}>#{index + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-slate-200 text-sm leading-tight">
+                            {item.standard_number}
+                          </div>
+                          <div className="text-xs text-slate-400 mt-0.5">{item.subject}</div>
+                        </div>
+                      </div>
+                      {isAtMaxGrade && (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-500/20 border border-emerald-500/30">
+                          <span className="font-bold text-sm text-emerald-300">{maxGradeLetter}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-xs text-slate-300 mb-3 line-clamp-2" title={item.title || ''}>
+                      {item.title}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-slate-400 text-xs mb-1">Credits</div>
+                        <div className="text-slate-200 font-semibold text-sm">{item.credits_available}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-400 text-xs mb-1">Weight</div>
+                        <div className="text-brand-400 font-bold text-lg">{weightPercentage}%</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+          
+          {getStandardsByContribution(activeYearForSubjects).length > 6 && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setShowAllTopStandards(!showAllTopStandards)}
+                className="btn-ghost"
+              >
+                {showAllTopStandards ? 'Show Less' : `Show All ${getStandardsByContribution(activeYearForSubjects).length} Standards`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Credit Breakdown and Year Toggle */}
+      {breakdown && activeYear && yearsMap[activeYear] && (
+        <div className="card animate-reveal-up" style={{ animationDelay: '200ms' }}>
+          <button
+            onClick={() => setIsCreditBreakdownExpanded(!isCreditBreakdownExpanded)}
+            className="w-full p-6 border-b border-white/10 flex items-center justify-between gap-4 hover:bg-slate-700/20 transition-colors text-left"
+          >
+            <div className="flex items-center gap-3">
+              {isCreditBreakdownExpanded ? (
+                <ChevronDownIcon className="w-5 h-5 text-brand-400" />
+              ) : (
+                <ChevronRightIcon className="w-5 h-5 text-brand-400" />
+              )}
               <ChartBarIcon className="w-6 h-6 text-brand-400" />
               <h3 className="text-lg font-semibold text-slate-200">Credit Breakdown (Top 90, subject cap 24, pro‑rating)</h3>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => {
                   const y = yearsMap[activeYear];
@@ -489,8 +668,9 @@ export function ATARResults({ results, breakdown }: Props) {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="p-6">
+          </button>
+          {isCreditBreakdownExpanded && (
+            <div className="p-6 animate-reveal-in">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <div className="meta">Estimated ATAR: <span className="font-semibold text-brand-300">{yearsMap[activeYear].estimated_atar.toFixed(2)}</span></div>
               <div className="meta">Stat. value: <span className="font-mono text-slate-200">{yearsMap[activeYear].statistical_value.toFixed(6)}</span></div>
@@ -539,53 +719,11 @@ export function ATARResults({ results, breakdown }: Props) {
               </table>
             </div>
           </div>
+          )}
         </div>
       )}
 
-      {/* Subject SSP Rankings */}
-      {breakdown && activeYear && subjectsByYear[activeYear] && (
-        <div className="card animate-reveal-up" style={{ animationDelay: '200ms' }}>
-          <div className="p-6 border-b border-white/10 flex items-center gap-3">
-            <AcademicCapIcon className="w-6 h-6 text-brand-400" />
-            <h3 className="text-lg font-semibold text-slate-200">Subject Rankings (SSP, 18 credits)</h3>
-            <button
-              onClick={() => {
-                const subs = subjectsByYear[activeYear] || [];
-                const headers = ['Subject','Eligible','SSP score'];
-                const rows = subs
-                  .slice()
-                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                  .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
-                downloadCSV(`ssp_${activeYear}.csv`, headers, rows);
-              }}
-              className="ml-auto btn-ghost text-xs"
-            >Export CSV</button>
-          </div>
-          <div className="p-6 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-700/50">
-                <tr>
-                  <th className="px-4 py-3 text-left">Subject</th>
-                  <th className="px-4 py-3 text-left">Eligible</th>
-                  <th className="px-4 py-3 text-right">SSP score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {subjectsByYear[activeYear]
-                  .slice()
-                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                  .map(s => (
-                    <tr key={s.subject}>
-                      <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
-                      <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (\u2265 18 credits required)</span>}</td>
-                      <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
 
       {/* Info Note */}
       <div className="panel p-4 border border-slate-700/50 animate-reveal-in" style={{ animationDelay: '200ms' }}>
@@ -598,8 +736,8 @@ export function ATARResults({ results, breakdown }: Props) {
               you perform relative to your entire age cohort, including those who left school or study under other systems.
             </p>
             <p className="text-slate-400">
-              An ATAR of 99.95 means you're in the top 0.05% of your cohort. These estimates use historical distributions 
-              and may vary from official calculations. Each year's distribution reflects that cohort's performance.
+              An ATAR of 99.95 means you&apos;re in the top 0.05% of your cohort. These estimates use historical distributions 
+              and may vary from official calculations. Each year&apos;s distribution reflects that cohort&apos;s performance.
             </p>
           </div>
         </div>
