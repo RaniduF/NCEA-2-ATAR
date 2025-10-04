@@ -48,6 +48,7 @@ class StandardContribution(BaseModel):
     grade: str
     year_achieved: Optional[int] = None
     weight_applied: float
+    weight_at_max_grade: Optional[float] = None  # Weight if standard was at Excellence (or Achieved for Unit Standards)
     credits_available: int
     credits_used: float
     pro_rated: bool = False

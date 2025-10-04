@@ -13,7 +13,8 @@ import {
   InformationCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  CheckIcon
 } from '@heroicons/react/24/outline';
 
 interface Props {
@@ -241,13 +242,20 @@ export function ATARResults({ results, breakdown }: Props) {
     setHistogramYear(data[nextIndex].year);
   };
 
-  // Helper to get all standards sorted by contribution (what-if at max grade)
+  // Helper to get all standards sorted by max grade weight (highest to lowest)
   const getStandardsByContribution = (year: number) => {
     if (!breakdown || !yearsMap[year]) return [];
     
     const yearData = yearsMap[year];
-    // Sort all standards by contribution to show which are most valuable
-    return [...yearData.best90].sort((a, b) => b.contribution - a.contribution);
+    // Sort all standards by their max grade weight only (not contribution)
+    return [...yearData.best90].sort((a, b) => {
+      // Use max grade weight if available, otherwise fall back to current weight
+      const maxWeightA = a.weight_at_max_grade ?? a.weight_applied;
+      const maxWeightB = b.weight_at_max_grade ?? b.weight_applied;
+      
+      // Sort by weight descending (highest first)
+      return maxWeightB - maxWeightA;
+    });
   };
 
   // Helper to determine max grade for a standard
@@ -542,8 +550,8 @@ export function ATARResults({ results, breakdown }: Props) {
             <div className="flex items-center gap-3">
               <ArrowTrendingUpIcon className="w-6 h-6 text-amber-400" />
               <div>
-                <h3 className="text-lg font-semibold text-slate-200">Potential Best Standards</h3>
-                <p className="text-xs text-slate-400 mt-0.5">What your standards are worth at all E&apos;s</p>
+                <h3 className="text-lg font-semibold text-slate-200">Standards by Potential Value</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Shows the wegiths of your standards if you got all E&apos;s</p>
               </div>
             </div>
             <div className="meta">
@@ -557,8 +565,9 @@ export function ATARResults({ results, breakdown }: Props) {
               .map((item, index) => {
                 const maxGrade = getMaxGradeForStandard(item.standards_type);
                 const isAtMaxGrade = item.grade === maxGrade;
-                const maxGradeLetter = maxGrade === 'Excellence' ? 'E' : 'A';
-                const weightPercentage = (item.weight_applied * 100).toFixed(1);
+                // Show the max grade weight (what it's worth at Excellence/Achieved)
+                const maxWeight = item.weight_at_max_grade ?? item.weight_applied;
+                const weightPercentage = (maxWeight * 100).toFixed(1);
                 return (
                   <div
                     key={`${item.standard_number}-${item.selection_rank}`}
@@ -586,7 +595,7 @@ export function ATARResults({ results, breakdown }: Props) {
                       </div>
                       {isAtMaxGrade && (
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-500/20 border border-emerald-500/30">
-                          <span className="font-bold text-sm text-emerald-300">{maxGradeLetter}</span>
+                          <CheckIcon className="w-5 h-5 text-emerald-300 stroke-[2.5]" />
                         </div>
                       )}
                     </div>

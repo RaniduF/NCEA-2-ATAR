@@ -44,6 +44,7 @@ export interface StandardContribution {
   grade: Grade;
   year_achieved?: number | null;
   weight_applied: number;
+  weight_at_max_grade?: number | null;  // Weight if standard was at Excellence (or Achieved for Unit Standards)
   credits_available: number;
   credits_used: number;
   pro_rated: boolean;

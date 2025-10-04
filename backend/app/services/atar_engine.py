@@ -433,6 +433,26 @@ class ATARCalculator:
             return None
         return self._get_weight_for_grade(year_weightings[0], grade)
 
+    def _get_max_grade_weight(self, std_num: int, year: int, version: int | None, standards_type: str | None) -> float | None:
+        """
+        Retrieve the maximum possible grade weight for a standard (Excellence for Achievement Standards, Achieved for Unit Standards).
+        
+        Parameters:
+            std_num (int): Standard identifier number.
+            year (int): Academic year to search weightings in.
+            version (int | None): Optional standard version to prefer.
+            standards_type (str | None): The type of standard (to determine max grade).
+        
+        Returns:
+            float | None: The weight value for the max grade if found, `None` otherwise.
+        """
+        # Determine max grade based on standards type
+        is_unit_standard = (standards_type or '').lower().startswith('unit')
+        max_grade = 'Achieved' if is_unit_standard else 'Excellence'
+        
+        # Use existing helper to get weight for max grade
+        return self._get_weight_for(std_num, max_grade, year, version)
+
     def _build_best90_breakdown(self, year: int) -> Tuple[List[calc_schemas.StandardContribution], calc_schemas.BreakdownTotals, List[calc_schemas.ExcludedItem], float | None]:
         # Step 1: best result per standard
         """
@@ -520,6 +540,9 @@ class ATARCalculator:
             subject_used[subject] = new_subj_used
             total_used += credits_to_take
 
+            # Get max grade weight for this standard
+            max_weight = self._get_max_grade_weight(c['std_num'], c['year_achieved'], c['version'], c['std_info'].standards_type)
+
             best90.append(calc_schemas.StandardContribution(
                 selection_rank=rank,
                 standard_number=c['std_num'],
@@ -530,6 +553,7 @@ class ATARCalculator:
                 grade=c['grade'],
                 year_achieved=c['year_achieved'],
                 weight_applied=c['weight'],
+                weight_at_max_grade=float(max_weight) if max_weight is not None else None,
                 credits_available=int(credits_avail),
                 credits_used=float(credits_to_take),
                 pro_rated=pro_rated,
@@ -614,6 +638,10 @@ class ATARCalculator:
                 is_pr = take < avail
                 contrib = take * c['weight']
                 credits_mapped += take
+                
+                # Get max grade weight for this standard
+                max_weight = self._get_max_grade_weight(c['std_num'], c['year_achieved'], None, c['std_info'].standards_type)
+                
                 used.append(calc_schemas.StandardContribution(
                     selection_rank=rank,
                     standard_number=c['std_num'],
@@ -624,6 +652,7 @@ class ATARCalculator:
                     grade=c['grade'],
                     year_achieved=c['year_achieved'],
                     weight_applied=c['weight'],
+                    weight_at_max_grade=float(max_weight) if max_weight is not None else None,
                     credits_available=int(avail),
                     credits_used=float(take),
                     pro_rated=is_pr,
