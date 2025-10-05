@@ -62,6 +62,7 @@ export function ATARResults({ results, breakdown }: Props) {
   );
   const [isCreditBreakdownExpanded, setIsCreditBreakdownExpanded] = useState(false);
   const [showAllTopStandards, setShowAllTopStandards] = useState(false);
+  const [standardsFilter, setStandardsFilter] = useState<'all' | 'top10' | 'needsImprovement'>('all');
   
   // ALL HOOKS MUST BE AT THE TOP - State for histogram visualization
   const latestResult = data.length > 0 ? data[data.length - 1] : null;
@@ -264,6 +265,22 @@ export function ATARResults({ results, breakdown }: Props) {
     return isUnitStandard ? 'Achieved' : 'Excellence';
   };
 
+  // Helper to get filtered standards based on current filter
+  const getFilteredStandards = (year: number) => {
+    const allStandards = getStandardsByContribution(year);
+    
+    if (standardsFilter === 'top10') {
+      return allStandards.slice(0, 10);
+    } else if (standardsFilter === 'needsImprovement') {
+      return allStandards.filter(item => {
+        const maxGrade = getMaxGradeForStandard(item.standards_type);
+        return item.grade !== maxGrade;
+      });
+    }
+    
+    return allStandards;
+  };
+
   return (
     <div className="space-y-8">
       {/* Summary Cards */}
@@ -302,8 +319,216 @@ export function ATARResults({ results, breakdown }: Props) {
         </div>
       </div>
 
-      {/* Distribution Histogram */}
-      <div className="card p-6 animate-reveal-up">
+      {/* Two-Column Main Section: Credit Breakdown + Standards Focus */}
+      {breakdown && activeYear && yearsMap[activeYear] && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-reveal-up" style={{ animationDelay: '80ms' }}>
+          
+          {/* LEFT COLUMN (60%): Credit Breakdown */}
+          <div className="lg:col-span-3 card overflow-hidden">
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <ChartBarIcon className="w-6 h-6 text-brand-400" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-200">Credit Breakdown (Top 90)</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">How your ATAR is calculated</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const y = yearsMap[activeYear];
+                      const headers = ['Rank','Standard','Subject','UE','Type','Grade','Year','Credits Available','Credits Used','Pro-rated','Weight','Contribution'];
+                      const rows = y.best90.map(i => [
+                        i.selection_rank,
+                        `${i.standard_number}${i.title ? `: ${i.title}` : ''}`,
+                        i.subject ?? '',
+                        i.is_ue ? 'UE' : '',
+                        i.standards_type ?? '',
+                        i.grade,
+                        i.year_achieved ?? '',
+                        i.credits_available,
+                        i.credits_used,
+                        i.pro_rated ? 'Yes' : 'No',
+                        i.weight_applied,
+                        i.contribution
+                      ]);
+                      downloadCSV(`breakdown_${activeYear}.csv`, headers, rows);
+                    }}
+                    className="btn-ghost text-xs"
+                  >Export CSV</button>
+                  <select value={activeYear ?? ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYear(parseInt(e.target.value))} className="input text-sm">
+                    {availableYears.map(y => (
+                      <option key={y} value={y} className="bg-slate-800">{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Summary Stats */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="meta">Estimated ATAR: <span className="font-semibold text-brand-300">{yearsMap[activeYear].estimated_atar.toFixed(2)}</span></div>
+                <div className="meta">Stat. value: <span className="font-mono text-slate-200">{yearsMap[activeYear].statistical_value.toFixed(6)}</span></div>
+                <div className="meta">Credits used: <span className="font-semibold">{yearsMap[activeYear].totals.total_credits_used.toFixed(2)}</span> / 90</div>
+                <div className="meta">Prorated: <span className="font-semibold">{yearsMap[activeYear].totals.prorated_count}</span></div>
+              </div>
+            </div>
+            
+            {/* Scrollable Table Container */}
+            <div className="relative max-h-[60vh] overflow-y-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-700/50 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-3 text-left">#</th>
+                    <th className="px-4 py-3 text-left">Standard</th>
+                    <th className="px-4 py-3 text-left">Subject</th>
+                    <th className="px-4 py-3 text-left">Grade</th>
+                    <th className="px-4 py-3 text-right">Credits</th>
+                    <th className="px-4 py-3 text-right">Weight</th>
+                    <th className="px-4 py-3 text-right">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {yearsMap[activeYear].best90.map(item => (
+                    <tr key={`${item.standard_number}-${item.selection_rank}`} className="hover:bg-slate-700/20 transition-colors">
+                      <td className="px-4 py-3 text-slate-400">{item.selection_rank}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-slate-200 font-medium">{item.standard_number}</div>
+                        <div className="text-xs text-slate-400">Year {item.year_achieved} • Tier {item.priority_tier}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-300 text-xs">{item.subject}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          item.grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300' :
+                          item.grade === 'Merit' ? 'bg-blue-500/20 text-blue-300' :
+                          item.grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300' :
+                          'bg-red-500/20 text-red-300'
+                        }`}>{item.grade[0]}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-200">
+                        <span className="font-semibold">{item.credits_used.toFixed(1)}</span>
+                        {item.pro_rated && <span className="ml-1 text-[0.6rem] text-slate-400">*</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-sm">{item.weight_applied.toFixed(3)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-sm text-brand-400">{item.contribution.toFixed(3)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN (40%): Standards to Improve */}
+          {activeYearForSubjects && yearsMap[activeYearForSubjects] && (
+            <div className="lg:col-span-2 card overflow-hidden">
+              <div className="p-6 border-b border-white/10">
+                <div className="flex items-center gap-3 mb-4">
+                  <ArrowTrendingUpIcon className="w-6 h-6 text-amber-400" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-200">Focus Areas</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Standards you can improve</p>
+                  </div>
+                </div>
+                
+                {/* Filter Controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setStandardsFilter('all')}
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      standardsFilter === 'all' 
+                        ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' 
+                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    All ({getStandardsByContribution(activeYearForSubjects).length})
+                  </button>
+                  <button
+                    onClick={() => setStandardsFilter('top10')}
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      standardsFilter === 'top10' 
+                        ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' 
+                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    Top 10
+                  </button>
+                  <button
+                    onClick={() => setStandardsFilter('needsImprovement')}
+                    className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                      standardsFilter === 'needsImprovement' 
+                        ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30' 
+                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    Need Work ({getStandardsByContribution(activeYearForSubjects).filter(item => {
+                      const maxGrade = getMaxGradeForStandard(item.standards_type);
+                      return item.grade !== maxGrade;
+                    }).length})
+                  </button>
+                </div>
+              </div>
+              
+              {/* Scrollable Standards List */}
+              <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
+                {getFilteredStandards(activeYearForSubjects).map((item, index) => {
+                  const maxGrade = getMaxGradeForStandard(item.standards_type);
+                  const isAtMaxGrade = item.grade === maxGrade;
+                  const maxWeight = item.weight_at_max_grade ?? item.weight_applied;
+                  const weightPercentage = (maxWeight * 100).toFixed(1);
+                  
+                  return (
+                    <div
+                      key={`${item.standard_number}-${item.selection_rank}`}
+                      className={`p-3 rounded-lg border transition-all ${
+                        isAtMaxGrade
+                          ? 'bg-emerald-500/10 border-emerald-500/30'
+                          : 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isAtMaxGrade ? 'bg-emerald-500/20' : 'bg-slate-700/50'
+                          }`}>
+                            <span className={`font-bold text-xs ${
+                              isAtMaxGrade ? 'text-emerald-300' : 'text-slate-300'
+                            }`}>#{index + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-slate-200 text-sm leading-tight">
+                              {item.standard_number}
+                            </div>
+                            <div className="text-xs text-slate-400">{item.subject}</div>
+                          </div>
+                        </div>
+                        {isAtMaxGrade && (
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-500/20 border border-emerald-500/30">
+                            <CheckIcon className="w-4 h-4 text-emerald-300 stroke-[2.5]" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-slate-400 text-xs">Credits</div>
+                          <div className="text-slate-200 font-semibold text-sm">{item.credits_available}</div>
+                        </div>
+                        <div>
+                          <div className="text-slate-400 text-xs">Max Weight</div>
+                          <div className="text-brand-400 font-bold text-base">{weightPercentage}%</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Distribution Histogram - Made More Compact */}
+      <div className="card p-6 animate-reveal-up" style={{ animationDelay: '120ms' }}>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <ChartBarIcon className="w-6 h-6 text-brand-400" />
@@ -322,11 +547,11 @@ export function ATARResults({ results, breakdown }: Props) {
         </div>
         
         {isLoadingDistribution ? (
-          <div className="h-80 w-full flex items-center justify-center">
+          <div className="h-64 w-full flex items-center justify-center">
             <div className="text-slate-400">Loading distribution...</div>
           </div>
         ) : histogramChartData.length > 0 ? (
-          <div className="h-80 w-full reveal reveal-in">
+          <div className="h-64 w-full reveal reveal-in">
             <ResponsiveContainer>
               <AreaChart 
                 key={`chart-${histogramYear}-${histogramChartData.length}-${userPositionPercent.toFixed(2)}`}
@@ -409,7 +634,7 @@ export function ATARResults({ results, breakdown }: Props) {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="h-80 w-full flex items-center justify-center">
+          <div className="h-64 w-full flex items-center justify-center">
             <div className="text-slate-400">No distribution data available</div>
           </div>
         )}
@@ -429,310 +654,118 @@ export function ATARResults({ results, breakdown }: Props) {
         </div>
       </div>
 
-      {/* Detailed Table */}
-      <div className="card overflow-hidden animate-reveal-up" style={{ animationDelay: '120ms' }}>
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <InformationCircleIcon className="w-6 h-6 text-brand-400" />
-            <h3 className="text-lg font-semibold text-slate-200">Detailed Results</h3>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-slate-700/50">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <CalendarDaysIcon className="w-4 h-4" />
-                    Year
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <ArrowTrendingUpIcon className="w-4 h-4" />
-                    Estimated ATAR
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
-                  <div className="flex items-center gap-2">
-                    <ChartBarIcon className="w-4 h-4" />
-                    Statistical Value
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {data.map((result, index) => (
-                <tr key={result.year} className="hover:bg-slate-700/30 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-200">
-                    {result.year}
-                    {index === data.length - 1 && (
-                      <span className="ml-2 badge-brand">Latest</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-lg font-bold text-brand-400">
-                      {result.estimated_atar.toFixed(2)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-300 font-mono">
-                    {result.statistical_value.toFixed(6)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Subject SSP Rankings */}
-      {breakdown && activeYearForSubjects && subjectsByYear[activeYearForSubjects] && (
-        <div className="card animate-reveal-up" style={{ animationDelay: '160ms' }}>
-          <div className="p-6 border-b border-white/10 flex items-center justify-between gap-4">
+      {/* Secondary Data: Detailed Results Table & Subject Rankings (Collapsed Accordion Style) */}
+      <details className="card overflow-hidden animate-reveal-up" style={{ animationDelay: '160ms' }}>
+        <summary className="p-6 border-b border-white/10 cursor-pointer hover:bg-slate-700/20 transition-colors list-none">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <AcademicCapIcon className="w-6 h-6 text-brand-400" />
-              <h3 className="text-lg font-semibold text-slate-200">Subject Rankings (SSP, 18 credits)</h3>
+              <InformationCircleIcon className="w-6 h-6 text-brand-400" />
+              <h3 className="text-lg font-semibold text-slate-200">Additional Details</h3>
+              <span className="text-xs text-slate-400">(Yearly Results & Subject Rankings)</span>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  const subs = subjectsByYear[activeYearForSubjects] || [];
-                  const headers = ['Subject','Eligible','SSP score'];
-                  const rows = subs
-                    .slice()
-                    .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                    .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
-                  downloadCSV(`ssp_${activeYearForSubjects}.csv`, headers, rows);
-                }}
-                className="btn-ghost text-xs"
-              >Export CSV</button>
-              <select 
-                value={activeYearForSubjects ?? ''} 
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYearForSubjects(parseInt(e.target.value))} 
-                className="input text-sm"
-              >
-                {availableYears.map(y => (
-                  <option key={y} value={y} className="bg-slate-800">{y}</option>
-                ))}
-              </select>
-            </div>
+            <ChevronDownIcon className="w-5 h-5 text-slate-400" />
           </div>
-          <div className="p-6 overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-700/50">
-                <tr>
-                  <th className="px-4 py-3 text-left">Subject</th>
-                  <th className="px-4 py-3 text-left">Eligible</th>
-                  <th className="px-4 py-3 text-right">SSP score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {subjectsByYear[activeYearForSubjects]
-                  .slice()
-                  .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                  .map(s => (
-                    <tr key={s.subject}>
-                      <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
-                      <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (\u2265 18 credits required)</span>}</td>
-                      <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Standards Ranked by Value */}
-      {breakdown && activeYearForSubjects && yearsMap[activeYearForSubjects] && (
-        <div className="card p-6 animate-reveal-up" style={{ animationDelay: '180ms' }}>
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <ArrowTrendingUpIcon className="w-6 h-6 text-amber-400" />
-              <div>
-                <h3 className="text-lg font-semibold text-slate-200">Standards by Potential Value</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Shows the wegiths of your standards if you got all E&apos;s</p>
-              </div>
-            </div>
-            <div className="meta">
-              {getStandardsByContribution(activeYearForSubjects).length} standard{getStandardsByContribution(activeYearForSubjects).length === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {getStandardsByContribution(activeYearForSubjects)
-              .slice(0, showAllTopStandards ? undefined : 6)
-              .map((item, index) => {
-                const maxGrade = getMaxGradeForStandard(item.standards_type);
-                const isAtMaxGrade = item.grade === maxGrade;
-                // Show the max grade weight (what it's worth at Excellence/Achieved)
-                const maxWeight = item.weight_at_max_grade ?? item.weight_applied;
-                const weightPercentage = (maxWeight * 100).toFixed(1);
-                return (
-                  <div
-                    key={`${item.standard_number}-${item.selection_rank}`}
-                    className={`p-4 rounded-lg border transition-all ${
-                      isAtMaxGrade
-                        ? 'bg-emerald-500/10 border-emerald-500/30'
-                        : 'bg-slate-800/50 border-slate-700/50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                          isAtMaxGrade ? 'bg-emerald-500/20' : 'bg-slate-700/50'
-                        }`}>
-                          <span className={`font-bold text-sm ${
-                            isAtMaxGrade ? 'text-emerald-300' : 'text-slate-300'
-                          }`}>#{index + 1}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-slate-200 text-sm leading-tight">
-                            {item.standard_number}
-                          </div>
-                          <div className="text-xs text-slate-400 mt-0.5">{item.subject}</div>
-                        </div>
-                      </div>
-                      {isAtMaxGrade && (
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-500/20 border border-emerald-500/30">
-                          <CheckIcon className="w-5 h-5 text-emerald-300 stroke-[2.5]" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="text-xs text-slate-300 mb-3 line-clamp-2" title={item.title || ''}>
-                      {item.title}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-slate-400 text-xs mb-1">Credits</div>
-                        <div className="text-slate-200 font-semibold text-sm">{item.credits_available}</div>
-                      </div>
-                      <div>
-                        <div className="text-slate-400 text-xs mb-1">Weight</div>
-                        <div className="text-brand-400 font-bold text-lg">{weightPercentage}%</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-          
-          {getStandardsByContribution(activeYearForSubjects).length > 6 && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => setShowAllTopStandards(!showAllTopStandards)}
-                className="btn-ghost"
-              >
-                {showAllTopStandards ? 'Show Less' : `Show All ${getStandardsByContribution(activeYearForSubjects).length} Standards`}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Credit Breakdown and Year Toggle */}
-      {breakdown && activeYear && yearsMap[activeYear] && (
-        <div className="card animate-reveal-up" style={{ animationDelay: '200ms' }}>
-          <button
-            onClick={() => setIsCreditBreakdownExpanded(!isCreditBreakdownExpanded)}
-            className="w-full p-6 border-b border-white/10 flex items-center justify-between gap-4 hover:bg-slate-700/20 transition-colors text-left"
-          >
-            <div className="flex items-center gap-3">
-              {isCreditBreakdownExpanded ? (
-                <ChevronDownIcon className="w-5 h-5 text-brand-400" />
-              ) : (
-                <ChevronRightIcon className="w-5 h-5 text-brand-400" />
-              )}
-              <ChartBarIcon className="w-6 h-6 text-brand-400" />
-              <h3 className="text-lg font-semibold text-slate-200">Credit Breakdown (Top 90, subject cap 24, pro‑rating)</h3>
-            </div>
-            <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
-              <button
-                onClick={() => {
-                  const y = yearsMap[activeYear];
-                  const headers = ['Rank','Standard','Subject','UE','Type','Grade','Year','Credits Available','Credits Used','Pro-rated','Weight','Contribution'];
-                  const rows = y.best90.map(i => [
-                    i.selection_rank,
-                    `${i.standard_number}${i.title ? `: ${i.title}` : ''}`,
-                    i.subject ?? '',
-                    i.is_ue ? 'UE' : '',
-                    i.standards_type ?? '',
-                    i.grade,
-                    i.year_achieved ?? '',
-                    i.credits_available,
-                    i.credits_used,
-                    i.pro_rated ? 'Yes' : 'No',
-                    i.weight_applied,
-                    i.contribution
-                  ]);
-                  downloadCSV(`breakdown_${activeYear}.csv`, headers, rows);
-                }}
-                className="btn-ghost text-xs"
-              >Export CSV</button>
-              <select value={activeYear ?? ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYear(parseInt(e.target.value))} className="input text-sm">
-                {availableYears.map(y => (
-                  <option key={y} value={y} className="bg-slate-800">{y}</option>
-                ))}
-              </select>
-            </div>
-          </button>
-          {isCreditBreakdownExpanded && (
-            <div className="p-6 animate-reveal-in">
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <div className="meta">Estimated ATAR: <span className="font-semibold text-brand-300">{yearsMap[activeYear].estimated_atar.toFixed(2)}</span></div>
-              <div className="meta">Stat. value: <span className="font-mono text-slate-200">{yearsMap[activeYear].statistical_value.toFixed(6)}</span></div>
-              <div className="meta">Credits used: <span className="font-semibold">{yearsMap[activeYear].totals.total_credits_used.toFixed(2)}</span> / 90</div>
-              <div className="meta">Prorated items: <span className="font-semibold">{yearsMap[activeYear].totals.prorated_count}</span></div>
-            </div>
+        </summary>
+        
+        <div className="p-6 space-y-6">
+          {/* Detailed Results Table */}
+          <div>
+            <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+              <CalendarDaysIcon className="w-4 h-4" />
+              Yearly ATAR Results
+            </h4>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-slate-700/50">
                   <tr>
-                    <th className="px-4 py-3 text-left">#</th>
-                    <th className="px-4 py-3 text-left">Standard</th>
-                    <th className="px-4 py-3 text-left">Subject</th>
-                    <th className="px-4 py-3 text-left">UE</th>
-                    <th className="px-4 py-3 text-left">Type</th>
-                    <th className="px-4 py-3 text-left">Grade</th>
-                    <th className="px-4 py-3 text-right">Credits (used)</th>
-                    <th className="px-4 py-3 text-right">Weight</th>
-                    <th className="px-4 py-3 text-right">Contribution</th>
+                    <th className="px-6 py-3 text-left">Year</th>
+                    <th className="px-6 py-3 text-left">Estimated ATAR</th>
+                    <th className="px-6 py-3 text-left">Statistical Value</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {yearsMap[activeYear].best90.map(item => (
-                    <tr key={`${item.standard_number}-${item.selection_rank}`}>
-                      <td className="px-4 py-3 text-slate-300">{item.selection_rank}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-slate-200 font-medium">{item.standard_number}{item.title ? `: ${item.title}` : ''}</div>
-                        <div className="text-xs text-slate-400">Year {item.year_achieved} • Tier {item.priority_tier}</div>
+                  {data.map((result, index) => (
+                    <tr key={result.year} className="hover:bg-slate-700/30 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium text-slate-200">
+                        {result.year}
+                        {index === data.length - 1 && (
+                          <span className="ml-2 badge-brand">Latest</span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-slate-300">{item.subject}</td>
-                      <td className="px-4 py-3">{item.is_ue ? <span className="badge-ue">UE</span> : '-'}</td>
-                      <td className="px-4 py-3 text-slate-300">{item.standards_type || '-'}</td>
-                      <td className="px-4 py-3 text-slate-300">{item.grade}</td>
-                      <td className="px-4 py-3 text-right text-slate-200">
-                        {item.credits_available}
-                        <span className="text-slate-400"> → </span>
-                        <span className="font-semibold">{item.credits_used.toFixed(2)}</span>
-                        {item.pro_rated && <span className="ml-2 px-2 py-0.5 text-[0.6875rem] rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/50">Pro‑rated</span>}
-                        {item.subject_capped && <span className="ml-2 px-2 py-0.5 text-[0.6875rem] rounded-md bg-slate-700/50 text-slate-300 border border-slate-600/50">Subject 24 cap</span>}
+                      <td className="px-6 py-4">
+                        <div className="text-lg font-bold text-brand-400">
+                          {result.estimated_atar.toFixed(2)}
+                        </div>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono">{item.weight_applied.toFixed(3)}</td>
-                      <td className="px-4 py-3 text-right font-mono">{item.contribution.toFixed(3)}</td>
+                      <td className="px-6 py-4 text-sm text-slate-300 font-mono">
+                        {result.statistical_value.toFixed(6)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Subject Rankings */}
+          {breakdown && activeYearForSubjects && subjectsByYear[activeYearForSubjects] && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <AcademicCapIcon className="w-4 h-4" />
+                  Subject Rankings (SSP, 18 credits)
+                </h4>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const subs = subjectsByYear[activeYearForSubjects] || [];
+                      const headers = ['Subject','Eligible','SSP score'];
+                      const rows = subs
+                        .slice()
+                        .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                        .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
+                      downloadCSV(`ssp_${activeYearForSubjects}.csv`, headers, rows);
+                    }}
+                    className="btn-ghost text-xs"
+                  >Export CSV</button>
+                  <select 
+                    value={activeYearForSubjects ?? ''} 
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYearForSubjects(parseInt(e.target.value))} 
+                    className="input text-sm"
+                  >
+                    {availableYears.map(y => (
+                      <option key={y} value={y} className="bg-slate-800">{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-slate-700/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Subject</th>
+                      <th className="px-4 py-3 text-left">Eligible</th>
+                      <th className="px-4 py-3 text-right">SSP score</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {subjectsByYear[activeYearForSubjects]
+                      .slice()
+                      .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
+                      .map(s => (
+                        <tr key={s.subject} className="hover:bg-slate-700/20 transition-colors">
+                          <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
+                          <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (≥ 18 credits required)</span>}</td>
+                          <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
-      )}
-
-
+      </details>
 
       {/* Info Note */}
       <div className="panel p-4 border border-slate-700/50 animate-reveal-in" style={{ animationDelay: '200ms' }}>
