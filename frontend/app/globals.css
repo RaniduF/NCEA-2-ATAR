@@ -21,6 +21,17 @@ html, body {
 ::-webkit-scrollbar-thumb { @apply bg-slate-700/80 rounded-full border border-slate-600/50; }
 ::-webkit-scrollbar-track { @apply bg-slate-800/40; }
 
+/* Custom scrollbar for specific containers */
+.custom-scrollbar::-webkit-scrollbar { width: 0.5rem; }
+.custom-scrollbar::-webkit-scrollbar-thumb { 
+  @apply bg-slate-600/60 rounded-full border-2 border-transparent bg-clip-padding;
+  transition: background-color 0.2s ease;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { @apply bg-slate-500/80; }
+.custom-scrollbar::-webkit-scrollbar-track { @apply bg-slate-800/20; }
+/* Firefox scrollbar */
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(71, 85, 105, 0.6) rgba(30, 41, 59, 0.2); }
+
 @layer base {
   body { @apply font-sans bg-[#0D1117] text-slate-100; }
 }
