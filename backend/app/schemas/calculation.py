@@ -45,6 +45,7 @@ class StandardContribution(BaseModel):
     subject: Optional[str] = None
     is_ue: Optional[bool] = None
     standards_type: Optional[str] = None
+    assessment_type: Optional[str] = None  # Internal or External
     grade: str
     year_achieved: Optional[int] = None
     weight_applied: float

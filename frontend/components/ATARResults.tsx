@@ -2,9 +2,8 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, SubjectSSPBreakdown, DistributionResponse } from '../app/services/api';
+import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, DistributionResponse } from '../app/services/api';
 import { getDistribution } from '../app/services/api';
-import { downloadCSV } from '../app/services/csv';
 import { ATARMethodologyModal } from './ATARMethodologyModal';
 import { 
   ChartBarIcon, 
@@ -12,15 +11,12 @@ import {
   AcademicCapIcon,
   ArrowTrendingUpIcon,
   InformationCircleIcon,
-  ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
   CheckIcon,
   SparklesIcon,
   TrophyIcon,
   ArrowUpIcon,
   ArrowDownIcon,
-  MinusIcon,
   QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 
@@ -44,6 +40,7 @@ interface StandardWeightInfo {
   is_external: boolean;
   is_at_max: boolean;
   standards_type: string | null;
+  assessment_type: string | null;
   weight_2024?: number;
   weight_2023?: number;
   weight_2022?: number;
@@ -72,25 +69,13 @@ export function ATARResults({ results, breakdown }: Props) {
   const hasAnyResults = data.length > 0;
 
   const yearsMap: Record<number, YearlyBreakdown> = {};
-  const subjectsByYear: Record<number, SubjectSSPBreakdown[]> = {};
   if (breakdown) {
     for (const y of breakdown.years) yearsMap[y.year] = y;
-    for (const s of breakdown.subjects) {
-      if (!subjectsByYear[s.year]) subjectsByYear[s.year] = [];
-      subjectsByYear[s.year].push(s);
-    }
   }
   const availableYears = useMemo(() => data.map(d => d.year), [data]);
   const [activeYear, setActiveYear] = useState<number | null>(
     availableYears.length ? availableYears[availableYears.length - 1] : null
   );
-  const [activeYearForSubjects, setActiveYearForSubjects] = useState<number | null>(
-    availableYears.length ? availableYears[availableYears.length - 1] : null
-  );
-  const [isCreditBreakdownExpanded, setIsCreditBreakdownExpanded] = useState(false);
-  const [showAllTopStandards, setShowAllTopStandards] = useState(false);
-  const [standardsFilter, setStandardsFilter] = useState<'all' | 'top10' | 'needsImprovement'>('all');
-  const [weightSortBy, setWeightSortBy] = useState<'max_weight' | 'weight_gap' | 'current_contribution'>('max_weight');
   const [isMethodologyModalOpen, setIsMethodologyModalOpen] = useState(false);
   
   // ALL HOOKS MUST BE AT THE TOP - State for histogram visualization
@@ -101,10 +86,6 @@ export function ATARResults({ results, breakdown }: Props) {
   
   useEffect(() => {
     setActiveYear(prev => {
-      if (prev && availableYears.includes(prev)) return prev;
-      return availableYears.length ? availableYears[availableYears.length - 1] : null;
-    });
-    setActiveYearForSubjects(prev => {
       if (prev && availableYears.includes(prev)) return prev;
       return availableYears.length ? availableYears[availableYears.length - 1] : null;
     });
@@ -235,11 +216,12 @@ export function ATARResults({ results, breakdown }: Props) {
   }, [userStatisticalValue, histogramChartData]);
 
   // Calculate standards by weight with multi-year data (MUST be before any early returns)
+  // This includes ALL standards (used and excluded) to show improvement opportunities
   const standardsByWeight = useMemo(() => {
-    if (!breakdown || !activeYear || !yearsMap[activeYear]) return [];
+    if (!breakdown || !activeYear || !yearsMap[activeYear]) return { standards: [], top90CutoffIndex: -1 };
     
     const yearData = yearsMap[activeYear];
-    const standards: StandardWeightInfo[] = [];
+    const standards: Array<StandardWeightInfo & { is_used: boolean; exclusion_reason: string | null }> = [];
     
     // Build a map of standard numbers to their weights across years
     const standardWeightsByYear = new Map<number, Map<number, number>>();
@@ -256,6 +238,7 @@ export function ATARResults({ results, breakdown }: Props) {
       }
     });
     
+    // Process USED standards from best90
     for (const item of yearData.best90) {
       // Determine max grade based on standards type
       const isUnitStandard = item.standards_type?.toLowerCase().includes('unit');
@@ -268,9 +251,8 @@ export function ATARResults({ results, breakdown }: Props) {
       const weightGap = item.weight_at_max_grade - item.weight_applied;
       const maxContribution = item.credits_used * item.weight_at_max_grade;
       
-      // Determine if external (externally assessed achievement standards typically have higher weights)
-      const isExternal: boolean = (item.standards_type?.toLowerCase().includes('achievement') ?? false) && 
-                        item.weight_applied > 0.5;
+      // Use database assessment_type field (Internal or External)
+      const isExternal: boolean = item.assessment_type?.toLowerCase() === 'external';
       
       // Get weights for this standard across years
       const yearWeights = standardWeightsByYear.get(item.standard_number);
@@ -293,18 +275,87 @@ export function ATARResults({ results, breakdown }: Props) {
         is_external: isExternal,
         is_at_max: isAtMax,
         standards_type: item.standards_type || null,
+        assessment_type: item.assessment_type || null,
         weight_2024,
         weight_2023,
-        weight_2022
+        weight_2022,
+        is_used: true,
+        exclusion_reason: null
       });
     }
     
-    // Always sort by 2024 weight (most recent year) descending
-    return [...standards].sort((a, b) => {
+    // Process EXCLUDED standards
+    for (const excl of yearData.excluded) {
+      // Try to find this standard in best90 to get its details (it might be there from calculation)
+      const stdDetails = yearData.best90.find(s => s.standard_number === excl.standard_number);
+      
+      if (stdDetails && stdDetails.weight_at_max_grade) {
+        const isUnitStandard = stdDetails.standards_type?.toLowerCase().includes('unit');
+        const maxGrade = isUnitStandard ? 'Achieved' : 'Excellence';
+        const isAtMax = stdDetails.grade === maxGrade;
+        const isExternal: boolean = stdDetails.assessment_type?.toLowerCase() === 'external';
+        
+        const yearWeights = standardWeightsByYear.get(stdDetails.standard_number);
+        const weight_2024 = yearWeights?.get(2024);
+        const weight_2023 = yearWeights?.get(2023);
+        const weight_2022 = yearWeights?.get(2022);
+        
+        standards.push({
+          standard_number: stdDetails.standard_number,
+          title: stdDetails.title || '',
+          subject: stdDetails.subject || 'Unknown',
+          current_grade: stdDetails.grade,
+          max_grade: maxGrade,
+          current_weight: stdDetails.weight_applied,
+          max_weight: stdDetails.weight_at_max_grade,
+          weight_gap: stdDetails.weight_at_max_grade - stdDetails.weight_applied,
+          current_contribution: 0, // Not used in final calc
+          max_contribution: stdDetails.credits_available * stdDetails.weight_at_max_grade,
+          credits: stdDetails.credits_available,
+          is_external: isExternal,
+          is_at_max: isAtMax,
+          standards_type: stdDetails.standards_type || null,
+          assessment_type: stdDetails.assessment_type || null,
+          weight_2024,
+          weight_2023,
+          weight_2022,
+          is_used: false,
+          exclusion_reason: excl.reason
+        });
+      }
+    }
+    
+    // Sort all standards by their 2024 max weight (most recent year) descending
+    const sortedStandards = [...standards].sort((a, b) => {
       const weightA = a.weight_2024 ?? a.max_weight;
       const weightB = b.weight_2024 ?? b.max_weight;
       return weightB - weightA;
     });
+    
+    // Find the cutoff index - where we'd reach 90 credits at max grades
+    let creditsAccumulated = 0;
+    let cutoffIndex = -1;
+    const subjectCredits: Record<string, number> = {};
+    
+    for (let i = 0; i < sortedStandards.length; i++) {
+      const std = sortedStandards[i];
+      const subjectUsed = subjectCredits[std.subject] || 0;
+      const canUse = Math.min(std.credits, 24 - subjectUsed, 90 - creditsAccumulated);
+      
+      if (canUse > 0) {
+        creditsAccumulated += canUse;
+        subjectCredits[std.subject] = subjectUsed + canUse;
+        
+        if (creditsAccumulated >= 90 && cutoffIndex === -1) {
+          cutoffIndex = i;
+        }
+      }
+    }
+    
+    return { 
+      standards: sortedStandards, 
+      top90CutoffIndex: cutoffIndex 
+    };
   }, [breakdown, activeYear, yearsMap]);
 
   // Get all contributing standards sorted by contribution (MUST be before any early returns)
@@ -315,6 +366,93 @@ export function ATARResults({ results, breakdown }: Props) {
       .sort((a, b) => b.contribution - a.contribution);
   }, [breakdown, activeYear, yearsMap]);
 
+  // Get ALL standards including excluded ones for "Your Ranked Standards"
+  const allStandardsWithStatus = useMemo(() => {
+    if (!breakdown || !activeYear || !yearsMap[activeYear]) return [];
+    const yearData = yearsMap[activeYear];
+    
+    // Used standards
+    const usedStandards = [...yearData.best90].map(item => ({
+      ...item,
+      is_used: true,
+      exclusion_reason: null
+    }));
+    
+    // Excluded standards - get their details from the standardsByWeight calculation
+    const excludedStandards = yearData.excluded.map(excl => {
+      // Try to find this standard in standardsByWeight which has full details
+      const stdDetails = standardsByWeight.standards.find(s => s.standard_number === excl.standard_number);
+      
+      if (stdDetails) {
+        // Use the full details from standardsByWeight
+        return {
+          selection_rank: 999,
+          standard_number: stdDetails.standard_number,
+          title: stdDetails.title || null,
+          subject: stdDetails.subject || null,
+          is_ue: null,
+          standards_type: stdDetails.standards_type,
+          assessment_type: stdDetails.assessment_type,
+          grade: stdDetails.current_grade,
+          year_achieved: null,
+          weight_applied: stdDetails.current_weight,
+          weight_at_max_grade: stdDetails.max_weight,
+          credits_available: stdDetails.credits,
+          credits_used: 0,
+          pro_rated: false,
+          contribution: 0,
+          subject_credits_used_to_date: 0,
+          subject_capped: false,
+          priority_tier: 999,
+          is_used: false,
+          exclusion_reason: excl.reason
+        };
+      }
+      
+      // Fallback if not found in standardsByWeight
+      return {
+        selection_rank: 999,
+        standard_number: excl.standard_number,
+        title: null,
+        subject: null,
+        is_ue: null,
+        standards_type: null,
+        assessment_type: null,
+        grade: 'N/A',
+        year_achieved: null,
+        weight_applied: 0,
+        weight_at_max_grade: null,
+        credits_available: 0,
+        credits_used: 0,
+        pro_rated: false,
+        contribution: 0,
+        subject_credits_used_to_date: 0,
+        subject_capped: false,
+        priority_tier: 999,
+        is_used: false,
+        exclusion_reason: excl.reason
+      };
+    });
+    
+    return [...usedStandards.sort((a, b) => b.contribution - a.contribution), ...excludedStandards];
+  }, [breakdown, activeYear, yearsMap, standardsByWeight]);
+
+  // Prepare data for rendering (used in final JSX after early returns)
+  // Now we can safely use latestResult since we've passed the early returns
+  // TypeScript doesn't know this, so we use non-null assertion
+  const earliestResult = data[0];
+  // Calculate percentile rank: ATAR 99.95 = top 0.05%, so percentile = 100 - ATAR
+  const percentileRank = latestResult ? 100 - latestResult.estimated_atar : 0;
+  
+  // Cycle to next year (with looping) - goes from newest to oldest
+  const cycleYear = (): void => {
+    const currentIndex = data.findIndex(r => r.year === histogramYear);
+    // Decrement to go backwards (2024 -> 2023 -> 2022)
+    const nextIndex = (currentIndex - 1 + data.length) % data.length;
+    setHistogramYear(data[nextIndex].year);
+  };
+
+  // Early return checks
   if (!results) {
     return (
       <div className="text-center py-16">
@@ -338,58 +476,6 @@ export function ATARResults({ results, breakdown }: Props) {
       </div>
     );
   }
-
-  // Now we can safely use latestResult since we've passed the early returns
-  // TypeScript doesn't know this, so we use non-null assertion
-  const earliestResult = data[0];
-  // Calculate percentile rank: ATAR 99.95 = top 0.05%, so percentile = 100 - ATAR
-  const percentileRank = 100 - latestResult!.estimated_atar;
-  
-  // Cycle to next year (with looping) - goes from newest to oldest
-  const cycleYear = () => {
-    const currentIndex = data.findIndex(r => r.year === histogramYear);
-    // Decrement to go backwards (2024 -> 2023 -> 2022)
-    const nextIndex = (currentIndex - 1 + data.length) % data.length;
-    setHistogramYear(data[nextIndex].year);
-  };
-
-  // Helper to get all standards sorted by max grade weight (highest to lowest)
-  const getStandardsByContribution = (year: number) => {
-    if (!breakdown || !yearsMap[year]) return [];
-    
-    const yearData = yearsMap[year];
-    // Sort all standards by their max grade weight only (not contribution)
-    return [...yearData.best90].sort((a, b) => {
-      // Use max grade weight if available, otherwise fall back to current weight
-      const maxWeightA = a.weight_at_max_grade ?? a.weight_applied;
-      const maxWeightB = b.weight_at_max_grade ?? b.weight_applied;
-      
-      // Sort by weight descending (highest first)
-      return maxWeightB - maxWeightA;
-    });
-  };
-
-  // Helper to determine max grade for a standard
-  const getMaxGradeForStandard = (standardsType: string | null | undefined) => {
-    const isUnitStandard = standardsType === 'Unit Standard';
-    return isUnitStandard ? 'Achieved' : 'Excellence';
-  };
-
-  // Helper to get filtered standards based on current filter
-  const getFilteredStandards = (year: number) => {
-    const allStandards = getStandardsByContribution(year);
-    
-    if (standardsFilter === 'top10') {
-      return allStandards.slice(0, 10);
-    } else if (standardsFilter === 'needsImprovement') {
-      return allStandards.filter(item => {
-        const maxGrade = getMaxGradeForStandard(item.standards_type);
-        return item.grade !== maxGrade;
-      });
-    }
-    
-    return allStandards;
-  };
 
   return (
     <div className="space-y-8">
@@ -507,9 +593,12 @@ export function ATARResults({ results, breakdown }: Props) {
             <div className="px-6 py-3 bg-slate-800/30 border-b border-white/10">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-300">
-                  Showing <span className="font-semibold text-brand-400">{topContributors.length}</span> standard{topContributors.length !== 1 ? 's' : ''}
+                  Showing <span className="font-semibold text-brand-400">{allStandardsWithStatus.filter(s => s.is_used).length}</span> used
+                  {allStandardsWithStatus.filter(s => !s.is_used).length > 0 && (
+                    <span className="text-slate-500"> + <span className="font-semibold">{allStandardsWithStatus.filter(s => !s.is_used).length}</span> excluded</span>
+                  )}
                 </span>
-                {topContributors.length > 5 && (
+                {allStandardsWithStatus.length > 5 && (
                   <span className="text-xs text-slate-400">
                     Scroll to view all
                   </span>
@@ -520,82 +609,107 @@ export function ATARResults({ results, breakdown }: Props) {
             {/* Scrollable standards container */}
             <div className="relative">
               <div className="max-h-[500px] overflow-y-auto p-6 space-y-3 custom-scrollbar">
-                {topContributors.map((item, index) => {
-                const isAtMaxGrade = item.grade === (item.standards_type?.toLowerCase().includes('unit') ? 'Achieved' : 'Excellence');
-                const contributionPercent = (item.contribution / yearsMap[activeYear].totals.total_contribution) * 100;
+                {allStandardsWithStatus.map((item, index) => {
+                const isAtMaxGrade = item.is_used && item.grade === (item.standards_type?.toLowerCase().includes('unit') ? 'Achieved' : 'Excellence');
+                const contributionPercent = item.is_used ? (item.contribution / yearsMap[activeYear].totals.total_contribution) * 100 : 0;
                 
                 return (
                   <div
                     key={`${item.standard_number}-${item.selection_rank}`}
                     className={`p-4 rounded-lg border transition-all ${
-                      isAtMaxGrade
+                      !item.is_used
+                        ? 'bg-slate-900/30 border-slate-700/30 opacity-60'
+                        : isAtMaxGrade
                         ? 'bg-emerald-500/10 border-emerald-500/30'
                         : 'bg-slate-800/50 border-slate-700/50'
                     }`}
                   >
+                    {!item.is_used && (
+                      <div className="mb-3 px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg">
+                        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Not Used in ATAR</div>
+                        <div className="text-[0.65rem] text-slate-500">{item.exclusion_reason}</div>
+                      </div>
+                    )}
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${
-                          isAtMaxGrade ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-300'
+                          !item.is_used 
+                            ? 'bg-slate-800/50 text-slate-500'
+                            : isAtMaxGrade ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-300'
                         }`}>
-                          {index + 1}
+                          {item.is_used ? index - allStandardsWithStatus.filter((s, i) => !s.is_used && i < index).length + 1 : '—'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-slate-200 mb-0.5">{item.standard_number}</div>
+                          <div className={`font-semibold mb-0.5 ${item.is_used ? 'text-slate-200' : 'text-slate-400'}`}>{item.standard_number}</div>
                           {item.title && (
-                            <div className="text-xs text-slate-300 mb-1 line-clamp-2">{item.title}</div>
+                            <div className={`text-xs mb-1 line-clamp-2 ${item.is_used ? 'text-slate-300' : 'text-slate-500'}`}>{item.title}</div>
                           )}
-                          <div className="text-xs text-slate-400 truncate">{item.subject}</div>
+                          <div className={`text-xs truncate ${item.is_used ? 'text-slate-400' : 'text-slate-500'}`}>{item.subject}</div>
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className={`text-xs px-2 py-1 rounded font-medium ${
-                          item.grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300' :
-                          item.grade === 'Merit' ? 'bg-blue-500/20 text-blue-300' :
-                          item.grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300' :
-                          'bg-red-500/20 text-red-300'
+                        {item.grade && item.grade !== 'N/A' && (
+                          <>
+                            <span className={`text-xs px-2 py-1 rounded font-medium ${
+                              !item.is_used 
+                                ? 'bg-slate-800/50 text-slate-500'
+                                : item.grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300' :
+                              item.grade === 'Merit' ? 'bg-blue-500/20 text-blue-300' :
+                              item.grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300' :
+                              'bg-red-500/20 text-red-300'
                         }`}>
                           {item.grade[0]}
                         </span>
-                        {isAtMaxGrade && (
+                        {item.is_used && isAtMaxGrade && (
                           <div className="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500/20 border border-emerald-500/30">
                             <CheckIcon className="w-3.5 h-3.5 text-emerald-300 stroke-[2.5]" />
                           </div>
                         )}
-                        {!isAtMaxGrade && (
+                        {item.is_used && !isAtMaxGrade && (
                           <div className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-500/20 border border-amber-500/30">
                             <ArrowUpIcon className="w-3.5 h-3.5 text-amber-300 stroke-[2.5]" />
                           </div>
                         )}
+                          </>
+                        )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
-                          <span>Contribution to total</span>
-                          <span className="font-semibold text-brand-300">{contributionPercent.toFixed(1)}%</span>
+                    {/* Show weight info for all standards, just grayed out for excluded ones */}
+                    {(item.is_used || (!item.is_used && item.weight_applied > 0)) && (
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          {item.is_used && (
+                            <>
+                              <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+                                <span>Contribution to total</span>
+                                <span className="font-semibold text-brand-300">{contributionPercent.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500"
+                                  style={{ width: `${Math.min(contributionPercent * 2, 100)}%` }}
+                                ></div>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(contributionPercent * 2, 100)}%` }}
-                          ></div>
+                        <div className="text-right">
+                          <div className={`text-xs ${item.is_used ? 'text-slate-400' : 'text-slate-500'}`}>Weight</div>
+                          <div className={`text-sm font-mono font-semibold ${item.is_used ? 'text-slate-200' : 'text-slate-500'}`}>
+                            {item.weight_applied.toFixed(3)}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-slate-400">Weight</div>
-                        <div className="text-sm font-mono font-semibold text-slate-200">{item.weight_applied.toFixed(3)}</div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
               </div>
               
               {/* Scroll fade indicator */}
-              {topContributors.length > 5 && (
+              {allStandardsWithStatus.length > 5 && (
                 <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none"></div>
               )}
             </div>
@@ -667,7 +781,7 @@ export function ATARResults({ results, breakdown }: Props) {
       )}
       
       {/* STANDARDS BY WEIGHT & IMPACT Section */}
-      {breakdown && activeYear && yearsMap[activeYear] && standardsByWeight.length > 0 && (
+      {breakdown && activeYear && yearsMap[activeYear] && standardsByWeight.standards.length > 0 && (
         <div className="card overflow-hidden animate-reveal-up" style={{ animationDelay: '120ms' }}>
           <div className="p-6 border-b border-white/10">
             <div className="flex flex-col gap-4 mb-4">
@@ -709,126 +823,209 @@ export function ATARResults({ results, breakdown }: Props) {
           <div className="px-6 py-3 bg-slate-800/30 border-b border-white/10">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-300">
-                Showing <span className="font-semibold text-brand-400">{standardsByWeight.length}</span> standard{standardsByWeight.length !== 1 ? 's' : ''}
+                Showing <span className="font-semibold text-brand-400">{standardsByWeight.standards.length}</span> standard{standardsByWeight.standards.length !== 1 ? 's' : ''}
+                {standardsByWeight.standards.filter(s => !s.is_used).length > 0 && (
+                  <span className="text-slate-500 ml-2">
+                    (<span className="font-semibold">{standardsByWeight.standards.filter(s => !s.is_used).length}</span> not used)
+                  </span>
+                )}
               </span>
               <span className="text-xs text-slate-400">
-                Scroll to view all
+                Top 90 credits cutoff shown below
               </span>
             </div>
           </div>
           
           {/* Scrollable standards container with fixed height */}
           <div className="relative">
-            <div className="max-h-[600px] overflow-y-auto p-6 space-y-3 custom-scrollbar">
-              {standardsByWeight.map((std, index) => {
+            <div className="max-h-[600px] overflow-y-auto p-6 space-y-4 custom-scrollbar">
+              {standardsByWeight.standards.map((std, index) => {
+                // Check if this is right after the cutoff
+                const isAtCutoff = index === standardsByWeight.top90CutoffIndex;
+                
                 return (
-                  <div
-                    key={std.standard_number}
-                    className={`p-4 rounded-lg border transition-all ${
-                      std.is_at_max
-                        ? 'bg-emerald-500/10 border-emerald-500/30'
-                        : 'bg-slate-800/50 border-slate-700/50 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-xs ${
-                          std.is_at_max ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/50 text-slate-300'
-                        }`}>
-                          {index + 1}
+                  <div key={std.standard_number}>
+                    {/* Show cutoff indicator */}
+                    {isAtCutoff && (
+                      <div className="relative py-4 my-6">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t-2 border-dashed border-amber-500/50"></div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-semibold text-slate-200">{std.standard_number}</span>
-                            <span className={`text-[0.625rem] px-2 py-0.5 rounded font-medium ${
-                              std.is_external 
-                                ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
-                                : 'bg-slate-700/50 text-slate-400'
-                            }`}>
-                              {std.is_external ? 'External' : 'Internal'}
-                            </span>
-                          </div>
-                          {std.title && (
-                            <div className="text-xs text-slate-300 mb-1 line-clamp-2">{std.title}</div>
-                          )}
-                          <div className="text-xs text-slate-400 truncate">{std.subject}</div>
+                        <div className="relative flex justify-center">
+                          <span className="px-4 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs font-bold text-amber-300 uppercase tracking-wide">
+                            Top 90 Credits Cutoff (at max grades)
+                          </span>
+                        </div>
+                        <div className="text-center mt-2">
+                          <p className="text-[0.65rem] text-amber-400/70">
+                            Standards below this line would count if improved to max grade
+                          </p>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`text-xs px-2 py-1 rounded font-medium ${
-                          std.current_grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300' :
-                          std.current_grade === 'Merit' ? 'bg-blue-500/20 text-blue-300' :
-                          std.current_grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300' :
-                          'bg-red-500/20 text-red-300'
-                        }`}>
-                          {std.current_grade[0]}
-                        </span>
-                        {std.is_at_max && (
-                          <div className="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500/20 border border-emerald-500/30">
-                            <CheckIcon className="w-3.5 h-3.5 text-emerald-300 stroke-[2.5]" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    )}
                     
-                    <div className="space-y-3">
-                      {/* Multi-year weights comparison */}
-                      <div className="panel p-3 bg-slate-800/40">
-                        <div className="text-xs text-slate-400 mb-2 font-medium">Difficulty Weights (Last 3 Years)</div>
+                    <div
+                      className={`relative overflow-hidden rounded-xl border transition-all ${
+                        !std.is_used
+                          ? 'bg-gradient-to-br from-slate-900/50 via-slate-900/30 to-slate-900/20 border-slate-700/30 opacity-70'
+                          : std.is_at_max
+                          ? 'bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-emerald-500/40'
+                          : 'bg-gradient-to-br from-slate-800/80 via-slate-800/40 to-slate-800/20 border-slate-700/50 hover:border-slate-600'
+                      }`}
+                    >
+                      {/* Not used indicator */}
+                      {!std.is_used && (
+                        <div className="absolute top-3 right-3 z-10">
+                          <div className="px-2 py-1 bg-slate-800/80 border border-slate-700/50 rounded-md">
+                            <span className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-wide">Not Used</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Decorative gradient accent */}
+                      <div className={`absolute top-0 left-0 right-0 h-1 ${
+                        !std.is_used
+                          ? 'bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700'
+                          : std.is_at_max
+                        ? 'bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600' 
+                        : 'bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600'
+                    }`}></div>
+                    
+                    <div className="p-5">
+                      {/* Header with Standard Info and Current Grade */}
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-sm ${
+                            std.is_at_max 
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                              : 'bg-slate-700/60 text-slate-300 border border-slate-600/50'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-bold text-base text-slate-100">{std.standard_number}</span>
+                              <span className={`text-[0.625rem] px-2 py-0.5 rounded-md font-semibold ${
+                                std.is_external 
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
+                                  : 'bg-slate-700/60 text-slate-400 border border-slate-600/50'
+                              }`}>
+                                {std.is_external ? 'EXT' : 'INT'}
+                              </span>
+                            </div>
+                            {std.title && (
+                              <div className="text-xs text-slate-300 mb-1 line-clamp-2 leading-relaxed">{std.title}</div>
+                            )}
+                            <div className="text-xs text-slate-400 truncate font-medium">{std.subject} • {std.credits} credits</div>
+                          </div>
+                        </div>
+                        
+                        {/* Current Grade Badge with Status Indicator */}
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          <div className={`px-3 py-1.5 rounded-lg font-bold text-sm border ${
+                            std.current_grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' :
+                            std.current_grade === 'Merit' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40' :
+                            std.current_grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' :
+                            'bg-red-500/20 text-red-300 border-red-500/40'
+                          }`}>
+                            {std.current_grade}
+                          </div>
+                          {std.is_at_max && (
+                            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/20 border border-emerald-500/30">
+                              <CheckIcon className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                              <span className="text-[0.625rem] font-semibold text-emerald-300">MAX</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Current Grade Weight Card */}
+                      <div className={`mb-4 p-4 rounded-xl border ${
+                        std.is_at_max
+                          ? 'bg-emerald-500/5 border-emerald-500/20'
+                          : 'bg-slate-800/60 border-slate-700/40'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Your Current Performance</span>
+                          {std.is_at_max && (
+                            <CheckIcon className="w-4 h-4 text-emerald-400" />
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Grade Achieved</div>
+                            <div className="text-xl font-black text-slate-100">{std.current_grade}</div>
+                          </div>
+                          <div>
+                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Weight @ {std.current_grade}</div>
+                            <div className="text-xl font-black font-mono text-brand-400">{(std.current_weight * 100).toFixed(2)}%</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Historical Weights Comparison (2024-2022) */}
+                      <div className="mb-4 p-4 rounded-xl bg-slate-900/40 border border-slate-700/30">
+                        <div className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <CalendarDaysIcon className="w-3.5 h-3.5" />
+                          Maximum Grade Weights Across Years
+                        </div>
                         <div className="grid grid-cols-3 gap-3">
-                          {std.weight_2024 !== undefined && (
-                            <div>
-                              <div className="text-[0.625rem] text-slate-400 mb-0.5">2024</div>
-                              <div className="font-mono text-xs font-semibold text-brand-400">
-                                {std.weight_2024.toFixed(4)}
+                          {[
+                            { year: 2024, weight: std.weight_2024, highlight: true },
+                            { year: 2023, weight: std.weight_2023, highlight: false },
+                            { year: 2022, weight: std.weight_2022, highlight: false }
+                          ].map(({ year, weight, highlight }) => (
+                            weight !== undefined && (
+                              <div key={year} className={`p-3 rounded-lg border ${
+                                highlight 
+                                  ? 'bg-brand-500/10 border-brand-500/30' 
+                                  : 'bg-slate-800/50 border-slate-700/40'
+                              }`}>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <div className="text-[0.65rem] text-slate-400 font-bold uppercase">{year}</div>
+                                  {highlight && std.is_at_max && (
+                                    <CheckIcon className="w-3 h-3 text-emerald-400" />
+                                  )}
+                                </div>
+                                <div className={`text-base font-black font-mono ${
+                                  highlight ? 'text-brand-400' : 'text-slate-200'
+                                }`}>
+                                  {(weight * 100).toFixed(2)}%
+                                </div>
+                                <div className="text-[0.6rem] text-slate-500 mt-1">@ {std.max_grade}</div>
                               </div>
-                            </div>
-                          )}
-                          {std.weight_2023 !== undefined && (
-                            <div>
-                              <div className="text-[0.625rem] text-slate-400 mb-0.5">2023</div>
-                              <div className="font-mono text-xs font-semibold text-slate-200">
-                                {std.weight_2023.toFixed(4)}
-                              </div>
-                            </div>
-                          )}
-                          {std.weight_2022 !== undefined && (
-                            <div>
-                              <div className="text-[0.625rem] text-slate-400 mb-0.5">2022</div>
-                              <div className="font-mono text-xs font-semibold text-slate-200">
-                                {std.weight_2022.toFixed(4)}
-                              </div>
-                            </div>
-                          )}
+                            )
+                          ))}
                         </div>
                       </div>
                       
-                      {/* Current Grade Info */}
-                      <div className="grid grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <div className="text-slate-400 mb-1">Your Weight</div>
-                          <div className="font-mono font-semibold text-slate-200">{std.current_weight.toFixed(4)}</div>
-                        </div>
-                        <div>
-                          <div className="text-slate-400 mb-1">Your Grade</div>
-                          <div className="font-semibold text-slate-200">{std.current_grade}</div>
-                        </div>
-                      </div>
-                      
-                      {/* Max grade indicator */}
+                      {/* Status Message */}
                       {std.is_at_max ? (
-                        <div className="text-xs text-emerald-300 font-medium flex items-center gap-1 p-2 bg-emerald-500/10 rounded-lg">
-                          <CheckIcon className="w-3 h-3" />
-                          <span>You got the best possible grade ({std.max_grade})</span>
+                        <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                          <CheckIcon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <div>
+                            <div className="text-xs font-bold text-emerald-300">Achieved Maximum Grade</div>
+                            <div className="text-[0.65rem] text-emerald-400/80 mt-0.5">
+                              You earned the best possible weight for this standard ({std.max_grade})
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        <div className="text-xs text-slate-400 p-2 bg-slate-700/30 rounded-lg">
-                          Getting <span className="text-slate-200 font-semibold">{std.max_grade}</span> would give you a weight of <span className="font-mono text-brand-400 font-semibold">{std.max_weight.toFixed(4)}</span>
+                        <div className="flex items-start gap-2 p-3 bg-amber-500/5 border border-amber-500/20 rounded-lg">
+                          <ArrowUpIcon className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <div className="text-xs font-bold text-amber-300 mb-1">Improvement Opportunity</div>
+                            <div className="text-[0.65rem] text-slate-400 leading-relaxed">
+                              Achieving <span className="text-slate-200 font-bold">{std.max_grade}</span> would increase your weight to{' '}
+                              <span className="font-mono text-brand-400 font-bold">{(std.max_weight * 100).toFixed(2)}%</span>
+                              {' '}(+{((std.max_weight - std.current_weight) * 100).toFixed(2)}%)
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
+                </div>
                 );
               })}
             </div>
@@ -965,207 +1162,6 @@ export function ATARResults({ results, breakdown }: Props) {
           </p>
         </div>
       </div>
-
-      {/* Detailed Breakdown - Collapsible */}
-      <details className="card overflow-hidden animate-reveal-up" style={{ animationDelay: '240ms' }}>
-        <summary className="p-6 cursor-pointer hover:bg-slate-700/20 transition-colors list-none group">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <InformationCircleIcon className="w-6 h-6 text-brand-400" />
-              <div>
-                <h3 className="text-lg font-semibold text-slate-200">Detailed Breakdown</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Full credit breakdown, yearly results, and subject rankings</p>
-              </div>
-            </div>
-            <ChevronDownIcon className="w-5 h-5 text-slate-400 transition-transform group-open:rotate-180" />
-          </div>
-        </summary>
-        
-        <div className="p-6 space-y-8 border-t border-white/10">
-          {/* Full Credit Breakdown (Top 90) */}
-          {breakdown && activeYear && yearsMap[activeYear] && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <ChartBarIcon className="w-4 h-4" />
-                  Complete Credit Breakdown (Top 90)
-                </h4>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      const y = yearsMap[activeYear];
-                      const headers = ['Rank','Standard','Subject','UE','Type','Grade','Year','Credits Available','Credits Used','Pro-rated','Weight','Contribution'];
-                      const rows = y.best90.map(i => [
-                        i.selection_rank,
-                        `${i.standard_number}${i.title ? `: ${i.title}` : ''}`,
-                        i.subject ?? '',
-                        i.is_ue ? 'UE' : '',
-                        i.standards_type ?? '',
-                        i.grade,
-                        i.year_achieved ?? '',
-                        i.credits_available,
-                        i.credits_used,
-                        i.pro_rated ? 'Yes' : 'No',
-                        i.weight_applied,
-                        i.contribution
-                      ]);
-                      downloadCSV(`breakdown_${activeYear}.csv`, headers, rows);
-                    }}
-                    className="btn-ghost text-xs"
-                  >Export CSV</button>
-                  <select value={activeYear ?? ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYear(parseInt(e.target.value))} className="input text-sm">
-                    {availableYears.map(y => (
-                      <option key={y} value={y} className="bg-slate-800">{y}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              <div className="overflow-x-auto rounded-lg border border-white/10">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-700/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left">#</th>
-                      <th className="px-4 py-3 text-left">Standard</th>
-                      <th className="px-4 py-3 text-left">Subject</th>
-                      <th className="px-4 py-3 text-left">Grade</th>
-                      <th className="px-4 py-3 text-right">Credits</th>
-                      <th className="px-4 py-3 text-right">Weight</th>
-                      <th className="px-4 py-3 text-right">Contribution</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {yearsMap[activeYear].best90.map(item => (
-                      <tr key={`${item.standard_number}-${item.selection_rank}`} className="hover:bg-slate-700/20 transition-colors">
-                        <td className="px-4 py-3 text-slate-400">{item.selection_rank}</td>
-                        <td className="px-4 py-3">
-                          <div className="text-slate-200 font-medium">{item.standard_number}</div>
-                          {item.title && (
-                            <div className="text-xs text-slate-300 mb-1 line-clamp-2">{item.title}</div>
-                          )}
-                          <div className="text-xs text-slate-400">Year {item.year_achieved} • Tier {item.priority_tier}</div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-300 text-xs">{item.subject}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs px-2 py-1 rounded ${
-                            item.grade === 'Excellence' ? 'bg-emerald-500/20 text-emerald-300' :
-                            item.grade === 'Merit' ? 'bg-blue-500/20 text-blue-300' :
-                            item.grade === 'Achieved' ? 'bg-amber-500/20 text-amber-300' :
-                            'bg-red-500/20 text-red-300'
-                          }`}>{item.grade[0]}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-slate-200">
-                          <span className="font-semibold">{item.credits_used.toFixed(1)}</span>
-                          {item.pro_rated && <span className="ml-1 text-[0.6rem] text-slate-400">*</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-sm">{item.weight_applied.toFixed(3)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-sm text-brand-400">{item.contribution.toFixed(3)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        
-          {/* Yearly ATAR Results */}
-          <div>
-            <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-              <CalendarDaysIcon className="w-4 h-4" />
-              Yearly ATAR Results
-            </h4>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-700/50">
-                  <tr>
-                    <th className="px-6 py-3 text-left">Year</th>
-                    <th className="px-6 py-3 text-left">Estimated ATAR</th>
-                    <th className="px-6 py-3 text-left">Statistical Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {data.map((result, index) => (
-                    <tr key={result.year} className="hover:bg-slate-700/30 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-slate-200">
-                        {result.year}
-                        {index === data.length - 1 && (
-                          <span className="ml-2 badge-brand">Latest</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-lg font-bold text-brand-400">
-                          {result.estimated_atar.toFixed(2)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-slate-300 font-mono">
-                        {result.statistical_value.toFixed(6)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Subject Rankings */}
-          {breakdown && activeYearForSubjects && subjectsByYear[activeYearForSubjects] && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <AcademicCapIcon className="w-4 h-4" />
-                  Subject Rankings (SSP, 18 credits)
-                </h4>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      const subs = subjectsByYear[activeYearForSubjects] || [];
-                      const headers = ['Subject','Eligible','SSP score'];
-                      const rows = subs
-                        .slice()
-                        .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                        .map(s => [s.subject, s.eligible ? 'Yes' : 'No', s.ssp_score ?? '']);
-                      downloadCSV(`ssp_${activeYearForSubjects}.csv`, headers, rows);
-                    }}
-                    className="btn-ghost text-xs"
-                  >Export CSV</button>
-                  <select 
-                    value={activeYearForSubjects ?? ''} 
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYearForSubjects(parseInt(e.target.value))} 
-                    className="input text-sm"
-                  >
-                    {availableYears.map(y => (
-                      <option key={y} value={y} className="bg-slate-800">{y}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-700/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Subject</th>
-                      <th className="px-4 py-3 text-left">Eligible</th>
-                      <th className="px-4 py-3 text-right">SSP score</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {subjectsByYear[activeYearForSubjects]
-                      .slice()
-                      .sort((a, b) => (b.ssp_score ?? -1) - (a.ssp_score ?? -1))
-                      .map(s => (
-                        <tr key={s.subject} className="hover:bg-slate-700/20 transition-colors">
-                          <td className="px-4 py-3 text-slate-200 font-medium">{s.subject}</td>
-                          <td className="px-4 py-3">{s.eligible ? <span className="badge-success">Yes</span> : <span className="badge-error">No (≥ 18 credits required)</span>}</td>
-                          <td className="px-4 py-3 text-right font-mono">{s.ssp_score != null ? s.ssp_score.toFixed(3) : '-'}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </details>
 
       {/* Info Note */}
       <div className="panel p-4 border border-slate-700/50 animate-reveal-in" style={{ animationDelay: '200ms' }}>

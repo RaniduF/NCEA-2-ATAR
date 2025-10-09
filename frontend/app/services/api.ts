@@ -41,6 +41,7 @@ export interface StandardContribution {
   subject?: string | null;
   is_ue?: boolean;
   standards_type?: string | null;
+  assessment_type?: string | null;  // Internal or External from database
   grade: Grade;
   year_achieved?: number | null;
   weight_applied: number;
