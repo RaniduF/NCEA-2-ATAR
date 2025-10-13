@@ -676,33 +676,31 @@ export function ATARResults({ results, breakdown }: Props) {
                       </div>
                     </div>
                     
-                    {/* Show weight info for all standards, just grayed out for excluded ones */}
-                    {(item.is_used || (!item.is_used && item.weight_applied > 0)) && (
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
-                          {item.is_used && (
-                            <>
-                              <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
-                                <span>Contribution to total</span>
-                                <span className="font-semibold text-brand-300">{contributionPercent.toFixed(1)}%</span>
-                              </div>
-                              <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500"
-                                  style={{ width: `${Math.min(contributionPercent * 2, 100)}%` }}
-                                ></div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <div className={`text-xs ${item.is_used ? 'text-slate-400' : 'text-slate-500'}`}>Weight</div>
-                          <div className={`text-sm font-mono font-semibold ${item.is_used ? 'text-slate-200' : 'text-slate-500'}`}>
-                            {item.weight_applied.toFixed(3)}
-                          </div>
+                    {/* Show contribution and weight - contribution only for used standards */}
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        {item.is_used && (
+                          <>
+                            <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+                              <span>Contribution to total</span>
+                              <span className="font-semibold text-brand-300">{contributionPercent.toFixed(1)}%</span>
+                            </div>
+                            <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-brand-500 to-brand-400 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(contributionPercent * 2, 100)}%` }}
+                              ></div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-xs ${item.is_used ? 'text-slate-400' : 'text-slate-500'}`}>Weight</div>
+                        <div className={`text-sm font-mono font-semibold ${item.is_used ? 'text-slate-200' : 'text-slate-500'}`}>
+                          {item.weight_applied.toFixed(3)}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}

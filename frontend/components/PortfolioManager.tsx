@@ -23,8 +23,15 @@ import {
   DocumentDuplicateIcon,
   ArrowRightOnRectangleIcon,
   ArrowsUpDownIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  Bars3BottomLeftIcon,
+  Squares2X2Icon,
+  ChevronDownIcon,
+  CalendarIcon,
+  ChartBarIcon,
 } from '@heroicons/react/24/outline';
-import { FolderIcon, DocumentTextIcon } from '@heroicons/react/24/solid';
+import { FolderIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/solid';
 import { calculateATAR, type ATARResult } from '../app/services/api';
 import { useToast } from '../app/providers/ToastProvider';
 
@@ -61,9 +68,11 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [newPortfolioName, setNewPortfolioName] = useState('NCEA Import');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const { showError, showInfo, showWarning } = useToast();
 
-  const loadPortfolios = (idToSelect?: string) => {
+  const loadPortfolios = useCallback((idToSelect?: string) => {
     const savedPortfolios = portfolioService.getPortfolios();
     const info = portfolioService.getStorageInfo();
     setPortfolios(savedPortfolios);
@@ -79,7 +88,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
       setSelectedId(null);
       setRenamingId(null);
     }
-  };
+  }, [selectedId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -316,311 +325,520 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const selected = selectedId ? portfolios.find(p => p.id === selectedId) || null : null;
   const selectedPreview = selected ? atarPreviewById[selected.id] : undefined;
 
+  const getSortLabel = () => {
+    const labels: Record<typeof sortBy, string> = {
+      updated: 'Last Updated',
+      name: 'Name',
+      atar: 'ATAR Score',
+      standards: 'Standards Count'
+    };
+    return labels[sortBy];
+  };
+
   if (!isOpen) return null;
  
   return (
-   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-reveal-in">
-      <div className="card w-full max-w-[min(92vw,68.75rem)] max-h-[85vh] overflow-hidden animate-scale-in">
-        <div className="p-6 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FolderIcon className="w-8 h-8 text-brand-400" />
-            <div>
-              <h2 className="text-xl font-semibold text-slate-200">Portfolio Manager</h2>
-              <p className="text-slate-400 text-sm">
-                {storageInfo.portfolioCount} saved portfolios • {formatStorageSize(storageInfo.used)} used
-              </p>
+   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-reveal-in">
+      <div className="card w-full max-w-[min(95vw,80rem)] max-h-[90vh] overflow-hidden animate-scale-in shadow-2xl">
+        {/* Modern Header with gradient */}
+        <div className="relative bg-gradient-to-r from-brand-600/20 to-brand-500/10 border-b border-white/10">
+          <div className="p-6 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-brand-500/20 rounded-xl border border-brand-400/30">
+                <FolderIcon className="w-7 h-7 text-brand-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-100">Portfolio Manager</h2>
+                <div className="flex items-center gap-3 mt-1 text-sm text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <BookmarkIcon className="w-4 h-4" />
+                    {storageInfo.portfolioCount} portfolios
+                  </span>
+                  <span className="text-slate-600">•</span>
+                  <span>{formatStorageSize(storageInfo.used)} storage used</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowNCEAImport(true)}
+                className="btn-primary flex items-center gap-2 px-4 py-2.5 shadow-lg shadow-brand-500/20"
+                title="Import from NCEA Portal"
+              >
+                <CloudArrowUpIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">Import from NCEA</span>
+              </button>
+              <button
+                onClick={handleImportPortfolio}
+                className="btn-ghost px-3 py-2.5"
+                title="Import JSON File"
+              >
+                <DocumentArrowUpIcon className="w-5 h-5" />
+              </button>
+              <button
+                onClick={onClose}
+                className="btn-ghost px-3 py-2.5 hover:bg-red-500/10 hover:text-red-400"
+                title="Close"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowNCEAImport(true)}
-              className="btn-primary"
-            >
-              <CloudArrowUpIcon className="w-4 h-4" />
-              Import from NCEA
-            </button>
-            <button
-              onClick={handleImportPortfolio}
-              className="btn-ghost"
-            >
-              <DocumentArrowUpIcon className="w-4 h-4" />
-              Import JSON
-            </button>
-            <button
-              onClick={onClose}
-              className="btn-ghost"
-            >
-              <XMarkIcon className="w-4 h-4" />
-              Close
-            </button>
-          </div>
-        </div>
-        {/* Full-width search under header */}
-        <div className="px-6 pt-4">
-          <input
-            className="input w-full"
-            placeholder="Search portfolios..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            aria-label="Search portfolios"
-          />
         </div>
 
-        <div className="p-6 overflow-hidden max-h-[calc(85vh-8.75rem)]">
+        {/* Toolbar with search and controls */}
+        <div className="px-6 py-4 bg-slate-800/30 border-b border-white/5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex-1 min-w-[200px] max-w-md relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <input
+                className="input w-full pl-10 bg-slate-900/50 border-white/10 focus:border-brand-500/50"
+                placeholder="Search portfolios by name, subject..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search portfolios"
+              />
+            </div>
+            
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <button
+                className="btn-ghost px-4 py-2 flex items-center gap-2"
+                onClick={() => setShowSortMenu(!showSortMenu)}
+                aria-label="Sort options"
+              >
+                <ArrowsUpDownIcon className="w-4 h-4" />
+                <span className="text-sm">{getSortLabel()}</span>
+                <ChevronDownIcon className="w-4 h-4" />
+              </button>
+              {showSortMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-800 border border-white/10 rounded-xl p-1 z-20 shadow-2xl" role="menu">
+                    <div className="text-xs font-semibold text-slate-400 px-3 py-2 uppercase tracking-wider">Sort By</div>
+                    {[
+                      { value: 'updated' as const, label: 'Last Updated', icon: CalendarIcon },
+                      { value: 'name' as const, label: 'Name', icon: Bars3BottomLeftIcon },
+                      { value: 'atar' as const, label: 'ATAR Score', icon: ChartBarIcon },
+                      { value: 'standards' as const, label: 'Standards Count', icon: DocumentTextIcon },
+                    ].map(({ value, label, icon: Icon }) => (
+                      <button
+                        key={value}
+                        className={`menu-item text-sm flex items-center gap-3 ${sortBy === value ? 'text-brand-400 bg-brand-500/10' : ''}`}
+                        onClick={() => {
+                          if (sortBy === value) {
+                            setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                          } else {
+                            setSortBy(value);
+                          }
+                          setShowSortMenu(false);
+                        }}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="flex-1">{label}</span>
+                        {sortBy === value && (
+                          <span className="text-xs text-slate-500">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1 border border-white/5">
+              <button
+                className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-300'}`}
+                onClick={() => setViewMode('grid')}
+                title="Grid View"
+                aria-label="Grid view"
+              >
+                <Squares2X2Icon className="w-4 h-4" />
+              </button>
+              <button
+                className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-300'}`}
+                onClick={() => setViewMode('list')}
+                title="List View"
+                aria-label="List view"
+              >
+                <Bars3BottomLeftIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-sm text-slate-400">
+              {filteredPortfolios.length} of {portfolios.length}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-12rem)]">
           {portfolios.length === 0 ? (
-            <div className="text-center py-16">
-              <BookmarkIcon className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-              <div className="text-slate-400 text-lg font-medium mb-2">No saved portfolios yet</div>
-              <p className="text-slate-500 text-sm max-w-md mx-auto">
-                Build your NCEA portfolio and click &ldquo;Save Portfolio&rdquo; to store it for later use, or import from your NCEA portal.
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="p-6 bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-700 mb-6">
+                <FolderIcon className="w-20 h-20 text-slate-600 mx-auto" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-300 mb-2">No Portfolios Yet</h3>
+              <p className="text-slate-500 text-center max-w-md mb-6">
+                Create your first portfolio by adding NCEA standards and saving, or import directly from your NCEA portal.
               </p>
+              <button
+                onClick={() => setShowNCEAImport(true)}
+                className="btn-primary flex items-center gap-2 shadow-lg"
+              >
+                <CloudArrowUpIcon className="w-5 h-5" />
+                Import from NCEA Portal
+              </button>
+            </div>
+          ) : filteredPortfolios.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <MagnifyingGlassIcon className="w-16 h-16 text-slate-600 mb-4" />
+              <h3 className="text-lg font-medium text-slate-400 mb-2">No portfolios found</h3>
+              <p className="text-slate-500 text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-[50%_50%] gap-5 h-full">
-              {/* Left: List */}
-              <div className="flex flex-col min-h-0">
-                <div className="space-y-3 overflow-y-auto pr-2 min-h-0">
+            <>
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredPortfolios.map(p => {
-                    const isSelected = selectedId === p.id;
                     const lp = atarPreviewById[p.id];
                     const latestATAR = lp?.results && lp.results.length > 0
-                      ? [...lp.results].sort((a,b)=>a.year-b.year)[lp.results.length-1].estimated_atar.toFixed(2)
-                      : '—';
+                      ? [...lp.results].sort((a,b)=>a.year-b.year)[lp.results.length-1].estimated_atar
+                      : null;
+                    const subjects = getSubjects(p);
+                    
                     return (
                       <div
                         key={p.id}
-                        className={`panel px-4 py-3 min-h-[3.25rem] relative group cursor-pointer ${isSelected ? 'ring-1 ring-brand-500/40 bg-slate-800/50' : 'card-hover'}`}
-                        onClick={() => { setSelectedId(p.id); setOpenMenuId(null); setRenamingId(null); setRenamingValue(p.name); }}
+                        className="panel p-5 group cursor-pointer card-hover relative overflow-hidden"
+                        onClick={() => handleLoadPortfolio(p)}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(p.id); } }}
-                        aria-label={`Select ${p.name}`}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadPortfolio(p); } }}
+                        aria-label={`Load ${p.name}`}
                       >
-                        <div className="flex items-start justify-between gap-3">
+                        {/* Gradient accent */}
+                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-brand-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        
+                        <div className="flex items-start justify-between mb-4">
                           <div className="flex-1 min-w-0">
                             {renamingId === p.id ? (
                               <input
-                                className="input h-9 py-2 text-base font-medium"
+                                className="input text-base font-semibold px-2 py-1 -ml-2"
                                 value={renamingValue}
                                 onChange={(e) => setRenamingValue(e.target.value)}
                                 onBlur={() => handleRenameCommit(p)}
+                                onClick={(e) => e.stopPropagation()}
                                 onKeyDown={(e) => {
+                                  e.stopPropagation();
                                   if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
                                   if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); }
                                 }}
                                 autoFocus
                               />
                             ) : (
-                              <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                  <DocumentTextIcon className="w-4 h-4 text-brand-400 flex-shrink-0" />
-                                  <h3 className="text-base font-medium text-slate-200 truncate">{p.name}</h3>
-                                  <button
-                                    className="text-slate-400 hover:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }}
-                                    aria-label={`Rename ${p.name}`}
-                                    title="Rename"
-                                  >
-                                    <PencilSquareIcon className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              <div className="text-sm text-slate-400">ATAR {latestATAR}</div>
-                              </div>
+                              <h3 className="text-lg font-semibold text-slate-100 truncate flex items-center gap-2 group/title">
+                                <span className="truncate">{p.name}</span>
+                                <button
+                                  className="opacity-0 group-hover/title:opacity-100 text-slate-400 hover:text-brand-400 transition-all flex-shrink-0"
+                                  onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }}
+                                  aria-label="Rename"
+                                  title="Rename"
+                                >
+                                  <PencilSquareIcon className="w-4 h-4" />
+                                </button>
+                              </h3>
                             )}
                           </div>
-                          {/* Quick actions on hover */}
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="relative ml-2 z-10">
                             <button
-                              className="btn-ghost !px-2 !py-1.5 h-8"
-                              onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}
-                              title="Load"
-                              aria-label={`Load ${p.name}`}
+                              className="btn-ghost !px-2 !py-1.5 opacity-0 group-hover:opacity-100 transition-opacity relative z-10"
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }}
+                              aria-label="More options"
+                              title="More"
                             >
-                              <FolderOpenIcon className="w-3.5 h-3.5" />
+                              <EllipsisVerticalIcon className="w-4 h-4" />
                             </button>
-                            <button
-                              className="btn-ghost !px-2 !py-1.5 h-8"
-                              onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); }}
-                              title="Duplicate"
-                              aria-label={`Duplicate ${p.name}`}
-                            >
-                              <DocumentDuplicateIcon className="w-3.5 h-3.5" />
-                            </button>
-                            <div className="relative">
-                              <button
-                                className="btn-ghost !px-2 !py-1.5 h-8"
-                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }}
-                                title="More"
-                                aria-haspopup="menu"
-                                aria-expanded={openMenuId === p.id}
-                              >
-                                <EllipsisVerticalIcon className="w-3.5 h-3.5" />
-                              </button>
-                              {openMenuId === p.id && (
-                                <div className="absolute right-0 mt-2 w-44 panel p-1 z-10" role="menu">
-                                  <button className="menu-item text-sm" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); setOpenMenuId(null); }}>Rename</button>
-                                  <button className="menu-item text-sm" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>Duplicate</button>
-                                  <button className="menu-item text-sm" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>Export</button>
-                                  <button className="menu-item text-sm text-error-300" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>Delete</button>
-                                </div>
+                            {openMenuId === p.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                  <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl p-1 z-50 shadow-2xl" role="menu" onClick={(e) => e.stopPropagation()}>
+                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                      <DocumentArrowDownIcon className="w-4 h-4" />
+                                      Export JSON
+                                    </button>
+                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
+                                      <DocumentDuplicateIcon className="w-4 h-4" />
+                                      Duplicate
+                                    </button>
+                                    <div className="h-px bg-white/10 my-1" />
+                                    <button className="menu-item text-sm text-error-400 hover:bg-error-500/10 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                      <TrashIcon className="w-4 h-4" />
+                                      Delete
+                                    </button>
+                                  </div>
+                                </>
                               )}
+                          </div>
+                        </div>
+
+                        {/* ATAR Score Display */}
+                        <div className="mb-4">
+                          {lp?.loading ? (
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <div className="w-4 h-4 border-2 border-slate-600 border-t-brand-400 rounded-full animate-spin" />
+                              <span className="text-sm">Calculating...</span>
                             </div>
+                          ) : latestATAR ? (
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-3xl font-bold text-brand-400">{latestATAR.toFixed(2)}</span>
+                              <span className="text-sm text-slate-500">ATAR</span>
+                            </div>
+                          ) : (
+                            <div className="text-slate-500 text-sm">No ATAR preview</div>
+                          )}
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
+                            <div className="text-xs text-slate-500 mb-1">Standards</div>
+                            <div className="text-lg font-semibold text-slate-300">{p.items.length}</div>
+                          </div>
+                          <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
+                            <div className="text-xs text-slate-500 mb-1">Subjects</div>
+                            <div className="text-lg font-semibold text-slate-300">{subjects.length}</div>
+                          </div>
+                        </div>
+
+                        {/* Subjects Pills */}
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {subjects.slice(0, 3).map(s => (
+                            <span key={s} className="px-2 py-1 text-xs rounded-md bg-brand-500/10 text-brand-300 border border-brand-500/20">
+                              {s}
+                            </span>
+                          ))}
+                          {subjects.length > 3 && (
+                            <span className="px-2 py-1 text-xs rounded-md bg-slate-700/50 text-slate-400 border border-white/5">
+                              +{subjects.length - 3} more
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Footer with timestamp */}
+                        <div className="text-xs text-slate-500 pt-3 border-t border-white/5">
+                          Updated {formatDate(p.updatedAt)}
+                        </div>
+
+                        {/* Load button overlay on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 pointer-events-none">
+                          <button
+                            className="btn-primary flex items-center gap-2 shadow-xl pointer-events-auto"
+                            onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}
+                          >
+                            <FolderOpenIcon className="w-4 h-4" />
+                            Load Portfolio
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // List View
+                <div className="space-y-2">
+                  {filteredPortfolios.map(p => {
+                    const lp = atarPreviewById[p.id];
+                    const latestATAR = lp?.results && lp.results.length > 0
+                      ? [...lp.results].sort((a,b)=>a.year-b.year)[lp.results.length-1].estimated_atar
+                      : null;
+                    const subjects = getSubjects(p);
+                    
+                    return (
+                      <div
+                        key={p.id}
+                        className="panel p-4 group cursor-pointer card-hover flex items-center gap-4"
+                        onClick={() => handleLoadPortfolio(p)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadPortfolio(p); } }}
+                        aria-label={`Load ${p.name}`}
+                      >
+                        {/* Icon */}
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+                          <DocumentTextIcon className="w-6 h-6 text-brand-400" />
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {renamingId === p.id ? (
+                            <input
+                              className="input text-base font-semibold px-2 py-1 -ml-2 w-full"
+                              value={renamingValue}
+                              onChange={(e) => setRenamingValue(e.target.value)}
+                              onBlur={() => handleRenameCommit(p)}
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
+                                if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); }
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 mb-1 group/title">
+                              <h3 className="text-base font-semibold text-slate-100 truncate">{p.name}</h3>
+                              <button
+                                className="opacity-0 group-hover/title:opacity-100 text-slate-400 hover:text-brand-400 transition-all flex-shrink-0"
+                                onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }}
+                                aria-label="Rename"
+                                title="Rename"
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                            <span>{p.items.length} standards</span>
+                            <span className="text-slate-600">•</span>
+                            <span>{subjects.length} subjects</span>
+                            <span className="text-slate-600">•</span>
+                            <span>{formatDate(p.updatedAt)}</span>
+                          </div>
+                        </div>
+
+                        {/* ATAR Score */}
+                        <div className="flex-shrink-0 text-right">
+                          {lp?.loading ? (
+                            <div className="w-4 h-4 border-2 border-slate-600 border-t-brand-400 rounded-full animate-spin" />
+                          ) : latestATAR ? (
+                            <div>
+                              <div className="text-2xl font-bold text-brand-400">{latestATAR.toFixed(2)}</div>
+                              <div className="text-xs text-slate-500">ATAR</div>
+                            </div>
+                          ) : (
+                            <div className="text-slate-600 text-sm">—</div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            className="btn-ghost !px-2 !py-2"
+                            onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); }}
+                            title="Duplicate"
+                            aria-label="Duplicate"
+                          >
+                            <DocumentDuplicateIcon className="w-4 h-4" />
+                          </button>
+                          <div className="relative">
+                            <button
+                              className="btn-ghost !px-2 !py-2"
+                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }}
+                              aria-label="More options"
+                              title="More"
+                            >
+                              <EllipsisVerticalIcon className="w-4 h-4" />
+                            </button>
+                            {openMenuId === p.id && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                  <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl p-1 z-50 shadow-2xl" role="menu" onClick={(e) => e.stopPropagation()}>
+                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                      <DocumentArrowDownIcon className="w-4 h-4" />
+                                      Export JSON
+                                    </button>
+                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
+                                      <DocumentDuplicateIcon className="w-4 h-4" />
+                                      Duplicate
+                                    </button>
+                                    <div className="h-px bg-white/10 my-1" />
+                                    <button className="menu-item text-sm text-error-400 hover:bg-error-500/10 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                      <TrashIcon className="w-4 h-4" />
+                                      Delete
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                           </div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
-
-              {/* Right: Preview */}
-              <div className="panel p-4 overflow-y-auto leading-relaxed">
-                {!selected ? (
-                  <div className="h-full flex items-center justify-center text-slate-500 text-sm">Select a portfolio to preview</div>
-                ) : (
-                  <div className="space-y-5">
-                    {/* Top: Name + Load + kebab */}
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h3 className="text-lg font-semibold text-slate-200 truncate flex items-center gap-2">
-                          <span>{selected.name}</span>
-                          <button
-                            className="btn-ghost !px-1.5 !py-1 h-7"
-                            onClick={() => { setRenamingId(selected.id); setRenamingValue(selected.name); setSelectedId(selected.id); }}
-                            title="Rename"
-                            aria-label="Rename"
-                          >
-                            <PencilSquareIcon className="w-3.5 h-3.5" />
-                          </button>
-                        </h3>
-                        <div className="text-sm text-slate-500 mt-1">{selected.items.length} standards • Updated {formatDate(selected.updatedAt)}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button className="btn-primary px-4 py-2 h-10 text-sm font-medium" onClick={() => handleLoadPortfolio(selected)}>
-                          Load
-                        </button>
-                        <div className="relative">
-                          <button
-                            className="btn-ghost !px-2 !py-2 h-9"
-                            onClick={() => setOpenMenuId(prev => prev === selected.id ? null : selected.id)}
-                            aria-haspopup="menu"
-                            aria-expanded={openMenuId === selected.id}
-                            title="More"
-                          >
-                            <EllipsisVerticalIcon className="w-4 h-4" />
-                          </button>
-                          {openMenuId === selected.id && (
-                            <div className="absolute right-0 mt-2 w-48 panel p-1 z-10" role="menu">
-                              <button className="menu-item text-sm" onClick={() => { handleExportPortfolio(selected.id, selected.name); setOpenMenuId(null); }}>Export</button>
-                              <button className="menu-item text-sm" onClick={() => { handleDuplicatePortfolio(selected); setOpenMenuId(null); }}>Duplicate</button>
-                              <button className="menu-item text-sm text-error-300" onClick={() => { handleDeletePortfolio(selected.id, selected.name); setOpenMenuId(null); }}>Delete</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Middle: Subjects */}
-                    <div>
-                      <div className="text-sm font-semibold text-slate-300 mb-3">Subjects</div>
-                      <div className="flex flex-wrap gap-2">
-                        {Array.from(new Set(selected.items.map(item => item.standard.subject))).map(s => (
-                          <span key={s} className="px-3 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-sm border border-white/10">{s}</span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Bottom: ATAR + Trend + Updated styled per wireframe */}
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-2">
-                        <div className="text-sm font-semibold text-slate-400">Latest ATAR</div>
-                        <div className="text-2xl font-bold text-brand-400">
-                          {selectedPreview?.loading ? 'Loading…' : (selectedPreview?.results && selectedPreview.results.length > 0 ? selectedPreview.results[selectedPreview.results.length - 1].estimated_atar.toFixed(2) : '—')}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-sm font-semibold text-slate-400">Trend</div>
-                        <div className="text-2xl font-bold">
-                          {selectedPreview?.results && selectedPreview.results.length > 1 ? (() => {
-                            const d = [...selectedPreview.results].sort((a,b)=>a.year-b.year);
-                            const t = d[d.length-1].estimated_atar - d[0].estimated_atar;
-                            return <span className={t>=0? 'text-success-400':'text-error-400'}>{t>=0?'+':''}{t.toFixed(2)}</span>;
-                          })() : '—'}
-                        </div>
-                      </div>
-                      <div className="space-y-2 col-span-2">
-                        <div className="text-sm font-semibold text-slate-400">Last updated</div>
-                        <div className="text-sm text-slate-300">{formatDate(selected.updatedAt)}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
  
        {/* NCEA Import Modal */}
        {showNCEAImport && (
-         <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-60 animate-reveal-in">
-           <div className="card w-full max-w-[min(92vw,56rem)] max-h-[90vh] overflow-hidden animate-scale-in">
-             <div className="p-6 border-b border-white/10 flex items-center justify-between">
-               <div className="flex items-center gap-3">
-                 <CloudArrowUpIcon className="w-8 h-8 text-brand-400" />
-                 <div>
-                   <h3 className="text-xl font-semibold text-slate-200">Import from NCEA Portal</h3>
-                   <p className="text-slate-400 text-sm">
-                     Copy all text from your NCEA portal (Ctrl+A, Ctrl+C) and paste it below
-                   </p>
+         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-60 animate-reveal-in">
+           <div className="card w-full max-w-[min(92vw,60rem)] max-h-[90vh] overflow-hidden animate-scale-in shadow-2xl">
+             <div className="relative bg-gradient-to-r from-brand-600/20 to-brand-500/10 border-b border-white/10">
+               <div className="p-6 flex items-center justify-between">
+                 <div className="flex items-center gap-4">
+                   <div className="p-3 bg-brand-500/20 rounded-xl border border-brand-400/30">
+                     <CloudArrowUpIcon className="w-7 h-7 text-brand-400" />
+                   </div>
+                   <div>
+                     <h3 className="text-2xl font-bold text-slate-100">Import from NCEA Portal</h3>
+                     <p className="text-slate-400 text-sm mt-1">
+                       Copy all text from your NCEA portal and paste below to auto-import standards
+                     </p>
+                   </div>
                  </div>
+                 <button
+                   onClick={() => {
+                     setShowNCEAImport(false);
+                     setNCEAText('');
+                     setParseResult(null);
+                   }}
+                   className="btn-ghost hover:bg-red-500/10 hover:text-red-400"
+                   title="Close"
+                 >
+                   <XMarkIcon className="w-5 h-5" />
+                 </button>
                </div>
-               <button
-                 onClick={() => {
-                   setShowNCEAImport(false);
-                   setNCEAText('');
-                   setParseResult(null);
-                 }}
-                 className="btn-ghost"
-               >
-                 <XMarkIcon className="w-4 h-4" />
-                 Cancel
-               </button>
              </div>
  
-             <div className="p-6 overflow-y-auto max-h-[70vh]">
+             <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
                {!parseResult ? (
                  <div className="space-y-6">
                    <div>
-                     <label className="block text-slate-300 text-sm font-medium mb-3 flex items-center gap-2">
-                       <DocumentTextIcon className="w-4 h-4" />
+                     <label className="block text-slate-300 text-sm font-semibold mb-3 flex items-center gap-2">
+                       <DocumentTextIcon className="w-5 h-5 text-brand-400" />
                        NCEA Portal Text
                      </label>
                      <textarea
                        value={nceaText}
                        onChange={(e) => setNCEAText(e.target.value)}
                        placeholder="Paste your NCEA portal text here... (should include standards tables with Std., Ver., Asm., Title, Lvl., Credits, Result columns)"
-                       className="input h-64 font-mono"
+                       className="input h-80 font-mono text-sm bg-slate-900/50 border-white/10 focus:border-brand-500/50"
                      />
                    </div>
-                   <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-2 text-slate-400 text-sm bg-slate-800/50 px-4 py-3 rounded-xl border border-white/10">
-                       <LightBulbIcon className="w-5 h-5 text-amber-400 flex-shrink-0" />
-                       <span>Go to your NCEA portal, press Ctrl+A to select all, then Ctrl+C to copy, then paste here</span>
+                   <div className="flex items-start justify-between gap-4 flex-wrap">
+                     <div className="flex items-start gap-3 text-slate-400 text-sm bg-amber-500/10 px-4 py-3 rounded-xl border border-amber-500/20 flex-1 min-w-[280px]">
+                       <LightBulbIcon className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                       <div>
+                         <div className="font-medium text-amber-300 mb-1">Quick Tip</div>
+                         <div className="text-amber-200/80">Press <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-xs border border-white/10">Ctrl+A</kbd> on your NCEA portal page, then <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-xs border border-white/10">Ctrl+C</kbd> to copy, and paste here.</div>
+                       </div>
                      </div>
                      <button
                        onClick={handleParseNCEAText}
                        disabled={!nceaText.trim() || isParsingNCEA}
-                       className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                       className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed shadow-lg px-6 py-3"
                      >
                        {isParsingNCEA ? (
                          <>
-                           <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                           <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                            Parsing...
                          </>
                        ) : (
                          <>
-                           <CloudArrowUpIcon className="w-4 h-4" />
+                           <CheckCircleIcon className="w-5 h-5" />
                            Parse Standards
                          </>
                        )}
@@ -750,29 +968,43 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
  
              {/* Name Modal */}
              {parseResult && showNameModal && (
-               <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
-                 <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
+               <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
+                 <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in shadow-2xl">
                    <div className="p-5 border-b border-white/10 flex items-center justify-between">
-                     <h4 className="text-slate-200 font-semibold">Name Your Portfolio</h4>
+                     <div className="flex items-center gap-3">
+                       <div className="p-2 bg-brand-500/20 rounded-lg">
+                         <BookmarkIcon className="w-5 h-5 text-brand-400" />
+                       </div>
+                       <h4 className="text-slate-200 font-semibold text-lg">Name Your Portfolio</h4>
+                     </div>
                      <button onClick={() => setShowNameModal(false)} className="btn-ghost">
                        <XMarkIcon className="w-4 h-4" />
                      </button>
                    </div>
-                   <div className="p-5 space-y-4">
+                   <div className="p-6 space-y-4">
                      <div className="space-y-2">
-                       <label className="text-sm text-slate-300">Portfolio name</label>
+                       <label className="text-sm font-medium text-slate-300">Portfolio Name</label>
                        <input
-                         className="input"
+                         className="input bg-slate-900/50 border-white/10 focus:border-brand-500/50"
                          value={newPortfolioName}
                          onChange={(e) => setNewPortfolioName(e.target.value)}
                          onKeyDown={(e) => {
                            if (e.key === 'Enter') handleImportParsedStandards(newPortfolioName);
                          }}
+                         placeholder="e.g., Year 13 2024"
+                         autoFocus
                        />
                      </div>
-                     <div className="flex items-center justify-end gap-2">
-                       <button onClick={() => setShowNameModal(false)} className="btn-ghost">Cancel</button>
-                       <button onClick={() => handleImportParsedStandards(newPortfolioName)} className="btn-primary">Save</button>
+                     <div className="flex items-center justify-end gap-3 pt-2">
+                       <button onClick={() => setShowNameModal(false)} className="btn-ghost px-4 py-2">Cancel</button>
+                       <button 
+                         onClick={() => handleImportParsedStandards(newPortfolioName)} 
+                         className="btn-primary px-4 py-2 flex items-center gap-2 shadow-lg"
+                         disabled={!newPortfolioName.trim()}
+                       >
+                         <BookmarkIcon className="w-4 h-4" />
+                         Save Portfolio
+                       </button>
                      </div>
                    </div>
                  </div>
@@ -784,19 +1016,29 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
  
        {/* Delete Confirmation Modal */}
        {showDeleteModal && deleteTarget && (
-         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-70 animate-reveal-in">
-           <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
-             <div className="p-5 border-b border-white/10 flex items-center justify-between">
-               <h4 className="text-slate-200 font-semibold">Delete Portfolio</h4>
+         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
+           <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in shadow-2xl">
+             <div className="p-5 border-b border-white/10 flex items-center justify-between bg-error-500/5">
+               <div className="flex items-center gap-3">
+                 <div className="p-2 bg-error-500/20 rounded-lg">
+                   <TrashIcon className="w-5 h-5 text-error-400" />
+                 </div>
+                 <h4 className="text-slate-200 font-semibold text-lg">Delete Portfolio?</h4>
+               </div>
                <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">
                  <XMarkIcon className="w-4 h-4" />
                </button>
              </div>
-             <div className="p-5 space-y-4">
-               <p className="text-slate-300 text-sm">Are you sure you want to delete &ldquo;{deleteTarget.name}&rdquo;? This cannot be undone.</p>
-               <div className="flex items-center justify-end gap-2">
-                 <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">Cancel</button>
-                 <button onClick={confirmDeletePortfolio} className="btn-danger">Delete</button>
+             <div className="p-6 space-y-4">
+               <p className="text-slate-300">
+                 Are you sure you want to delete <span className="font-semibold text-slate-100">&ldquo;{deleteTarget.name}&rdquo;</span>? This action cannot be undone.
+               </p>
+               <div className="flex items-center justify-end gap-3 pt-2">
+                 <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost px-4 py-2">Cancel</button>
+                 <button onClick={confirmDeletePortfolio} className="btn-danger px-4 py-2 flex items-center gap-2 shadow-lg">
+                   <TrashIcon className="w-4 h-4" />
+                   Delete Portfolio
+                 </button>
                </div>
              </div>
            </div>
