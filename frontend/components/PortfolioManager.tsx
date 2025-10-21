@@ -424,7 +424,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                     ].map(({ value, label, icon: Icon }) => (
                       <button
                         key={value}
-                        className={`menu-item text-sm flex items-center gap-3 ${sortBy === value ? 'text-brand-400 bg-brand-500/10' : ''}`}
+                        className={`menu-item text-sm flex items-center gap-3 ${sortBy === value ? 'text-brand-400 bg-brand-500/20 border-l-2 border-brand-400 font-semibold' : ''}`}
                         onClick={() => {
                           if (sortBy === value) {
                             setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
@@ -437,7 +437,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                         <Icon className="w-4 h-4" />
                         <span className="flex-1">{label}</span>
                         {sortBy === value && (
-                          <span className="text-xs text-slate-500">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                          <span className="text-xs font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </button>
                     ))}
@@ -631,15 +631,17 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                         </div>
 
                         {/* Load button overlay on hover */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 pointer-events-none">
-                          <button
-                            className="btn-primary flex items-center gap-2 shadow-xl pointer-events-auto"
-                            onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}
-                          >
-                            <FolderOpenIcon className="w-4 h-4" />
-                            Load Portfolio
-                          </button>
-                        </div>
+                        {openMenuId !== p.id && (
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 pointer-events-none">
+                            <button
+                              className="btn-primary flex items-center gap-2 shadow-xl pointer-events-auto"
+                              onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}
+                            >
+                              <FolderOpenIcon className="w-4 h-4" />
+                              Load Portfolio
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

@@ -63,13 +63,25 @@ export interface BreakdownTotals {
   prorated_count: number;
 }
 
+export interface ExcludedItem {
+  standard_number: number;
+  reason: string;
+  title?: string | null;
+  subject?: string | null;
+  grade?: string | null;
+  weight_applied?: number | null;
+  standards_type?: string | null;
+  assessment_type?: string | null;
+  credits_available?: number | null;
+}
+
 export interface YearlyBreakdown {
   year: number;
   estimated_atar: number;
   statistical_value: number;
   best90: StandardContribution[];
   totals: BreakdownTotals;
-  excluded: { standard_number: number; reason: string }[];
+  excluded: ExcludedItem[];
 }
 
 export interface SubjectSSPBreakdown {

@@ -366,7 +366,7 @@ export function ATARResults({ results, breakdown }: Props) {
       .sort((a, b) => b.contribution - a.contribution);
   }, [breakdown, activeYear, yearsMap]);
 
-  // Get ALL standards including excluded ones for "Your Ranked Standards"
+  // Get ALL standards including excluded ones for "How your standards were ranked"
   const allStandardsWithStatus = useMemo(() => {
     if (!breakdown || !activeYear || !yearsMap[activeYear]) return [];
     const yearData = yearsMap[activeYear];
@@ -378,64 +378,32 @@ export function ATARResults({ results, breakdown }: Props) {
       exclusion_reason: null
     }));
     
-    // Excluded standards - get their details from the standardsByWeight calculation
-    const excludedStandards = yearData.excluded.map(excl => {
-      // Try to find this standard in standardsByWeight which has full details
-      const stdDetails = standardsByWeight.standards.find(s => s.standard_number === excl.standard_number);
-      
-      if (stdDetails) {
-        // Use the full details from standardsByWeight
-        return {
-          selection_rank: 999,
-          standard_number: stdDetails.standard_number,
-          title: stdDetails.title || null,
-          subject: stdDetails.subject || null,
-          is_ue: null,
-          standards_type: stdDetails.standards_type,
-          assessment_type: stdDetails.assessment_type,
-          grade: stdDetails.current_grade,
-          year_achieved: null,
-          weight_applied: stdDetails.current_weight,
-          weight_at_max_grade: stdDetails.max_weight,
-          credits_available: stdDetails.credits,
-          credits_used: 0,
-          pro_rated: false,
-          contribution: 0,
-          subject_credits_used_to_date: 0,
-          subject_capped: false,
-          priority_tier: 999,
-          is_used: false,
-          exclusion_reason: excl.reason
-        };
-      }
-      
-      // Fallback if not found in standardsByWeight
-      return {
-        selection_rank: 999,
-        standard_number: excl.standard_number,
-        title: null,
-        subject: null,
-        is_ue: null,
-        standards_type: null,
-        assessment_type: null,
-        grade: 'N/A',
-        year_achieved: null,
-        weight_applied: 0,
-        weight_at_max_grade: null,
-        credits_available: 0,
-        credits_used: 0,
-        pro_rated: false,
-        contribution: 0,
-        subject_credits_used_to_date: 0,
-        subject_capped: false,
-        priority_tier: 999,
-        is_used: false,
-        exclusion_reason: excl.reason
-      };
-    });
+    // Excluded standards - use the data directly from backend now that it includes all fields
+    const excludedStandards = yearData.excluded.map(excl => ({
+      selection_rank: 999,
+      standard_number: excl.standard_number,
+      title: excl.title || null,
+      subject: excl.subject || null,
+      is_ue: null,
+      standards_type: excl.standards_type,
+      assessment_type: excl.assessment_type,
+      grade: excl.grade || 'N/A',
+      year_achieved: null,
+      weight_applied: excl.weight_applied || 0,
+      weight_at_max_grade: null,
+      credits_available: excl.credits_available || 0,
+      credits_used: 0,
+      pro_rated: false,
+      contribution: 0,
+      subject_credits_used_to_date: 0,
+      subject_capped: false,
+      priority_tier: 999,
+      is_used: false,
+      exclusion_reason: excl.reason
+    }));
     
     return [...usedStandards.sort((a, b) => b.contribution - a.contribution), ...excludedStandards];
-  }, [breakdown, activeYear, yearsMap, standardsByWeight]);
+  }, [breakdown, activeYear, yearsMap]);
 
   // Prepare data for rendering (used in final JSX after early returns)
   // Now we can safely use latestResult since we've passed the early returns
@@ -494,7 +462,7 @@ export function ATARResults({ results, breakdown }: Props) {
             <div className="flex items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <TrophyIcon className="w-8 h-8 text-brand-400" />
-                <h2 className="text-2xl md:text-3xl font-bold text-slate-100">Your ATAR Score</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-100">Your ATAR is:</h2>
               </div>
               <button
                 onClick={() => setIsMethodologyModalOpen(true)}
@@ -559,15 +527,14 @@ export function ATARResults({ results, breakdown }: Props) {
       {breakdown && activeYear && yearsMap[activeYear] && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 animate-reveal-up" style={{ animationDelay: '80ms' }}>
           
-          {/* LEFT COLUMN: Your Ranked Standards */}
+          {/* LEFT COLUMN: How your standards were ranked */}
           <div className="lg:col-span-3 card overflow-hidden">
             <div className="p-6 border-b border-white/10">
               <div className="flex items-center justify-between gap-4 mb-2">
                 <div className="flex items-center gap-3">
                   <ChartBarIcon className="w-6 h-6 text-brand-400" />
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-200">Your Ranked Standards</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">How your standards ranked with your current grades</p>
+                    <h3 className="text-lg font-semibold text-slate-200">How your standards were ranked</h3>
                   </div>
                 </div>
                 <select value={activeYear ?? ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setActiveYear(parseInt(e.target.value))} className="input text-sm">
@@ -580,11 +547,7 @@ export function ATARResults({ results, breakdown }: Props) {
               <div className="flex items-center gap-4 text-xs text-slate-400 mt-3">
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/30"></div>
-                  <span>At max grade</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded bg-slate-700/50 border border-slate-600"></div>
-                  <span>Can be improved</span>
+                  <span>At Excellence</span>
                 </div>
               </div>
             </div>
@@ -598,11 +561,6 @@ export function ATARResults({ results, breakdown }: Props) {
                     <span className="text-slate-500"> + <span className="font-semibold">{allStandardsWithStatus.filter(s => !s.is_used).length}</span> excluded</span>
                   )}
                 </span>
-                {allStandardsWithStatus.length > 5 && (
-                  <span className="text-xs text-slate-400">
-                    Scroll to view all
-                  </span>
-                )}
               </div>
             </div>
             
@@ -786,8 +744,8 @@ export function ATARResults({ results, breakdown }: Props) {
               <div className="flex items-center gap-3">
                 <ArrowTrendingUpIcon className="w-6 h-6 text-brand-400" />
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-200">Standard Weights & Yearly Comparison</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Difficulty weights from the last 3 years (2024-2022) sorted by most recent</p>
+                  <h3 className="text-lg font-semibold text-slate-200">Your Standards with highest potential weight</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Difficulty weights if at an Excellence</p>
                 </div>
               </div>
               
@@ -827,9 +785,6 @@ export function ATARResults({ results, breakdown }: Props) {
                     (<span className="font-semibold">{standardsByWeight.standards.filter(s => !s.is_used).length}</span> not used)
                   </span>
                 )}
-              </span>
-              <span className="text-xs text-slate-400">
-                Top 90 credits cutoff shown below
               </span>
             </div>
           </div>
@@ -1176,20 +1131,17 @@ export function ATARResults({ results, breakdown }: Props) {
                 <span>View full methodology</span>
               </button>
             </div>
-            <p className="text-slate-400 mb-2">
-              Your ATAR is calculated from your <strong className="text-slate-200">best 90 Level 3 credits</strong> (max 24 per subject). 
-              NZQA calculates a <strong className="text-slate-200">statistical score</strong> (credit-weighted average of difficulty weights), 
-              ranks everyone by this score, then assigns you an <strong className="text-slate-200">ITARS</strong> (your percentile rank). 
-              This ITARS percentile is then mapped to an ATAR based on your cohort&apos;s participation rate.
+            <p className="text-slate-400">
+              Your ATAR is calculated from your <strong className="text-slate-200">best 90 Level 3 credits</strong> (by weight).
             </p>
-            <p className="text-slate-400 mb-2">
+            <p className="text-slate-400 mb-1">
               Each standard gets a <strong className="text-slate-200">difficulty weight</strong> based on how hard it was relative to others 
-              that year—if fewer people got Excellence, the weight goes up. These weights change every year because they reflect 
+              that year; if fewer people got Excellence, the weight goes up. These weights change every year because they reflect 
               how the whole cohort performed, not the standard itself.
             </p>
-            <p className="text-slate-400">
-              An ATAR of 99.95 means you&apos;re in the top 0.05% of everyone your age (not just people who did NCEA). 
-              These are estimates based on historical data—your official ATAR comes from NZQA in January.
+            <p className="text-slate-400 mb-1">
+              NZQA calculates a <strong className="text-slate-200">statistical score</strong> by taking the sum of your 90 best credits multiplied by their respective weights and then dividing the total by 90. 
+              NZQA then ranks everyone by this score. The top 0.05% (around 30-40 students) get an ATAR of 99.95, the next 0.05% get an ATAR of 99.90, and so on.
             </p>
           </div>
         </div>

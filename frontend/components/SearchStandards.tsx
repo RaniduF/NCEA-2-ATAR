@@ -236,7 +236,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
               value={query}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search subjects (e.g., Physics) or standards (e.g., 91577, Calculus differentiation)…"
+              placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578,  differentiation)…"
               className="input pl-11"
               onFocus={() => setShowSuggestions(true)}
             />

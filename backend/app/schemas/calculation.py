@@ -62,6 +62,13 @@ class StandardContribution(BaseModel):
 class ExcludedItem(BaseModel):
     standard_number: int
     reason: str
+    title: str | None = None
+    subject: str | None = None
+    grade: str | None = None
+    weight_applied: float | None = None
+    standards_type: str | None = None
+    assessment_type: str | None = None
+    credits_available: int | None = None
 
 
 class BreakdownTotals(BaseModel):

@@ -510,24 +510,64 @@ class ATARCalculator:
 
         for c in candidates:
             if total_used >= 90:
-                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="not in top 90"))
+                excluded.append(calc_schemas.ExcludedItem(
+                    standard_number=c['std_num'],
+                    reason="not in top 90",
+                    title=c['std_info'].title,
+                    subject=c['std_info'].subject,
+                    grade=c['grade'],
+                    weight_applied=c['weight'],
+                    standards_type=c['std_info'].standards_type,
+                    assessment_type=c['std_info'].assessment_type,
+                    credits_available=int(c['credits'])
+                ))
                 continue
             subject = c['std_info'].subject or "Unknown"
             subj_used = subject_used.get(subject, 0.0)
             subj_remaining = max(0.0, 24.0 - subj_used)
             if subj_remaining <= 0.0:
-                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="subject cap 24 reached"))
+                excluded.append(calc_schemas.ExcludedItem(
+                    standard_number=c['std_num'],
+                    reason="subject cap 24 reached",
+                    title=c['std_info'].title,
+                    subject=c['std_info'].subject,
+                    grade=c['grade'],
+                    weight_applied=c['weight'],
+                    standards_type=c['std_info'].standards_type,
+                    assessment_type=c['std_info'].assessment_type,
+                    credits_available=int(c['credits'])
+                ))
                 continue
 
             global_remaining = max(0.0, 90.0 - total_used)
             if global_remaining <= 0.0:
-                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="not in top 90"))
+                excluded.append(calc_schemas.ExcludedItem(
+                    standard_number=c['std_num'],
+                    reason="not in top 90",
+                    title=c['std_info'].title,
+                    subject=c['std_info'].subject,
+                    grade=c['grade'],
+                    weight_applied=c['weight'],
+                    standards_type=c['std_info'].standards_type,
+                    assessment_type=c['std_info'].assessment_type,
+                    credits_available=int(c['credits'])
+                ))
                 continue
 
             credits_avail = float(c['credits'])
             credits_to_take = min(credits_avail, subj_remaining, global_remaining)
             if credits_to_take <= 0.0:
-                excluded.append(calc_schemas.ExcludedItem(standard_number=c['std_num'], reason="no remaining capacity"))
+                excluded.append(calc_schemas.ExcludedItem(
+                    standard_number=c['std_num'],
+                    reason="no remaining capacity",
+                    title=c['std_info'].title,
+                    subject=c['std_info'].subject,
+                    grade=c['grade'],
+                    weight_applied=c['weight'],
+                    standards_type=c['std_info'].standards_type,
+                    assessment_type=c['std_info'].assessment_type,
+                    credits_available=int(c['credits'])
+                ))
                 continue
 
             rank += 1
