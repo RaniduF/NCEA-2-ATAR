@@ -793,26 +793,21 @@ export function ATARResults({ results, breakdown }: Props) {
           <div className="relative">
             <div className="max-h-[600px] overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {standardsByWeight.standards.map((std, index) => {
-                // Check if this is right after the cutoff
-                const isAtCutoff = index === standardsByWeight.top90CutoffIndex;
+                // Check if we should show cutoff line after the previous standard
+                const showCutoffBefore = index > 0 && index - 1 === standardsByWeight.top90CutoffIndex;
                 
                 return (
                   <div key={std.standard_number}>
-                    {/* Show cutoff indicator */}
-                    {isAtCutoff && (
+                    {/* Show cutoff indicator after the last standard that contributes to top 90 */}
+                    {showCutoffBefore && (
                       <div className="relative py-4 my-6">
                         <div className="absolute inset-0 flex items-center">
                           <div className="w-full border-t-2 border-dashed border-amber-500/50"></div>
                         </div>
                         <div className="relative flex justify-center">
                           <span className="px-4 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-xs font-bold text-amber-300 uppercase tracking-wide">
-                            Top 90 Credits Cutoff (at max grades)
+                            Top 90 Credits Cutoff
                           </span>
-                        </div>
-                        <div className="text-center mt-2">
-                          <p className="text-[0.65rem] text-amber-400/70">
-                            Standards below this line would count if improved to max grade
-                          </p>
                         </div>
                       </div>
                     )}
@@ -892,30 +887,6 @@ export function ATARResults({ results, breakdown }: Props) {
                         </div>
                       </div>
                       
-                      {/* Current Grade Weight Card */}
-                      <div className={`mb-4 p-4 rounded-xl border ${
-                        std.is_at_max
-                          ? 'bg-emerald-500/5 border-emerald-500/20'
-                          : 'bg-slate-800/60 border-slate-700/40'
-                      }`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Your Current Performance</span>
-                          {std.is_at_max && (
-                            <CheckIcon className="w-4 h-4 text-emerald-400" />
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Grade Achieved</div>
-                            <div className="text-xl font-black text-slate-100">{std.current_grade}</div>
-                          </div>
-                          <div>
-                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Weight @ {std.current_grade}</div>
-                            <div className="text-xl font-black font-mono text-brand-400">{(std.current_weight * 100).toFixed(2)}%</div>
-                          </div>
-                        </div>
-                      </div>
-                      
                       {/* Historical Weights Comparison (2024-2022) */}
                       <div className="mb-4 p-4 rounded-xl bg-slate-900/40 border border-slate-700/30">
                         <div className="text-xs font-semibold text-slate-300 uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -949,6 +920,30 @@ export function ATARResults({ results, breakdown }: Props) {
                               </div>
                             )
                           ))}
+                        </div>
+                      </div>
+                      
+                      {/* Current Grade Weight Card */}
+                      <div className={`mb-4 p-4 rounded-xl border ${
+                        std.is_at_max
+                          ? 'bg-emerald-500/5 border-emerald-500/20'
+                          : 'bg-slate-800/60 border-slate-700/40'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Your Current Performance</span>
+                          {std.is_at_max && (
+                            <CheckIcon className="w-4 h-4 text-emerald-400" />
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Grade Achieved</div>
+                            <div className="text-xl font-black text-slate-100">{std.current_grade}</div>
+                          </div>
+                          <div>
+                            <div className="text-[0.65rem] text-slate-400 mb-1 font-medium">Weight @ {std.current_grade}</div>
+                            <div className="text-xl font-black font-mono text-brand-400">{(std.current_weight * 100).toFixed(2)}%</div>
+                          </div>
                         </div>
                       </div>
                       
