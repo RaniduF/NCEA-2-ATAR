@@ -7,15 +7,15 @@ import { ATARResults } from '../components/ATARResults';
 import { PortfolioManager } from '../components/PortfolioManager';
 import { calculateATAR, calculateATARBreakdown, type ATARResult, type Standard, type CalculationBreakdownResponse } from './services/api';
 import { portfolioService } from './services/portfolio';
-import { 
-  BookmarkIcon, 
-  FolderOpenIcon, 
-  TrashIcon, 
+import {
+  BookmarkIcon,
+  FolderOpenIcon,
+  TrashIcon,
   CalculatorIcon,
   SparklesIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ArrowRightIcon
 } from '@heroicons/react/24/outline';
-import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid';
 import { useReveal } from './hooks/useReveal';
 import { useRipple } from './hooks/useRipple';
 import type { SavedPortfolio } from './services/portfolio';
@@ -30,14 +30,6 @@ export interface SelectedItem {
   standard_version?: number;
 }
 
-/**
- * Renders the main page for building an NCEA profile, managing portfolios, and calculating ATAR estimates.
- *
- * The component provides UI for searching and selecting standards, adjusting grades/years/versions,
- * saving/loading portfolios (including auto-save), and triggering ATAR calculation and breakdown requests.
- *
- * @returns The React element for the NCEA profile builder page.
- */
 export default function Page() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -49,7 +41,7 @@ export default function Page() {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [justSaved, setJustSaved] = useState<null | 'saved' | 'renamed'>(null);
-  const resultsRef = useRef<HTMLElement | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
   const selectedIds = useMemo(() => new Set(selectedItems.map(i => i.standard.standard_number)), [selectedItems]);
   const [existingPortfolios, setExistingPortfolios] = useState<SavedPortfolio[]>([]);
 
@@ -178,8 +170,6 @@ export default function Page() {
     }
   };
 
-  // Rename handled inline in Portfolio Manager
-
   const { showError } = useToast();
 
   const handleCalculate = async (): Promise<void> => {
@@ -187,8 +177,8 @@ export default function Page() {
     setResults(null);
     setBreakdown(null);
     try {
-      const payload = selectedItems.map(item => ({ 
-        standard_number: item.standard.standard_number, 
+      const payload = selectedItems.map(item => ({
+        standard_number: item.standard.standard_number,
         grade: item.grade,
         year_achieved: item.year_achieved,
         standard_version: item.standard_version
@@ -203,12 +193,15 @@ export default function Page() {
           if (activeId === reqId) setBreakdown(b);
         })
         .catch(console.error);
-      // Smooth scroll to results after DOM updates
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 50);
-      });
+
+      // On mobile, scroll to results
+      if (window.innerWidth < 1024) {
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 50);
+        });
+      }
     } catch (err) {
       console.error(err);
       showError('Failed to calculate ATAR. Please try again.');
@@ -220,82 +213,102 @@ export default function Page() {
   const totalCredits = selectedItems.reduce((sum: number, item: SelectedItem) => sum + item.standard.credits, 0);
 
   return (
-    <div className="space-y-10 md:space-y-12">
-      <section className="card reveal reveal-up">
-        <div className="p-7 md:p-8 border-b border-white/10">
-          <div className="flex items-center gap-3 mb-2">
-            <SparklesIcon className="w-6 h-6 text-brand-400" />
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Build your NCEA profile</h1>
-          </div>
-          <p className="text-slate-300">Search your subjects or standards, add them, and assign your grades.</p>
-        </div>
-        <div className="p-7 md:p-8">
-          <SearchStandards onAdd={handleAddStandard} onRemove={handleRemoveStandard} selectedStandardIds={selectedIds} />
-        </div>
-      </section>
+    <div className="grid lg:grid-cols-12 gap-8 items-start relative">
+      {/* LEFT COLUMN: Input & Portfolio (Scrollable) */}
+      <div className="lg:col-span-7 space-y-8">
 
-      <section className="card reveal reveal-up">
-        <div className="p-7 md:p-8 border-b border-white/10">
-          <div className="flex items-center justify-between">
+        {/* Hero / Intro */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-900/50 via-slate-900/50 to-slate-900/50 border border-white/10 p-8 md:p-10 shadow-2xl">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+          <div className="relative z-10">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 tracking-tight font-display">
+              Build your <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-300 to-accent-400">NCEA Profile</span>
+            </h1>
+            <p className="text-lg text-slate-300 max-w-xl leading-relaxed">
+              Search for your standards, assign your grades, and instantly estimate your Australian ATAR rank.
+            </p>
+          </div>
+        </section>
+
+        {/* Search Section */}
+        <section className="glass-panel p-1">
+          <SearchStandards onAdd={handleAddStandard} onRemove={handleRemoveStandard} selectedStandardIds={selectedIds} />
+        </section>
+
+        {/* Selected Standards List */}
+        <section className="glass-panel p-6 md:p-8 min-h-[400px]">
+          <div className="flex items-center justify-between mb-6 border-b border-white/5 pb-4">
             <div className="flex items-center gap-3">
-              <BookmarkSolidIcon className="w-6 h-6 text-brand-400" />
+              <div className="p-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+                <BookmarkIcon className="w-5 h-5 text-brand-300" />
+              </div>
               <div>
-                <h2 className="text-xl md:text-2xl font-semibold">Selected standards</h2>
-                <p className="text-slate-300 text-sm">Adjust grades and remove anything you don&apos;t want to include.</p>
+                <h2 className="text-xl font-semibold text-white">Your Portfolio</h2>
+                <p className="text-sm text-slate-400">Manage your standards and grades</p>
               </div>
             </div>
             {selectedItems.length > 0 && (
               <div className="text-right">
-                <div className="text-lg font-semibold text-brand-400">{totalCredits} credits</div>
-                <div className="text-xs text-slate-400">{selectedItems.length} standards selected</div>
+                <div className="text-2xl font-bold text-brand-300 font-display">{totalCredits}</div>
+                <div className="text-xs text-slate-500 font-medium uppercase tracking-wider">Credits</div>
               </div>
             )}
           </div>
-        </div>
-        <div className="p-7 md:p-8">
-          <SelectedStandards items={selectedItems} onRemove={handleRemoveStandard} onChangeGrade={handleChangeGrade} onChangeYear={handleChangeYear} onChangeVersion={handleChangeVersion} />
-          <div className="mt-8 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+
+          <SelectedStandards
+            items={selectedItems}
+            onRemove={handleRemoveStandard}
+            onChangeGrade={handleChangeGrade}
+            onChangeYear={handleChangeYear}
+            onChangeVersion={handleChangeVersion}
+          />
+
+          {/* Action Bar */}
+          <div className="mt-8 pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
               <button
-                className={`ripple btn-ghost hover-scale disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${hasUnsavedChanges ? 'text-brand-300' : ''}`}
+                className={`btn-ghost gap-2 ${hasUnsavedChanges ? 'text-brand-300 border-brand-500/30 bg-brand-500/5' : ''}`}
                 onClick={handleSavePortfolio}
                 disabled={selectedItems.length === 0}
               >
                 <BookmarkIcon className="w-4 h-4" />
-                Save Portfolio
+                {hasUnsavedChanges ? 'Save Changes' : 'Saved'}
               </button>
               <button
-                className="ripple btn-ghost hover-scale"
+                className="btn-ghost gap-2"
                 onClick={() => setIsPortfolioManagerOpen(true)}
               >
                 <FolderOpenIcon className="w-4 h-4" />
-                My Portfolios
+                Load
               </button>
               {justSaved && (
-                <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-600/15 px-3 py-2 rounded-lg border border-emerald-500/20 animate-reveal-in">
-                  <CheckCircleIcon className="w-3 h-3" />
+                <div className="flex items-center gap-1.5 text-xs text-emerald-300 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 animate-reveal-in">
+                  <CheckCircleIcon className="w-3.5 h-3.5" />
                   <span>{justSaved === 'saved' ? 'Saved' : 'Renamed'}</span>
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <button
-                className="ripple btn-danger hover-scale disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-danger flex-1 sm:flex-none justify-center"
                 onClick={handleClearPortfolio}
                 disabled={selectedItems.length === 0}
               >
                 <TrashIcon className="w-4 h-4" />
-                Clear All
+                Clear
               </button>
+
+              {/* Mobile Calculate Button (Hidden on LG) */}
               <button
-                className="ripple btn-primary hover-scale disabled:opacity-50 disabled:cursor-not-allowed"
+                className="lg:hidden btn-primary flex-1 sm:flex-none justify-center shadow-glow-sm"
                 onClick={handleCalculate}
                 disabled={selectedItems.length === 0 || isCalculating}
               >
                 {isCalculating ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    Calculating…
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Calculating...
                   </>
                 ) : (
                   <>
@@ -306,82 +319,109 @@ export default function Page() {
               </button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      <section className="card reveal reveal-up" ref={resultsRef}>
-        <div className="p-7 md:p-8 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <CalculatorIcon className="w-6 h-6 text-brand-400" />
-            <div>
-              <h2 className={`text-xl md:text-2xl font-semibold ${isCalculating ? 'animate-pulse' : ''}`}>Results</h2>
-              <p className="text-slate-300 text-sm">Estimated ATAR by year from your entered standards.</p>
+      {/* RIGHT COLUMN: Results (Sticky) */}
+      <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6" ref={resultsRef}>
+        {/* Calculate Button (Desktop Only) */}
+        <div className="hidden lg:block">
+          <button
+            className="w-full py-4 text-lg font-bold tracking-wide btn-primary shadow-xl shadow-brand-600/20 hover:shadow-brand-600/30 hover:scale-[1.02] transition-all duration-300 group"
+            onClick={handleCalculate}
+            disabled={selectedItems.length === 0 || isCalculating}
+          >
+            <div className="flex items-center justify-center gap-3">
+              {isCalculating ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Crunching the numbers...</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="w-6 h-6 text-brand-200 group-hover:animate-pulse" />
+                  <span>Calculate Estimate</span>
+                  <ArrowRightIcon className="w-5 h-5 opacity-60 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </div>
-          </div>
+          </button>
         </div>
-        <div className="p-7 md:p-8">
+
+        {/* Results Component */}
+        <div className={`transition-all duration-500 ${results ? 'opacity-100 translate-y-0' : 'opacity-100'}`}>
           <ATARResults results={results} breakdown={breakdown} />
         </div>
-      </section>
+      </div>
 
-      {/* Create/Overwrite Portfolio Modal */}
+      {/* Save Modal */}
       {showSaveModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 animate-reveal-in">
-          <div className="card w-full max-w-[min(92vw,40rem)] animate-scale-in overflow-hidden">
-            <div className="p-5 border-b border-white/10">
-              <div className="text-lg font-semibold text-slate-200">Save Portfolio</div>
-              <div className="text-xs text-slate-400 mt-1">Create a new portfolio or overwrite an existing one</div>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] animate-reveal-in p-4">
+          <div className="glass-panel w-full max-w-md overflow-hidden shadow-2xl border border-white/10">
+            <div className="p-6 border-b border-white/10 bg-white/5">
+              <h3 className="text-xl font-semibold text-white">Save Portfolio</h3>
+              <p className="text-sm text-slate-400 mt-1">Create new or overwrite existing</p>
             </div>
-            <div className="p-5 grid md:grid-cols-2 gap-5">
-              <div className="space-y-4">
-                <div className="text-sm font-medium text-slate-300">Add new portfolio</div>
-                <input
-                  className="input"
-                  placeholder="Portfolio name"
-                  value={newPortfolioName}
-                  onChange={(e) => setNewPortfolioName(e.target.value)}
-                  autoFocus
-                />
-                <div className="flex items-center justify-end gap-2">
-                  <button className="btn-ghost" onClick={() => setShowSaveModal(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={handleConfirmCreate} disabled={!newPortfolioName.trim()}>Save as New</button>
-                </div>
-              </div>
+            <div className="p-6 space-y-6">
               <div className="space-y-3">
-                <div className="text-sm font-medium text-slate-300">Or save to existing</div>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {existingPortfolios.length === 0 ? (
-                    <div className="text-xs text-slate-500">No portfolios yet</div>
-                  ) : (
-                    existingPortfolios
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Portfolio</label>
+                <div className="flex gap-2">
+                  <input
+                    className="input"
+                    placeholder="e.g., Engineering Prerequisites"
+                    value={newPortfolioName}
+                    onChange={(e) => setNewPortfolioName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  className="btn-primary w-full justify-center"
+                  onClick={handleConfirmCreate}
+                  disabled={!newPortfolioName.trim()}
+                >
+                  Save as New
+                </button>
+              </div>
+
+              {existingPortfolios.length > 0 && (
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Overwrite Existing</label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                    {existingPortfolios
                       .slice()
                       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
                       .map((p) => (
                         <button
                           key={p.id}
                           onClick={() => handleOverwriteExisting(p.id)}
-                          className={`w-full text-left panel p-3 hover:bg-slate-700/40 border border-white/10 rounded-xl ${currentPortfolioId === p.id ? 'ring-1 ring-brand-500/30' : ''}`}
-                          title={`Overwrite "${p.name}" with current selections`}
+                          className={`w-full text-left p-3 rounded-xl border border-white/5 hover:bg-white/5 hover:border-white/10 transition-all group ${currentPortfolioId === p.id ? 'bg-brand-500/10 border-brand-500/20' : 'bg-slate-900/40'}`}
                         >
-                          <div className="font-medium text-slate-200 truncate">{p.name}</div>
-                          <div className="text-[0.6875rem] text-slate-500">Updated {new Date(p.updatedAt).toLocaleString()}</div>
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-slate-200 group-hover:text-white truncate">{p.name}</span>
+                            {currentPortfolioId === p.id && <CheckCircleIcon className="w-4 h-4 text-brand-400" />}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            {new Date(p.updatedAt).toLocaleDateString()} • {p.items.length} standards
+                          </div>
                         </button>
                       ))
-                  )}
+                    }
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+            <div className="p-4 bg-slate-950/30 border-t border-white/5 flex justify-end">
+              <button className="btn-ghost" onClick={() => setShowSaveModal(false)}>Cancel</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Inline rename moved into Portfolio Manager expansion */}
-
-      <PortfolioManager 
+      <PortfolioManager
         isOpen={isPortfolioManagerOpen}
         onClose={() => setIsPortfolioManagerOpen(false)}
         onLoadPortfolio={handleLoadPortfolio}
       />
     </div>
   );
-} 
+}

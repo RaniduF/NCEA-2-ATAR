@@ -3,14 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Grade, SelectedItem } from '../app/page';
 import { getAvailableYears, getAvailableVersions } from '../app/services/api';
-import { 
-  ChevronDownIcon, 
-  ChevronRightIcon,
-  Cog6ToothIcon,
+import {
+  ChevronDownIcon,
   XMarkIcon,
   AcademicCapIcon,
   CalendarDaysIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 
 const GRADES: Grade[] = ['Excellence', 'Merit', 'Achieved', 'Not Achieved'];
@@ -23,16 +22,6 @@ interface Props {
   onChangeVersion: (standardNumber: number, standard_version: number | undefined) => void;
 }
 
-/**
- * Render and manage a grouped list of selected standards with per-item controls (grade, year, version), expand-to-show advanced options, lazy-loaded metadata, and animated removal.
- *
- * @param items - Selected standards to display; items are grouped by subject and rendered with per-standard controls.
- * @param onRemove - Callback invoked with the standard number after the standard's removal animation completes.
- * @param onChangeGrade - Callback invoked with the standard number and the new `Grade` when a grade is changed.
- * @param onChangeYear - Callback invoked with the standard number and the chosen year, or `undefined` to mark the year as iterative/default.
- * @param onChangeVersion - Callback invoked with the standard number and the chosen version number, or `undefined` to use the default/latest version.
- * @returns A React element that renders the interactive list of selected standards.
- */
 export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear, onChangeVersion }: Props) {
   const [expandedStandards, setExpandedStandards] = useState<Set<number>>(new Set());
   const [availableYearsByStandard, setAvailableYearsByStandard] = useState<Record<number, number[]>>({});
@@ -67,27 +56,24 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
 
   const startRemove = (standardNumber: number) => {
     const el = itemRefs.current[standardNumber];
-    // Mark as removing to trigger opacity/transform transition
     setRemovingStandardIds(prev => {
       const next = new Set(prev);
       next.add(standardNumber);
       return next;
     });
     if (!el) {
-      // Fallback if ref missing
       setTimeout(() => onRemove(standardNumber), 250);
       return;
     }
-    // Apply custom remove animation class
     el.classList.add('animate-remove-card');
-    // Prepare height collapse
     const currentHeight = el.getBoundingClientRect().height;
     el.style.height = `${currentHeight}px`;
     el.style.willChange = 'height, opacity, transform, filter';
-    // Force reflow then collapse to 0 height
     void el.offsetHeight;
     requestAnimationFrame(() => {
       el.style.height = '0px';
+      el.style.opacity = '0';
+      el.style.marginBottom = '0';
     });
     const onEnd = (e: TransitionEvent) => {
       if (e.propertyName !== 'height') return;
@@ -98,7 +84,6 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
         next.delete(standardNumber);
         return next;
       });
-      // Cleanup inline styles
       el.style.height = '';
       el.style.willChange = '';
       el.classList.remove('animate-remove-card');
@@ -109,7 +94,6 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
   const handleVersionChange = (standardNumber: number, version: string) => {
     const versionNum = Number(version);
     onChangeVersion(standardNumber, versionNum);
-    // Reload available years for this specific version
     getAvailableVersions(standardNumber).then(versions => {
       const sorted = [...versions].sort((a, b) => b - a);
       setAvailableYearsByStandard(prev => ({
@@ -121,185 +105,183 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-12">
-        <AcademicCapIcon className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-        <div className="text-slate-400 text-lg font-medium mb-2">No standards selected yet</div>
-        <div className="text-slate-500 text-sm">Search and add standards above to build your NCEA portfolio</div>
+      <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.02]">
+        <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center mb-4">
+          <AcademicCapIcon className="w-8 h-8 text-slate-500" />
+        </div>
+        <div className="text-slate-300 text-lg font-medium mb-1">Your portfolio is empty</div>
+        <div className="text-slate-500 text-sm max-w-xs">Use the search bar above to find and add your NCEA standards.</div>
       </div>
     );
   }
 
-  // Group standards by subject
   const groupedBySubject = items.reduce((groups, item) => {
     const subject = item.standard.subject || 'Other';
-    if (!groups[subject]) {
-      groups[subject] = [];
-    }
+    if (!groups[subject]) groups[subject] = [];
     groups[subject].push(item);
     return groups;
   }, {} as Record<string, typeof items>);
 
-  // Sort subjects alphabetically
   const sortedSubjects = Object.keys(groupedBySubject).sort();
-
-  // Helper function to get grade color
-  const getGradeColor = (grade: Grade) => {
-    switch (grade) {
-      case 'Excellence': return 'text-amber-300';
-      case 'Merit': return 'text-sky-300';
-      case 'Achieved': return 'text-emerald-300';
-      case 'Not Achieved': return 'text-red-300';
-      default: return 'text-slate-300';
-    }
-  };
 
   return (
     <div className="space-y-8">
       {sortedSubjects.map(subject => (
-        <div key={subject} className="space-y-4 md:space-y-5">
-          <h3 className="text-xl md:text-2xl font-semibold text-slate-200 border-b border-white/10 pb-3 flex items-center gap-3">
-            <AcademicCapIcon className="w-6 h-6 text-brand-400" />
-            <span>{subject}</span>
-            <span className="meta bg-slate-800/50 px-2 py-1 rounded-full">
+        <div key={subject} className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-brand-500"></span>
+              {subject}
+            </h3>
+            <span className="text-xs text-slate-500 font-medium">
               {groupedBySubject[subject].length} standard{groupedBySubject[subject].length === 1 ? '' : 's'}
             </span>
-          </h3>
-          {groupedBySubject[subject].map(({ standard, grade, year_achieved, standard_version }) => {
-            const isExpanded = expandedStandards.has(standard.standard_number);
-            const displayYear = year_achieved || 'Iterative';
-            const availableVersions = availableVersionsByStandard[standard.standard_number] || [];
-            const defaultVersion = availableVersions.length > 0 ? availableVersions[0] : 1; // Latest version (first in desc order)
-            const displayVersion = standard_version || defaultVersion;
-            const isRemoving = removingStandardIds.has(standard.standard_number);
-            
-            return (
-              <div
-                key={standard.standard_number}
-                ref={(el) => { itemRefs.current[standard.standard_number] = el; }}
-                className={`card card-hover p-6 transition-all duration-200 will-change-transform hover-scale collapse-height ${isRemoving ? 'origin-top pointer-events-none' : 'animate-fade-down'}`}
-              >
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="meta flex items-center gap-2 mb-2">
-                      <AcademicCapIcon className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">{standard.subject} • {standard.assessment_type} • {standard.standards_type}</span>
-                    </div>
-                    <div className="font-medium text-slate-100 leading-tight mb-2">{standard.standard_number}: {standard.title}</div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="text-slate-300 font-medium">{standard.credits} credits</div>
-                      {standard.is_ue && (
-                        <span title="University Entrance" className="badge-ue">UE</span>
-                      )}
-                    </div>
-                    {typeof displayYear === 'number' && (
-                      <div className="text-xs text-amber-400 mt-2 flex items-center gap-1">
-                        <CalendarDaysIcon className="w-3 h-3" />
-                        Taken in {displayYear}
+          </div>
+
+          <div className="space-y-2">
+            {groupedBySubject[subject].map(({ standard, grade, year_achieved, standard_version }) => {
+              const isExpanded = expandedStandards.has(standard.standard_number);
+              const displayYear = year_achieved || 'Iterative';
+              const availableVersions = availableVersionsByStandard[standard.standard_number] || [];
+              const defaultVersion = availableVersions.length > 0 ? availableVersions[0] : 1;
+              const displayVersion = standard_version || defaultVersion;
+              const isRemoving = removingStandardIds.has(standard.standard_number);
+
+              const gradeColor =
+                grade === 'Excellence' ? 'bg-amber-500/10 border-amber-500/20 text-amber-300 shadow-[0_0_15px_-3px_rgba(245,158,11,0.15)]' :
+                  grade === 'Merit' ? 'bg-sky-500/10 border-sky-500/20 text-sky-300' :
+                    grade === 'Achieved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300' :
+                      'bg-red-500/10 border-red-500/20 text-red-300';
+
+              return (
+                <div
+                  key={standard.standard_number}
+                  ref={(el) => { itemRefs.current[standard.standard_number] = el; }}
+                  className={`group relative rounded-xl border transition-all duration-300 overflow-hidden ${isRemoving ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'} ${gradeColor} border-opacity-30 bg-opacity-5 hover:bg-opacity-10`}
+                >
+                  <div className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      {/* Standard Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono font-semibold opacity-90">{standard.standard_number}</span>
+                          {standard.is_ue && <span className="badge-ue text-[10px] py-0 px-1.5 h-4">UE</span>}
+                          {typeof displayYear === 'number' && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/5">
+                              {displayYear}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm font-medium leading-snug opacity-90 line-clamp-1 group-hover:line-clamp-none transition-all">
+                          {standard.title}
+                        </div>
+                        <div className="text-xs opacity-60 mt-1">
+                          {standard.credits} Credits • {standard.assessment_type}
+                        </div>
                       </div>
-                    )}
-                    {standard_version && standard_version !== defaultVersion && (
-                      <div className="text-xs text-blue-400 mt-1 flex items-center gap-1">
-                        <DocumentTextIcon className="w-3 h-3" />
-                        Version {displayVersion}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-slate-300 font-medium">Grade</label>
-                      <div className="relative">
-                        <select
-                          value={grade}
-                          onChange={e => onChangeGrade(standard.standard_number, e.target.value as Grade)}
-                          className={`input text-sm font-medium ${getGradeColor(grade)}`}
-                        >
-                          {GRADES.map(g => <option key={g} value={g} className="bg-slate-800 text-slate-200">{g}</option>)}
-                        </select>
+
+                      {/* Controls */}
+                      <div className="flex items-center gap-3 self-end sm:self-center w-full sm:w-auto justify-between sm:justify-end">
+                        {/* Segmented Grade Control */}
+                        <div className="flex p-1 rounded-lg bg-slate-950/40 border border-white/5 backdrop-blur-sm">
+                          {['E', 'M', 'A', 'N'].map((g) => {
+                            const fullGrade = g === 'E' ? 'Excellence' : g === 'M' ? 'Merit' : g === 'A' ? 'Achieved' : 'Not Achieved';
+                            const isSelected = grade === fullGrade;
+                            const activeClass =
+                              g === 'E' ? 'bg-amber-500 text-amber-950 shadow-lg shadow-amber-500/20' :
+                                g === 'M' ? 'bg-sky-500 text-sky-950 shadow-lg shadow-sky-500/20' :
+                                  g === 'A' ? 'bg-emerald-500 text-emerald-950 shadow-lg shadow-emerald-500/20' :
+                                    'bg-red-500 text-red-950 shadow-lg shadow-red-500/20';
+
+                            return (
+                              <button
+                                key={g}
+                                onClick={() => onChangeGrade(standard.standard_number, fullGrade as Grade)}
+                                className={`w-8 h-7 rounded-md text-xs font-bold transition-all duration-200 ${isSelected ? activeClass : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'}`}
+                                title={fullGrade}
+                              >
+                                {g}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center border-l border-white/10 pl-3 gap-1">
+                          <button
+                            onClick={() => toggleExpanded(standard.standard_number)}
+                            className={`p-1.5 rounded-lg transition-colors ${isExpanded ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                          >
+                            <EllipsisHorizontalIcon className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => startRemove(standard.standard_number)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <XMarkIcon className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => toggleExpanded(standard.standard_number)}
-                      className="btn-ghost"
-                      title="Advanced options"
-                    >
-                      {isExpanded ? (
-                        <ChevronDownIcon className="w-4 h-4" />
-                      ) : (
-                        <Cog6ToothIcon className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button 
-                      onClick={() => startRemove(standard.standard_number)} 
-                      className="ripple btn-danger"
-                    >
-                      <XMarkIcon className="w-4 h-4" />
-                      Remove
-                    </button>
+
+                    {/* Expanded Options */}
+                    <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4 pt-4 border-t border-white/5' : 'grid-rows-[0fr] opacity-0'}`}>
+                      <div className="overflow-hidden">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                              <DocumentTextIcon className="w-3.5 h-3.5" />
+                              Version
+                            </label>
+                            <select
+                              value={displayVersion}
+                              onChange={e => {
+                                const selectedVersion = Number(e.target.value);
+                                if (selectedVersion === defaultVersion) {
+                                  onChangeVersion(standard.standard_number, undefined);
+                                } else {
+                                  handleVersionChange(standard.standard_number, e.target.value);
+                                }
+                              }}
+                              className="input text-xs py-2 h-9 bg-slate-900/50"
+                            >
+                              {(availableVersionsByStandard[standard.standard_number] || []).map((version: number) => (
+                                <option key={version} value={version} className="bg-slate-900">Version {version}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-slate-400 flex items-center gap-1.5">
+                              <CalendarDaysIcon className="w-3.5 h-3.5" />
+                              Year Achieved
+                            </label>
+                            <select
+                              value={displayYear}
+                              onChange={e => {
+                                const value = e.target.value;
+                                if (value === 'Iterative') {
+                                  onChangeYear(standard.standard_number, undefined);
+                                } else {
+                                  onChangeYear(standard.standard_number, Number(value));
+                                }
+                              }}
+                              className="input text-xs py-2 h-9 bg-slate-900/50"
+                            >
+                              <option value="Iterative" className="bg-slate-900">Iterative (Default)</option>
+                              {(availableYearsByStandard[standard.standard_number] || []).map((year: number) => (
+                                <option key={year} value={year} className="bg-slate-900">{year}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                
-                {isExpanded && (
-                  <div className="border-t border-white/10 pt-4 space-y-4 animate-reveal-in">
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-sm text-slate-300 font-medium flex items-center gap-2">
-                          <DocumentTextIcon className="w-4 h-4" />
-                          Standard Version
-                        </label>
-                        <select
-                          value={displayVersion}
-                          onChange={e => {
-                            const selectedVersion = Number(e.target.value);
-                            if (selectedVersion === defaultVersion) {
-                              onChangeVersion(standard.standard_number, undefined);
-                            } else {
-                              handleVersionChange(standard.standard_number, e.target.value);
-                            }
-                          }}
-                          className="input text-sm"
-                        >
-                          {(availableVersionsByStandard[standard.standard_number] || []).map((version: number) => (
-                            <option key={version} value={version} className="bg-slate-800">Version {version}</option>
-                          ))}
-                        </select>
-                        <div className="text-xs text-slate-400">
-                          Different versions may have varying statistical weightings
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm text-slate-300 font-medium flex items-center gap-2">
-                          <CalendarDaysIcon className="w-4 h-4" />
-                          Year Achieved
-                        </label>
-                        <select
-                          value={displayYear}
-                          onChange={e => {
-                            const value = e.target.value;
-                            if (value === 'Iterative') {
-                              onChangeYear(standard.standard_number, undefined);
-                            } else {
-                              onChangeYear(standard.standard_number, Number(value));
-                            }
-                          }}
-                          className="input text-sm"
-                        >
-                          <option value="Iterative" className="bg-slate-800">Iterative (Default)</option>
-                          {(availableYearsByStandard[standard.standard_number] || []).map((year: number) => (
-                            <option key={year} value={year} className="bg-slate-800">{year}</option>
-                          ))}
-                        </select>
-                        <div className="text-xs text-slate-400">
-                          Used for cross-year weight calculation accuracy
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ))}
     </div>
   );
-} 
+}

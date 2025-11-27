@@ -2,14 +2,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getSuggestions, searchStandards, type Standard, type StandardsSearchResponse, type SuggestionsResponse } from '../app/services/api';
-import { 
-  MagnifyingGlassIcon, 
-  PlusIcon, 
+import {
+  MagnifyingGlassIcon,
+  PlusIcon,
   XMarkIcon,
   AcademicCapIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  ArrowRightIcon
 } from '@heroicons/react/24/outline';
-import { CheckIcon } from '@heroicons/react/24/solid';
 import { createPortal } from 'react-dom';
 
 interface Props {
@@ -18,14 +18,6 @@ interface Props {
   selectedStandardIds: Set<number>;
 }
 
-/**
- * Search UI component for finding subjects or standards, displaying live suggestions and grouped search results, and enabling adding or removing standards.
- *
- * @param onAdd - Callback invoked with a `Standard` when the user adds a standard.
- * @param onRemove - Callback invoked with a standard number when the user removes a standard.
- * @param selectedStandardIds - Set of standard numbers that are currently selected.
- * @returns The rendered SearchStandards React component tree.
- */
 export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props) {
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestionsResponse>({ subjects: [], standards: [] });
@@ -42,28 +34,25 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     const el = inputRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const margin = 8; // viewport margin to avoid touching edges
+    const margin = 8;
     let width = rect.width;
-    // If input is wider than viewport, clamp width to viewport with margins
     const maxViewportWidth = Math.max(0, window.innerWidth - margin * 2);
     if (width > maxViewportWidth) width = maxViewportWidth;
-    // Clamp left so the dropdown stays fully within viewport
     let left = rect.left;
     if (left + width > window.innerWidth - margin) {
       left = Math.max(margin, window.innerWidth - margin - width);
     }
     const gap = 8;
     const topCandidate = rect.bottom + gap;
-
     const remInPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const availableBelow = window.innerHeight - remInPx - topCandidate;
     const availableAbove = rect.top - remInPx;
-    const maxHeightLimit = window.innerHeight * 0.6;
+    const maxHeightLimit = window.innerHeight * 0.5;
 
     let maxHeight = Math.min(Math.max(availableBelow, 0), maxHeightLimit);
     let top = topCandidate;
 
-    if (maxHeight < 120 && availableAbove > availableBelow) {
+    if (maxHeight < 150 && availableAbove > availableBelow) {
       maxHeight = Math.min(Math.max(availableAbove, 0), maxHeightLimit);
       top = Math.max(margin, rect.top - gap - maxHeight);
     }
@@ -71,9 +60,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     setDropdownPos({ left, top, width, maxHeight });
   };
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
     if (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0)) {
@@ -82,9 +69,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   }, [showSuggestions, suggestions, query]);
 
   useEffect(() => {
-    const onResizeOrScroll = () => {
-      if (showSuggestions) updateDropdownPos();
-    };
+    const onResizeOrScroll = () => { if (showSuggestions) updateDropdownPos(); };
     window.addEventListener('resize', onResizeOrScroll);
     window.addEventListener('scroll', onResizeOrScroll, true);
     return () => {
@@ -93,19 +78,15 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
     };
   }, [showSuggestions]);
 
-  // Keep dropdown aligned when input width changes (e.g., responsive layout)
   useEffect(() => {
     if (!isClient) return;
     const el = inputRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (showSuggestions) updateDropdownPos();
-    });
+    const ro = new ResizeObserver(() => { if (showSuggestions) updateDropdownPos(); });
     ro.observe(el);
     return () => ro.disconnect();
   }, [isClient, showSuggestions]);
 
-  // Debounced suggestions
   useEffect(() => {
     if (query.trim().length < 2 || !showSuggestions) {
       setSuggestions({ subjects: [], standards: [] });
@@ -151,7 +132,6 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
   const addStandard = (standard: Standard) => {
     onAdd(standard);
-    // Close suggestions and avoid stealing focus back to the input
     setShowSuggestions(false);
     inputRef.current?.blur();
   };
@@ -163,28 +143,23 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
-    setShowSuggestions(true); // Re-enable suggestions when typing
+    setShowSuggestions(true);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      
-      // If there are suggestions, select the first one
       if (suggestions.subjects.length > 0) {
-        // First subject
         const firstSubject = suggestions.subjects[0];
         closeSuggestions();
         setQuery(firstSubject);
         performSearch(firstSubject);
         inputRef.current?.blur();
       } else if (suggestions.standards.length > 0) {
-        // First standard
         const firstStandard = suggestions.standards[0];
         const standardNumber = firstStandard.split(' • ')[0];
         handleStandardSuggestionClick(standardNumber);
       } else {
-        // No suggestions, perform regular search and close suggestions
         closeSuggestions();
         performSearch(query);
         inputRef.current?.blur();
@@ -195,17 +170,11 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const handleStandardSuggestionClick = async (standardNumber: string) => {
     closeSuggestions();
     setQuery(standardNumber);
-    
-    // Blur input to auto-tab out
     inputRef.current?.blur();
-    
-    // Perform search to get the full standard object
     try {
       setLoadingSearch(true);
       const data = await searchStandards(standardNumber);
       setSearchData(data);
-      
-      // If we found a direct result, auto-add it
       if (data.direct_results && data.direct_results.length > 0) {
         const standard = data.direct_results[0];
         if (!selectedStandardIds.has(standard.standard_number)) {
@@ -224,76 +193,76 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const suggestion = searchData?.suggestion ?? null;
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={onSubmit} className="relative z-50">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2">
-              <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
+    <div className="space-y-6">
+      <form onSubmit={onSubmit} className="relative z-40">
+        <div className="relative group">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-500 to-accent-500 rounded-2xl opacity-30 group-hover:opacity-60 blur transition duration-500"></div>
+          <div className="relative flex items-center bg-[#0B101B] rounded-xl border border-white/10 shadow-xl">
+            <div className="pl-4 text-slate-400">
+              <MagnifyingGlassIcon className="w-6 h-6" />
             </div>
             <input
               ref={inputRef}
               value={query}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578,  differentiation)…"
-              className="input pl-11"
+              placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578)..."
+              className="w-full bg-transparent border-none px-4 py-4 text-lg text-white placeholder:text-slate-500 focus:ring-0 outline-none"
               onFocus={() => setShowSuggestions(true)}
             />
-            {query && (
+            <div className="pr-2">
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery('');
+                    setSearchData(null);
+                    setSuggestions({ subjects: [], standards: [] });
+                    setShowSuggestions(false);
+                    inputRef.current?.focus();
+                  }}
+                  className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+            <div className="pr-2">
               <button
-                type="button"
-                onClick={() => {
-                  setQuery('');
-                  setSearchData(null);
-                  setSuggestions({ subjects: [], standards: [] });
-                  setShowSuggestions(false);
-                  inputRef.current?.focus();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-white/10 transition-colors"
+                type="submit"
+                disabled={loadingSearch}
+                className="p-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <XMarkIcon className="w-4 h-4 text-slate-400" />
+                {loadingSearch ? (
+                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <ArrowRightIcon className="w-6 h-6" />
+                )}
               </button>
-            )}
+            </div>
           </div>
-          <button 
-            type="submit" 
-            disabled={loadingSearch}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loadingSearch ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                Searching
-              </>
-            ) : (
-              <>
-                <MagnifyingGlassIcon className="w-4 h-4" />
-                Search
-              </>
-            )}
-          </button>
         </div>
+
         {loadingSuggest && query && (
-          <div className="text-xs text-slate-400 mt-2 flex items-center gap-2">
-            <div className="w-3 h-3 border border-slate-400 border-t-transparent rounded-full animate-spin" />
-            Fetching suggestions…
+          <div className="absolute -bottom-8 left-0 text-xs text-slate-400 flex items-center gap-2 animate-pulse">
+            <div className="w-1.5 h-1.5 bg-brand-400 rounded-full" />
+            Fetching suggestions...
           </div>
         )}
       </form>
 
       {error && (
-        <div className="p-3 rounded-lg bg-error-500/10 border border-error-500/20 text-error-400 text-sm flex items-center gap-2">
-          <XMarkIcon className="w-4 h-4 flex-shrink-0" />
+        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm flex items-center gap-3 animate-reveal-in">
+          <XMarkIcon className="w-5 h-5 flex-shrink-0" />
           {error}
         </div>
       )}
 
       {suggestion && !relatedGroups.length && (
-        <div className="text-slate-300 text-sm flex items-center gap-2">
+        <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-200 text-sm flex items-center gap-2 animate-reveal-in">
           <span>Did you mean</span>
-          <button 
-            className="underline hover:text-brand-400 transition-colors" 
+          <button
+            className="font-bold underline hover:text-white transition-colors"
             onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}
           >
             {suggestion.value}
@@ -303,15 +272,15 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       )}
 
       {relatedGroups.length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-6 animate-reveal-up">
           {relatedGroups.map((group, idx) => (
-            <div key={idx}>
-              <div className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+            <div key={idx} className="space-y-3">
+              <div className="flex items-center gap-2 text-slate-300 px-1">
                 <BookOpenIcon className="w-5 h-5 text-brand-400" />
-                {group.name}
-                <span className="text-xs text-slate-400 font-normal">({group.standards.length} standards)</span>
+                <h3 className="font-medium text-lg">{group.name}</h3>
+                <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">{group.standards.length}</span>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {group.standards.map(std => (
                   <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
                 ))}
@@ -324,60 +293,65 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       {isClient && createPortal(
         (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
           <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#161B22] text-slate-100 shadow-card overflow-y-auto"
+            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#0B101B]/95 backdrop-blur-xl text-slate-100 shadow-2xl overflow-hidden ring-1 ring-white/5"
             style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: `${dropdownPos.maxHeight}px` }}
           >
-            {suggestions.subjects.length > 0 && (
-              <>
-                <div className="px-4 py-2 text-xs text-slate-300 bg-white/5 border-b border-white/10 flex items-center gap-2">
-                  <BookOpenIcon className="w-4 h-4" />
-                  Subjects
-                </div>
-                {suggestions.subjects.map((subject, idx) => (
-                  <button
-                    key={`subject-${idx}`}
-                    type="button"
-                    onClick={() => {
-                      setShowSuggestions(false);
-                      setQuery(subject);
-                      performSearch(subject);
-                      inputRef.current?.blur();
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-white/5 font-medium transition-colors flex items-center gap-3"
-                  >
-                    <BookOpenIcon className="w-4 h-4 text-brand-400 flex-shrink-0" />
-                    {subject}
-                  </button>
-                ))}
-              </>
-            )}
-            {suggestions.standards.length > 0 && (
-              <>
-                {suggestions.subjects.length > 0 && (
-                  <div className="px-4 py-2 text-xs text-slate-300 bg-white/5 border-b border-white/10 flex items-center gap-2">
-                    <AcademicCapIcon className="w-4 h-4" />
-                    Standards
+            <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: `${dropdownPos.maxHeight}px` }}>
+              {suggestions.subjects.length > 0 && (
+                <div className="py-2">
+                  <div className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <BookOpenIcon className="w-3 h-3" />
+                    Subjects
                   </div>
-                )}
-                {suggestions.standards.map((standard, idx) => {
-                  const match = standard.match(/^\d+/);
-                  const standardNumber = match ? match[0] : standard;
-                  return (
+                  {suggestions.subjects.map((subject, idx) => (
                     <button
-                      key={`standard-${idx}`}
+                      key={`subject-${idx}`}
                       type="button"
                       onClick={() => {
-                        handleStandardSuggestionClick(standardNumber);
+                        setShowSuggestions(false);
+                        setQuery(subject);
+                        performSearch(subject);
+                        inputRef.current?.blur();
                       }}
-                      className="w-full text-left px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 hover:bg-brand-500/20 hover:text-white text-slate-300 transition-colors flex items-center gap-3 group"
                     >
-                      <AcademicCapIcon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                      <span className="truncate">{standard}</span>
+                      <div className="w-8 h-8 rounded-lg bg-slate-800/50 group-hover:bg-brand-500/20 flex items-center justify-center transition-colors">
+                        <BookOpenIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-300" />
+                      </div>
+                      <span className="font-medium">{subject}</span>
                     </button>
-                  );
-                })}
-              </>
-            )}
+                  ))}
+                </div>
+              )}
+
+              {suggestions.standards.length > 0 && (
+                <div className="py-2 border-t border-white/5">
+                  <div className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                    <AcademicCapIcon className="w-3 h-3" />
+                    Standards
+                  </div>
+                  {suggestions.standards.map((standard, idx) => {
+                    const match = standard.match(/^\d+/);
+                    const standardNumber = match ? match[0] : standard;
+                    return (
+                      <button
+                        key={`standard-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          handleStandardSuggestionClick(standardNumber);
+                        }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-brand-500/20 hover:text-white text-slate-300 transition-colors flex items-center gap-3 group"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-slate-800/50 group-hover:bg-brand-500/20 flex items-center justify-center transition-colors">
+                          <AcademicCapIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-300" />
+                        </div>
+                        <span className="truncate text-sm">{standard}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         ) : null,
         document.body
@@ -386,65 +360,41 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   );
 }
 
-/**
- * Renders a card for a single standard showing its metadata, credits, and an Add/Remove action.
- *
- * @param std - Standard data to display (subject, title, standard_number, credits, is_ue, etc.).
- * @param onAdd - Invoked with `std` when the Add button is clicked.
- * @param onRemove - Invoked with `std.standard_number` when the Remove button is clicked.
- * @param selected - When true, displays the Remove action; otherwise displays the Add action.
- * @returns The rendered standard card element.
- */
-function StandardCard({ std, onAdd, onRemove, selected }: { 
-  std: Standard; 
-  onAdd: (s: Standard) => void; 
+function StandardCard({ std, onAdd, onRemove, selected }: {
+  std: Standard;
+  onAdd: (s: Standard) => void;
   onRemove: (standardNumber: number) => void;
   selected: boolean;
 }) {
   return (
-    <div className="card p-5 flex flex-col card-hover h-full">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="min-w-0 flex-1">
-          {/* Standard number with icon */}
-          <div className="flex items-center gap-2 mb-2">
-            <AcademicCapIcon className="w-5 h-5 flex-shrink-0 text-brand-400" />
-            <span className="text-lg font-semibold text-slate-100">{std.standard_number}</span>
+    <div className="group relative bg-slate-900/40 border border-white/5 hover:border-brand-500/30 rounded-xl p-4 transition-all duration-300 hover:bg-slate-800/60 hover:shadow-lg hover:-translate-y-0.5">
+      <div className="flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-mono text-brand-300 font-semibold">{std.standard_number}</span>
+            {std.is_ue && (
+              <span className="badge-ue text-[10px] py-0 px-1.5 h-4">UE</span>
+            )}
           </div>
-          {/* Standard title - clamped to 2 lines with fixed height */}
-          <div className="text-sm text-slate-300 leading-relaxed line-clamp-2 mb-2 h-[2.8rem]">
-            {std.title}
-          </div>
-          {/* Meta info */}
-          <div className="text-xs text-slate-500 truncate">
-            {std.subject} • {std.assessment_type} • {std.standards_type}
+          <h4 className="text-sm font-medium text-slate-200 leading-snug line-clamp-2 mb-2 min-h-[2.5em]">{std.title}</h4>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>{std.credits} Credits</span>
+            <span>•</span>
+            <span className="truncate max-w-[100px]">{std.assessment_type}</span>
           </div>
         </div>
-        {std.is_ue && (
-          <span title="University Entrance" className="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 flex-shrink-0 font-medium h-fit">
-            UE
-          </span>
-        )}
-      </div>
-      <div className="flex items-center justify-between pt-3 mt-auto border-t border-white/5">
-        <div className="text-slate-300 text-sm font-medium">{std.credits} credits</div>
-        {selected ? (
-          <button
-            onClick={() => onRemove(std.standard_number)}
-            className="px-3 py-2 rounded-lg bg-error-600 hover:bg-error-700 text-white transition-all duration-200 flex items-center gap-2 shadow-card"
-          >
-            <XMarkIcon className="w-4 h-4" />
-            Remove
-          </button>
-        ) : (
-          <button
-            onClick={() => onAdd(std)}
-            className="px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-all duration-200 flex items-center gap-2 shadow-card hover:shadow-card-hover"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Add
-          </button>
-        )}
+
+        <button
+          onClick={() => selected ? onRemove(std.standard_number) : onAdd(std)}
+          className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${selected
+              ? 'bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white'
+              : 'bg-white/5 text-slate-400 hover:bg-brand-500 hover:text-white'
+            }`}
+          title={selected ? "Remove standard" : "Add standard"}
+        >
+          {selected ? <XMarkIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+        </button>
       </div>
     </div>
   );
-} 
+}

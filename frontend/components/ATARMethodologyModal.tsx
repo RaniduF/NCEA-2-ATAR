@@ -18,11 +18,11 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       ></div>
-      
+
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="relative w-full max-w-4xl bg-[#161B22] rounded-2xl border border-white/10 shadow-2xl">
@@ -52,12 +52,12 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                 What is ATAR?
               </h3>
               <p className="text-sm text-slate-300 mb-2">
-                The Australian Tertiary Admission Rank (ATAR) ranks students from 99.95 to 0, with 99.95 being the top score. 
-                It's a <strong>ranking system</strong>, not a test score—your ATAR depends on how you perform relative to your 
+                The Australian Tertiary Admission Rank (ATAR) ranks students from 99.95 to 0, with 99.95 being the top score.
+                It&apos;s a <strong>ranking system</strong>, not a test score—your ATAR depends on how you perform relative to your
                 entire age cohort (including those who left school or study under other systems).
               </p>
               <p className="text-sm text-slate-400">
-                NZQA calculates ATAR scores for eligible students every January using methodology overseen by the 
+                NZQA calculates ATAR scores for eligible students every January using methodology overseen by the
                 Australasian Conference of Tertiary Admission Centres (ACTAC).
               </p>
             </div>
@@ -68,7 +68,7 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                 <ChartBarIcon className="w-5 h-5 text-brand-400" />
                 The Calculation Process
               </h3>
-              
+
               <div className="space-y-4">
                 {/* Step 1 */}
                 <div className="panel p-4">
@@ -79,12 +79,12 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                     <div className="flex-1">
                       <h4 className="font-semibold text-slate-200 mb-2">Calculate Difficulty Weights</h4>
                       <p className="text-sm text-slate-400 mb-2">
-                        NZQA analyzes all Level 3 standards completed by all students in the year. They calculate a 
-                        <strong className="text-slate-300"> relative difficulty weight</strong> (between 0 and 1) for each standard, 
+                        NZQA analyzes all Level 3 standards completed by all students in the year. They calculate a
+                        <strong className="text-slate-300"> relative difficulty weight</strong> (between 0 and 1) for each standard,
                         version, and grade combination.
                       </p>
                       <p className="text-sm text-slate-400">
-                        The harder a standard is (based on how the cohort performed), the higher its weight. This uses the 
+                        The harder a standard is (based on how the cohort performed), the higher its weight. This uses the
                         Johnston & Lillis statistical formula published in the New Zealand Science Review.
                       </p>
                     </div>
@@ -133,8 +133,8 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                     <div className="flex-1">
                       <h4 className="font-semibold text-slate-200 mb-2">Calculate Your Statistical Score</h4>
                       <p className="text-sm text-slate-400 mb-2">
-                        Your <strong className="text-slate-300">statistical score</strong> (also called the credit-weighted total) 
-                        is calculated by taking the weighted average of your best 90 credits' difficulty weights.
+                        Your <strong className="text-slate-300">statistical score</strong> (also called the credit-weighted total)
+                        is calculated by taking the weighted average of your best 90 credits&apos; difficulty weights.
                       </p>
                       <div className="p-3 bg-slate-800/40 rounded-lg font-mono text-xs text-slate-300 mb-2">
                         Statistical Score = (Sum of [credits × difficulty weight]) / 90
@@ -155,8 +155,8 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                     <div className="flex-1">
                       <h4 className="font-semibold text-slate-200 mb-2">Rank Everyone & Assign ITARS Percentiles</h4>
                       <p className="text-sm text-slate-400 mb-2">
-                        All eligible students are sorted by their statistical score (highest to lowest). Each student is then 
-                        assigned a <strong className="text-slate-300">percentile ranking</strong>—this percentile is called 
+                        All eligible students are sorted by their statistical score (highest to lowest). Each student is then
+                        assigned a <strong className="text-slate-300">percentile ranking</strong>—this percentile is called
                         your <strong className="text-slate-300">ITARS (Interstate Transfer Index Score)</strong>.
                       </p>
                       <p className="text-sm text-slate-400">
@@ -178,14 +178,14 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                         Calculate Participation Rate
                       </h4>
                       <p className="text-sm text-slate-400 mb-2">
-                        The participation rate compares how many students from your age cohort (counted in Year 9, four years ago) 
+                        The participation rate compares how many students from your age cohort (counted in Year 9, four years ago)
                         completed enough Level 3 credits to be eligible for ATAR.
                       </p>
                       <div className="p-3 bg-slate-800/40 rounded-lg font-mono text-xs text-slate-300 mb-2">
                         Participation Rate = (Students with 60+ L3 credits) / (Year 9 cohort size)
                       </div>
                       <p className="text-sm text-slate-400">
-                        This accounts for students who left school at 16 or studied under other systems. For example, in 2024 
+                        This accounts for students who left school at 16 or studied under other systems. For example, in 2024
                         the participation rate was around 48%.
                       </p>
                     </div>
@@ -204,7 +204,7 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                         Assign ATAR Scores
                       </h4>
                       <p className="text-sm text-slate-400 mb-3">
-                        Using the participation rate, ACTAC provides a table that maps ITARS percentiles to ATAR scores. 
+                        Using the participation rate, ACTAC provides a table that maps ITARS percentiles to ATAR scores.
                         Students are assigned ATARs from the ranked list:
                       </p>
                       <ul className="space-y-2 text-sm text-slate-400 mb-3">
@@ -222,7 +222,7 @@ export function ATARMethodologyModal({ isOpen, onClose }: Props) {
                         </li>
                       </ul>
                       <p className="text-sm text-slate-400">
-                        The percentage allocated to each ATAR adjusts based on the participation rate—at the top it's about 0.108% 
+                        The percentage allocated to each ATAR adjusts based on the participation rate—at the top it&apos;s about 0.108%
                         per ATAR (roughly 34 students in 2024), but gets smaller lower down to account for the full cohort.
                       </p>
                     </div>
