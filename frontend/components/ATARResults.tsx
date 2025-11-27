@@ -430,19 +430,22 @@ export function ATARResults({ results, breakdown }: Props) {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between">
                         <div className="flex flex-col min-w-0 flex-1 mr-2">
+                          <span className={`text-xs font-bold uppercase tracking-wider mb-0.5 truncate ${item.is_used ? 'text-brand-300' : 'text-slate-600'}`}>{item.subject}</span>
                           <span className={`text-sm font-medium truncate ${item.is_used ? 'text-slate-200' : 'text-slate-500'}`}>
                             {item.title}
                           </span>
                           <span className="text-xs text-slate-500">{item.standard_number}</span>
                         </div>
-                        <span className={`text-xs font-mono shrink-0 ${item.is_used ? 'text-slate-300' : 'text-slate-600'}`}>
-                          {item.weight_applied.toFixed(3)}
-                        </span>
+                        <div className="flex flex-col items-end shrink-0 ml-2">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Weight</span>
+                          <span className={`text-sm font-mono font-bold ${item.is_used ? 'text-brand-300' : 'text-slate-600'}`}>
+                            {(item.weight_applied * 100).toFixed(2)}%
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-xs text-slate-500 truncate max-w-[120px]">{item.subject}</span>
+                      <div className="flex items-center gap-2 mt-2">
                         {item.is_used && (
                           <div className="flex items-center gap-1">
                             {isAtMaxGrade && <CheckIcon className="w-3 h-3 text-emerald-500" />}
@@ -450,7 +453,7 @@ export function ATARResults({ results, breakdown }: Props) {
                               item.grade === 'Merit' ? 'bg-sky-500/10 text-sky-500' :
                                 'bg-emerald-500/10 text-emerald-500'
                               }`}>
-                              {item.grade[0]}
+                              {item.grade}
                             </span>
                           </div>
                         )}
@@ -469,7 +472,7 @@ export function ATARResults({ results, breakdown }: Props) {
                 <StarIcon className="w-5 h-5 text-amber-400" />
                 Best Potential Standards
               </h3>
-              <span className="text-xs text-slate-500">Sorted by Max Weight</span>
+              <span className="text-xs text-slate-500">Sorted by 2024 Weight</span>
             </div>
             <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-2 space-y-1">
               {standardsByWeight.standards.map((item, index) => (
@@ -478,26 +481,25 @@ export function ATARResults({ results, breakdown }: Props) {
                     {index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-slate-200 truncate">{item.title}</span>
-                      <span className="text-xs text-slate-500">{item.standard_number}</span>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex flex-col min-w-0 flex-1 mr-2">
+                        <span className="text-xs font-bold text-brand-300 uppercase tracking-wider mb-0.5 truncate">{item.subject}</span>
+                        <span className="text-sm font-medium text-slate-200 truncate">{item.title}</span>
+                        <span className="text-xs text-slate-500">{item.standard_number}</span>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-xs">
+                    <div className="grid grid-cols-3 gap-2 text-xs bg-slate-900/30 p-2 rounded-md">
                       <div className="flex flex-col">
-                        <span className="text-slate-500 text-[10px]">2024</span>
-                        <span className="font-mono text-slate-300">{item.weight_2024?.toFixed(3) || '-'}</span>
+                        <span className="text-brand-400 font-bold text-[10px] mb-0.5">2024 Weight</span>
+                        <span className="font-mono text-brand-300 font-bold">{item.weight_2024 ? (item.weight_2024 * 100).toFixed(2) + '%' : '-'}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-slate-500 text-[10px]">2023</span>
-                        <span className="font-mono text-slate-300">{item.weight_2023?.toFixed(3) || '-'}</span>
+                        <span className="text-slate-500 text-[10px] mb-0.5">2023 Weight</span>
+                        <span className="font-mono text-slate-300">{item.weight_2023 ? (item.weight_2023 * 100).toFixed(2) + '%' : '-'}</span>
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-slate-500 text-[10px]">2022</span>
-                        <span className="font-mono text-slate-300">{item.weight_2022?.toFixed(3) || '-'}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-amber-500/80 text-[10px]">Max</span>
-                        <span className="font-mono text-amber-400 font-bold">{item.max_weight.toFixed(3)}</span>
+                        <span className="text-slate-500 text-[10px] mb-0.5">2022 Weight</span>
+                        <span className="font-mono text-slate-300">{item.weight_2022 ? (item.weight_2022 * 100).toFixed(2) + '%' : '-'}</span>
                       </div>
                     </div>
                   </div>
