@@ -255,13 +255,15 @@ export default function Page() {
             )}
           </div>
 
-          <SelectedStandards
-            items={selectedItems}
-            onRemove={handleRemoveStandard}
-            onChangeGrade={handleChangeGrade}
-            onChangeYear={handleChangeYear}
-            onChangeVersion={handleChangeVersion}
-          />
+          <div className="max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+            <SelectedStandards
+              items={selectedItems}
+              onRemove={handleRemoveStandard}
+              onChangeGrade={handleChangeGrade}
+              onChangeYear={handleChangeYear}
+              onChangeVersion={handleChangeVersion}
+            />
+          </div>
 
           {/* Action Bar */}
           <div className="mt-8 pt-6 border-t border-white/5 flex flex-wrap items-center justify-between gap-4">
