@@ -197,7 +197,7 @@ export default function Page() {
       {/* Introduction */}
       <section className="panel p-8 md:p-10 animate-reveal-up">
         <h1 className="text-2xl md:text-3xl font-bold text-text-primary mb-3 tracking-tight">
-          Build your <span className="text-primary">NCEA profile</span>
+          NCEA results to an <span className="text-primary">ATAR.</span>
         </h1>
         <p className="text-sm text-text-secondary max-w-xl leading-relaxed">
           Search for your standards, assign your grades, and estimate your Australian ATAR ranking.

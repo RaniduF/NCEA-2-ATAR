@@ -43,7 +43,6 @@ export const metadata: Metadata = {
       'max-video-preview': -1,
     },
   },
-  icons: { icon: '/favicon.ico' },
   alternates: { canonical: '/' },
 };
 
@@ -64,9 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="fixed top-0 left-0 right-0 border-b border-border bg-surface-card/95 backdrop-blur-sm z-50 transition-all duration-300">
             <div className="max-w-[900px] mx-auto px-6 h-14 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-lg text-text-inverse">calculate</span>
-                </div>
+                <img src="/N-A_logo.svg" alt="NCEA → ATAR logo" className="w-8 h-8 object-contain" />
                 <span className="text-base font-bold tracking-tight text-text-primary">NCEA → ATAR</span>
               </div>
               <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-text-muted">
