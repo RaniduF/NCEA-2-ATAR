@@ -34,25 +34,21 @@ interface ToastContextValue {
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const ICONS: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircleIcon className="w-5 h-5 text-success-300" />,
-  error: <ExclamationCircleIcon className="w-5 h-5 text-error-300" />,
-  info: <InformationCircleIcon className="w-5 h-5 text-brand-300" />,
-  warning: <ExclamationTriangleIcon className="w-5 h-5 text-amber-300" />,
+  success: <CheckCircleIcon className="w-5 h-5 text-grade-achieved" />,
+  error: <ExclamationCircleIcon className="w-5 h-5 text-grade-notAchieved" />,
+  info: <InformationCircleIcon className="w-5 h-5 text-primary" />,
+  warning: <ExclamationTriangleIcon className="w-5 h-5 text-grade-excellence" />,
 };
 
 const TYPE_STYLES: Record<ToastType, string> = {
-  success: 'border-success-500/40 bg-success-500/15',
-  error: 'border-error-500/40 bg-error-500/15',
-  info: 'border-brand-500/40 bg-brand-500/10',
-  warning: 'border-amber-500/40 bg-amber-500/15',
+  success: 'border-grade-achieved/30 bg-success-50',
+  error: 'border-grade-notAchieved/30 bg-error-50',
+  info: 'border-primary/30 bg-primary-subtle',
+  warning: 'border-grade-excellence/30 bg-warning-50',
 };
 
 /**
  * Provides a context and UI for displaying toast notifications.
- *
- * Exposes an API (via context) with `showToast`, convenience methods `showSuccess`, `showError`, `showInfo`, `showWarning`, and `dismiss`; manages toast state, auto-dismiss timers, and renders a stacked list of toast cards with type-specific styling and icons alongside the provider's children.
- *
- * @returns The ToastContext provider element that renders its children and the active toast notifications.
  */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastInstance[]>([]);
@@ -110,15 +106,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-lg backdrop-blur ${TYPE_STYLES[toast.type]}`}
+            className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 border px-4 py-3 shadow-card-hover animate-fade-down ${TYPE_STYLES[toast.type]}`}
             role="status"
             aria-live="polite"
           >
             <div className="mt-0.5">{ICONS[toast.type]}</div>
-            <div className="flex-1 text-sm text-slate-100">{toast.message}</div>
+            <div className="flex-1 text-sm text-text-primary">{toast.message}</div>
             <button
               onClick={() => dismiss(toast.id)}
-              className="text-slate-300 hover:text-white"
+              className="text-text-muted hover:text-text-primary transition-colors"
               aria-label="Close notification"
             >
               <XMarkIcon className="w-4 h-4" />
@@ -132,9 +128,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
 /**
  * Retrieve the toast context API for showing and dismissing toasts.
- *
- * @returns The `ToastContextValue` providing `showToast`, `showSuccess`, `showError`, `showInfo`, `showWarning`, and `dismiss`.
- * @throws Error if called outside of a `ToastProvider`
  */
 export function useToast(): ToastContextValue {
   const context = useContext(ToastContext);
@@ -143,4 +136,3 @@ export function useToast(): ToastContextValue {
   }
   return context;
 }
-

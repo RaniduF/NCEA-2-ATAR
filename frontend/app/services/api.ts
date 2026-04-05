@@ -70,6 +70,7 @@ export interface ExcludedItem {
   subject?: string | null;
   grade?: string | null;
   weight_applied?: number | null;
+  weight_at_max_grade?: number | null;  // Weight at Excellence (Achievement) or Achieved (Unit Standard)
   standards_type?: string | null;
   assessment_type?: string | null;
   credits_available?: number | null;

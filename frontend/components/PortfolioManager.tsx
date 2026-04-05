@@ -4,35 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { portfolioService, type SavedPortfolio } from '../app/services/portfolio';
 import { nceaParser, type ParseResult } from '../app/services/ncea-parser';
 import type { SelectedItem } from '../app/page';
-import {
-  XMarkIcon,
-  DocumentArrowUpIcon,
-  DocumentArrowDownIcon,
-  TrashIcon,
-  FolderOpenIcon,
-  PlusIcon,
-  LightBulbIcon,
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  InformationCircleIcon,
-  CloudArrowUpIcon,
-  AcademicCapIcon,
-  BookmarkIcon,
-  EllipsisVerticalIcon,
-  PencilSquareIcon,
-  DocumentDuplicateIcon,
-  ArrowRightOnRectangleIcon,
-  ArrowsUpDownIcon,
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  Bars3BottomLeftIcon,
-  Squares2X2Icon,
-  ChevronDownIcon,
-  CalendarIcon,
-  ChartBarIcon,
-} from '@heroicons/react/24/outline';
-import { FolderIcon, DocumentTextIcon, StarIcon } from '@heroicons/react/24/solid';
-import { calculateATAR, type ATARResult } from '../app/services/api';
+
 import { useToast } from '../app/providers/ToastProvider';
 
 interface Props {
@@ -41,14 +13,6 @@ interface Props {
   onClose: () => void;
 }
 
-/**
- * Renders a modal Portfolio Manager UI for viewing, importing, exporting, renaming, duplicating, deleting, and loading saved portfolios.
- *
- * @param onLoadPortfolio - Callback invoked with portfolio data when the user loads a portfolio into the parent context.
- * @param isOpen - Controls whether the manager is visible.
- * @param onClose - Callback invoked to request closing the manager.
- * @returns The portfolio manager UI when open, otherwise null.
- */
 export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [portfolios, setPortfolios] = useState<SavedPortfolio[]>([]);
   const [storageInfo, setStorageInfo] = useState({ used: 0, available: 0, portfolioCount: 0 });
@@ -59,10 +23,10 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState<string>('');
-  const [atarPreviewById, setAtarPreviewById] = useState<Record<string, { loading: boolean; results: ATARResult[] | null; error?: string }>>({});
+
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'atar' | 'standards'>('updated');
+  const [sortBy, setSortBy] = useState<'updated' | 'name' | 'standards'>('updated');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showNameModal, setShowNameModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('NCEA Import');
@@ -77,7 +41,6 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
     const info = portfolioService.getStorageInfo();
     setPortfolios(savedPortfolios);
     setStorageInfo(info);
-    // Initialize selection
     if (savedPortfolios.length > 0) {
       const desired = idToSelect ?? selectedId;
       if (!desired || !savedPortfolios.find(p => p.id === desired)) {
@@ -90,65 +53,24 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
     }
   }, [selectedId]);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadPortfolios();
-    }
-  }, [isOpen, loadPortfolios]);
+  useEffect(() => { if (isOpen) loadPortfolios(); }, [isOpen, loadPortfolios]);
 
-  // Lock body scroll when the manager is open
   useEffect(() => {
     if (!isOpen) return;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
+    return () => { document.body.style.overflow = originalOverflow; };
   }, [isOpen]);
 
-  // Load preview lazily when selection changes
-  useEffect(() => {
-    const id = selectedId;
-    if (!id || atarPreviewById[id]) return;
-    const p = portfolios.find(x => x.id === id);
-    if (!p) return;
-    let isCancelled = false;
-    (async () => {
-      setAtarPreviewById(prev => ({ ...prev, [id]: { loading: true, results: null } }));
-      try {
-        const payload = p.items.map(item => ({
-          standard_number: item.standard.standard_number,
-          grade: item.grade,
-          year_achieved: item.year_achieved,
-          standard_version: item.standard_version
-        }));
-        const results = await calculateATAR(payload);
-        if (!isCancelled) {
-          setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results } }));
-        }
-      } catch (e: any) {
-        if (!isCancelled) {
-          setAtarPreviewById(prev => ({ ...prev, [id]: { loading: false, results: null, error: 'Failed to preview ATAR' } }));
-        }
-      }
-    })();
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedId, portfolios, atarPreviewById]);
+
 
   const handleRenameCommit = (p: SavedPortfolio) => {
     const name = renamingValue.trim();
-    if (!name || name === p.name) {
-      setRenamingId(null);
-      return;
-    }
+    if (!name || name === p.name) { setRenamingId(null); return; }
     const updated = portfolioService.updatePortfolio(p.id, { name });
     if (updated) {
       setPortfolios(prev => prev.map(x => (x.id === p.id ? updated : x)));
-      if (selectedId === p.id) {
-        setSelectedId(updated.id);
-      }
+      if (selectedId === p.id) setSelectedId(updated.id);
     }
     setRenamingId(null);
   };
@@ -201,11 +123,8 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
         reader.onload = (e) => {
           const result = e.target?.result as string;
           const imported = portfolioService.importPortfolio(result);
-          if (imported) {
-            loadPortfolios();
-          } else {
-            showError('Failed to import portfolio. Please check the file format.');
-          }
+          if (imported) loadPortfolios();
+          else showError('Failed to import portfolio. Please check the file format.');
         };
         reader.readAsText(file);
       }
@@ -214,11 +133,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   };
 
   const handleParseNCEAText = async () => {
-    if (!nceaText.trim()) {
-      showInfo('Please paste your NCEA portal text first');
-      return;
-    }
-
+    if (!nceaText.trim()) { showInfo('Please paste your NCEA portal text first'); return; }
     setIsParsingNCEA(true);
     try {
       const result = await nceaParser.parseNCEAPortalText(nceaText);
@@ -232,18 +147,9 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   };
 
   const handleImportParsedStandards = (name: string) => {
-    if (!parseResult?.validStandards.length) {
-      showWarning('No valid standards to import');
-      return;
-    }
-
-    const imported = portfolioService.savePortfolio(
-      name.trim() || 'NCEA Import',
-      parseResult.validStandards,
-      `Imported from NCEA portal - ${parseResult.summary.validInDatabase} standards`
-    );
+    if (!parseResult?.validStandards.length) { showWarning('No valid standards to import'); return; }
+    portfolioService.savePortfolio(name.trim() || 'NCEA Import', parseResult.validStandards, `Imported from NCEA portal - ${parseResult.summary.validInDatabase} standards`);
     loadPortfolios();
-    // Reset NCEA import state and close naming modal
     setShowNameModal(false);
     setNewPortfolioName('NCEA Import');
     setShowNCEAImport(false);
@@ -252,29 +158,15 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   };
 
   const handleLoadParsedStandards = () => {
-    if (!parseResult?.validStandards.length) {
-      showWarning('No valid standards to load');
-      return;
-    }
-
+    if (!parseResult?.validStandards.length) { showWarning('No valid standards to load'); return; }
     onLoadPortfolio({ items: parseResult.validStandards });
-    // Reset state so next open shows saved portfolios view
     setShowNCEAImport(false);
     setNCEAText('');
     setParseResult(null);
     onClose();
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-NZ', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
+  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('en-NZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const formatStorageSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -282,163 +174,109 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
   };
 
   const getSubjects = (p: SavedPortfolio) => Array.from(new Set(p.items.map(item => item.standard.subject || 'Other')));
-  const getLatestATAR = (p: SavedPortfolio): number | null => {
-    const preview = atarPreviewById[p.id];
-    if (preview?.results && preview.results.length > 0) {
-      const sorted = [...preview.results].sort((a, b) => a.year - b.year);
-      return sorted[sorted.length - 1].estimated_atar;
-    }
-    return null;
-  };
 
-  // Derived list with search and sort
+
   const filteredPortfolios = portfolios
     .filter(p => {
       const q = searchTerm.trim().toLowerCase();
       if (!q) return true;
-      const haystack = [
-        p.name,
-        p.description || '',
-        ...getSubjects(p),
-      ].join(' ').toLowerCase();
-      return haystack.includes(q);
+      return [p.name, p.description || '', ...getSubjects(p)].join(' ').toLowerCase().includes(q);
     })
     .sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1;
-      if (sortBy === 'updated') {
-        return dir * (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
-      }
-      if (sortBy === 'name') {
-        return dir * a.name.localeCompare(b.name);
-      }
-      if (sortBy === 'standards') {
-        return dir * (a.items.length - b.items.length);
-      }
-      // ATAR sort (use cached previews only; unknowns go to the end)
-      const va = getLatestATAR(a);
-      const vb = getLatestATAR(b);
-      const aVal = va == null ? (sortDir === 'asc' ? Infinity : -Infinity) : va;
-      const bVal = vb == null ? (sortDir === 'asc' ? Infinity : -Infinity) : vb;
-      return dir * (aVal - bVal);
+      if (sortBy === 'updated') return dir * (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+      if (sortBy === 'name') return dir * a.name.localeCompare(b.name);
+      if (sortBy === 'standards') return dir * (a.items.length - b.items.length);
+      return 0;
     });
 
-  const selected = selectedId ? portfolios.find(p => p.id === selectedId) || null : null;
-  const selectedPreview = selected ? atarPreviewById[selected.id] : undefined;
-
   const getSortLabel = () => {
-    const labels: Record<typeof sortBy, string> = {
-      updated: 'Last Updated',
-      name: 'Name',
-      atar: 'ATAR Score',
-      standards: 'Standards Count'
-    };
+    const labels: Record<typeof sortBy, string> = { updated: 'Last updated', name: 'Name', standards: 'Standards count' };
     return labels[sortBy];
   };
 
   if (!isOpen) return null;
- 
+
   return (
-   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-reveal-in">
-      <div className="card w-full max-w-[min(95vw,80rem)] max-h-[90vh] overflow-hidden animate-scale-in shadow-2xl">
-        {/* Modern Header with gradient */}
-        <div className="relative bg-gradient-to-r from-brand-600/20 to-brand-500/10 border-b border-white/10">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 animate-reveal-in">
+      <div className="bg-surface-card border border-border shadow-modal w-full max-w-[min(95vw,80rem)] max-h-[90vh] overflow-hidden animate-scale-in">
+        {/* Header */}
+        <div className="bg-surface-elevated border-b border-border">
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-brand-500/20 rounded-xl border border-brand-400/30">
-                <FolderIcon className="w-7 h-7 text-brand-400" />
+              <div className="w-10 h-10 bg-primary flex items-center justify-center text-text-inverse">
+                <span className="material-symbols-outlined text-xl">folder</span>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-slate-100">Portfolio Manager</h2>
-                <div className="flex items-center gap-3 mt-1 text-sm text-slate-400">
+                <h2 className="text-lg font-bold text-text-primary">Portfolio manager</h2>
+                <div className="flex items-center gap-3 mt-1 text-xs text-text-muted font-medium">
                   <span className="flex items-center gap-1.5">
-                    <BookmarkIcon className="w-4 h-4" />
+                    <span className="material-symbols-outlined text-xs">bookmark</span>
                     {storageInfo.portfolioCount} portfolios
                   </span>
-                  <span className="text-slate-600">•</span>
+                  <span>·</span>
                   <span>{formatStorageSize(storageInfo.used)} storage used</span>
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowNCEAImport(true)}
-                className="btn-primary flex items-center gap-2 px-4 py-2.5 shadow-lg shadow-brand-500/20"
-                title="Import from NCEA Portal"
-              >
-                <CloudArrowUpIcon className="w-5 h-5" />
+              <button onClick={() => setShowNCEAImport(true)} className="btn-primary flex items-center gap-2 px-4 py-2.5" title="Import from NCEA Portal">
+                <span className="material-symbols-outlined text-lg">cloud_upload</span>
                 <span className="hidden sm:inline">Import from NCEA</span>
               </button>
-              <button
-                onClick={handleImportPortfolio}
-                className="btn-ghost px-3 py-2.5"
-                title="Import JSON File"
-              >
-                <DocumentArrowUpIcon className="w-5 h-5" />
+              <button onClick={handleImportPortfolio} className="btn-ghost px-3 py-2.5" title="Import JSON File">
+                <span className="material-symbols-outlined text-lg">upload_file</span>
               </button>
-              <button
-                onClick={onClose}
-                className="btn-ghost px-3 py-2.5 hover:bg-red-500/10 hover:text-red-400"
-                title="Close"
-              >
-                <XMarkIcon className="w-5 h-5" />
+              <button onClick={onClose} className="btn-ghost px-3 py-2.5 hover:bg-error-50 hover:text-error-500 hover:border-error-200" title="Close">
+                <span className="material-symbols-outlined text-lg">close</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Toolbar with search and controls */}
-        <div className="px-6 py-4 bg-slate-800/30 border-b border-white/5">
+        {/* Toolbar */}
+        <div className="px-6 py-4 bg-surface-base border-b border-border">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex-1 min-w-[200px] max-w-md relative">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-text-muted">search</span>
               <input
-                className="input w-full pl-10 bg-slate-900/50 border-white/10 focus:border-brand-500/50"
+                className="input w-full pl-10"
                 placeholder="Search portfolios by name, subject..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Search portfolios"
               />
             </div>
-            
+
             {/* Sort Dropdown */}
             <div className="relative">
-              <button
-                className="btn-ghost px-4 py-2 flex items-center gap-2"
-                onClick={() => setShowSortMenu(!showSortMenu)}
-                aria-label="Sort options"
-              >
-                <ArrowsUpDownIcon className="w-4 h-4" />
-                <span className="text-sm">{getSortLabel()}</span>
-                <ChevronDownIcon className="w-4 h-4" />
+              <button className="btn-ghost px-4 py-2 flex items-center gap-2" onClick={() => setShowSortMenu(!showSortMenu)} aria-label="Sort options">
+                <span className="material-symbols-outlined text-sm">swap_vert</span>
+                <span className="text-xs">{getSortLabel()}</span>
+                <span className="material-symbols-outlined text-sm">expand_more</span>
               </button>
               {showSortMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowSortMenu(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-56 bg-slate-800 border border-white/10 rounded-xl p-1 z-20 shadow-2xl" role="menu">
-                    <div className="text-xs font-semibold text-slate-400 px-3 py-2 uppercase tracking-wider">Sort By</div>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-surface-card border border-border p-1 z-20 shadow-modal" role="menu">
+                    <div className="text-[10px] font-bold text-text-muted px-3 py-2 uppercase tracking-wider">Sort by</div>
                     {[
-                      { value: 'updated' as const, label: 'Last Updated', icon: CalendarIcon },
-                      { value: 'name' as const, label: 'Name', icon: Bars3BottomLeftIcon },
-                      { value: 'atar' as const, label: 'ATAR Score', icon: ChartBarIcon },
-                      { value: 'standards' as const, label: 'Standards Count', icon: DocumentTextIcon },
-                    ].map(({ value, label, icon: Icon }) => (
+                      { value: 'updated' as const, label: 'Last updated', icon: 'calendar_today' },
+                      { value: 'name' as const, label: 'Name', icon: 'sort_by_alpha' },
+                      { value: 'standards' as const, label: 'Standards count', icon: 'description' },
+                    ].map(({ value, label, icon }) => (
                       <button
                         key={value}
-                        className={`menu-item text-sm flex items-center gap-3 ${sortBy === value ? 'text-brand-400 bg-brand-500/20 border-l-2 border-brand-400 font-semibold' : ''}`}
+                        className={`menu-item text-xs flex items-center gap-3 font-medium ${sortBy === value ? 'text-primary bg-primary-subtle border-l-2 border-primary' : ''}`}
                         onClick={() => {
-                          if (sortBy === value) {
-                            setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-                          } else {
-                            setSortBy(value);
-                          }
+                          if (sortBy === value) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                          else setSortBy(value);
                           setShowSortMenu(false);
                         }}
                       >
-                        <Icon className="w-4 h-4" />
+                        <span className="material-symbols-outlined text-sm">{icon}</span>
                         <span className="flex-1">{label}</span>
-                        {sortBy === value && (
-                          <span className="text-xs font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                        )}
+                        {sortBy === value && <span className="text-xs font-bold">{sortDir === 'asc' ? '↑' : '↓'}</span>}
                       </button>
                     ))}
                   </div>
@@ -447,26 +285,16 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-slate-900/50 rounded-lg p-1 border border-white/5">
-              <button
-                className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-300'}`}
-                onClick={() => setViewMode('grid')}
-                title="Grid View"
-                aria-label="Grid view"
-              >
-                <Squares2X2Icon className="w-4 h-4" />
+            <div className="flex items-center gap-0 border border-border">
+              <button className={`px-3 py-1.5 transition-all ${viewMode === 'grid' ? 'bg-primary text-text-inverse' : 'text-text-muted hover:text-text-primary bg-surface-card'}`} onClick={() => setViewMode('grid')} title="Grid View">
+                <span className="material-symbols-outlined text-sm">grid_view</span>
               </button>
-              <button
-                className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-brand-500/20 text-brand-400' : 'text-slate-400 hover:text-slate-300'}`}
-                onClick={() => setViewMode('list')}
-                title="List View"
-                aria-label="List view"
-              >
-                <Bars3BottomLeftIcon className="w-4 h-4" />
+              <button className={`px-3 py-1.5 transition-all ${viewMode === 'list' ? 'bg-primary text-text-inverse' : 'text-text-muted hover:text-text-primary bg-surface-card'}`} onClick={() => setViewMode('list')} title="List View">
+                <span className="material-symbols-outlined text-sm">view_list</span>
               </button>
             </div>
 
-            <div className="text-sm text-slate-400">
+            <div className="text-xs text-text-muted font-medium">
               {filteredPortfolios.length} of {portfolios.length}
             </div>
           </div>
@@ -475,77 +303,65 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-12rem)]">
           {portfolios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <div className="p-6 bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-700 mb-6">
-                <FolderIcon className="w-20 h-20 text-slate-600 mx-auto" />
+              <div className="p-6 bg-surface-elevated border border-dashed border-border mb-6">
+                <span className="material-symbols-outlined text-6xl text-text-muted">folder</span>
               </div>
-              <h3 className="text-xl font-semibold text-slate-300 mb-2">No Portfolios Yet</h3>
-              <p className="text-slate-500 text-center max-w-md mb-6">
+              <h3 className="text-lg font-bold text-text-secondary mb-2">No portfolios yet</h3>
+              <p className="text-text-muted text-center max-w-md mb-6 text-sm">
                 Create your first portfolio by adding NCEA standards and saving, or import directly from your NCEA portal.
               </p>
-              <button
-                onClick={() => setShowNCEAImport(true)}
-                className="btn-primary flex items-center gap-2 shadow-lg"
-              >
-                <CloudArrowUpIcon className="w-5 h-5" />
-                Import from NCEA Portal
+              <button onClick={() => setShowNCEAImport(true)} className="btn-primary flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">cloud_upload</span>
+                Import from NCEA portal
               </button>
             </div>
           ) : filteredPortfolios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
-              <MagnifyingGlassIcon className="w-16 h-16 text-slate-600 mb-4" />
-              <h3 className="text-lg font-medium text-slate-400 mb-2">No portfolios found</h3>
-              <p className="text-slate-500 text-sm">Try adjusting your search or filters</p>
+              <span className="material-symbols-outlined text-6xl text-text-muted mb-4">search</span>
+              <h3 className="text-lg font-bold text-text-secondary mb-2">No portfolios found</h3>
+              <p className="text-text-muted text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
             <>
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredPortfolios.map(p => {
-                    const lp = atarPreviewById[p.id];
-                    const latestATAR = lp?.results && lp.results.length > 0
-                      ? [...lp.results].sort((a,b)=>a.year-b.year)[lp.results.length-1].estimated_atar
-                      : null;
+                  {filteredPortfolios.map((p, idx) => {
                     const subjects = getSubjects(p);
-                    
+
                     return (
                       <div
                         key={p.id}
-                        className="panel p-5 group cursor-pointer card-hover relative overflow-hidden"
+                        className="panel p-5 group cursor-pointer hover:border-primary relative overflow-hidden transition-all stagger-item"
+                        style={{ '--stagger-index': idx } as React.CSSProperties}
                         onClick={() => handleLoadPortfolio(p)}
-                        role="button"
-                        tabIndex={0}
+                        role="button" tabIndex={0}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadPortfolio(p); } }}
                         aria-label={`Load ${p.name}`}
                       >
-                        {/* Gradient accent */}
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-brand-500 to-brand-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        
+                        {/* Accent bar */}
+                        <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1 min-w-0">
                             {renamingId === p.id ? (
                               <input
-                                className="input text-base font-semibold px-2 py-1 -ml-2"
+                                className="input text-sm font-bold px-2 py-1 -ml-2"
                                 value={renamingValue}
                                 onChange={(e) => setRenamingValue(e.target.value)}
                                 onBlur={() => handleRenameCommit(p)}
                                 onClick={(e) => e.stopPropagation()}
-                                onKeyDown={(e) => {
-                                  e.stopPropagation();
-                                  if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                                  if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); }
-                                }}
+                                onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); } }}
                                 autoFocus
                               />
                             ) : (
-                              <h3 className="text-lg font-semibold text-slate-100 truncate flex items-center gap-2 group/title">
+                              <h3 className="text-sm font-bold text-text-primary truncate flex items-center gap-2 group/title tracking-tight">
                                 <span className="truncate">{p.name}</span>
                                 <button
-                                  className="opacity-0 group-hover/title:opacity-100 text-slate-400 hover:text-brand-400 transition-all flex-shrink-0"
+                                  className="opacity-0 group-hover/title:opacity-100 text-text-muted hover:text-primary transition-all flex-shrink-0"
                                   onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }}
-                                  aria-label="Rename"
-                                  title="Rename"
+                                  aria-label="Rename" title="Rename"
                                 >
-                                  <PencilSquareIcon className="w-4 h-4" />
+                                  <span className="material-symbols-outlined text-sm">edit</span>
                                 </button>
                               </h3>
                             )}
@@ -554,91 +370,63 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
                             <button
                               className="btn-ghost !px-2 !py-1.5 opacity-0 group-hover:opacity-100 transition-opacity relative z-10"
                               onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }}
-                              aria-label="More options"
-                              title="More"
+                              aria-label="More options" title="More"
                             >
-                              <EllipsisVerticalIcon className="w-4 h-4" />
+                              <span className="material-symbols-outlined text-sm">more_vert</span>
                             </button>
                             {openMenuId === p.id && (
-                                <>
-                                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                                  <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl p-1 z-50 shadow-2xl" role="menu" onClick={(e) => e.stopPropagation()}>
-                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
-                                      <DocumentArrowDownIcon className="w-4 h-4" />
-                                      Export JSON
-                                    </button>
-                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
-                                      <DocumentDuplicateIcon className="w-4 h-4" />
-                                      Duplicate
-                                    </button>
-                                    <div className="h-px bg-white/10 my-1" />
-                                    <button className="menu-item text-sm text-error-400 hover:bg-error-500/10 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
-                                      <TrashIcon className="w-4 h-4" />
-                                      Delete
-                                    </button>
-                                  </div>
-                                </>
-                              )}
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-surface-card border border-border p-1 z-50 shadow-modal" role="menu" onClick={(e) => e.stopPropagation()}>
+                                  <button className="menu-item text-xs flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">download</span> Export JSON
+                                  </button>
+                                  <button className="menu-item text-xs flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">content_copy</span> Duplicate
+                                  </button>
+                                  <div className="h-px bg-border my-1" />
+                                  <button className="menu-item text-xs text-error-500 hover:bg-error-50 flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">delete</span> Delete
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
-                        {/* ATAR Score Display */}
-                        <div className="mb-4">
-                          {lp?.loading ? (
-                            <div className="flex items-center gap-2 text-slate-400">
-                              <div className="w-4 h-4 border-2 border-slate-600 border-t-brand-400 rounded-full animate-spin" />
-                              <span className="text-sm">Calculating...</span>
-                            </div>
-                          ) : latestATAR ? (
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-3xl font-bold text-brand-400">{latestATAR.toFixed(2)}</span>
-                              <span className="text-sm text-slate-500">ATAR</span>
-                            </div>
-                          ) : (
-                            <div className="text-slate-500 text-sm">No ATAR preview</div>
-                          )}
-                        </div>
+
 
                         {/* Stats Grid */}
                         <div className="grid grid-cols-2 gap-3 mb-4">
-                          <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
-                            <div className="text-xs text-slate-500 mb-1">Standards</div>
-                            <div className="text-lg font-semibold text-slate-300">{p.items.length}</div>
+                          <div className="bg-surface-base border border-border p-3">
+                            <div className="text-[10px] text-text-muted mb-1 font-medium">Standards</div>
+                            <div className="text-lg font-bold text-text-primary font-mono">{p.items.length}</div>
                           </div>
-                          <div className="bg-slate-900/50 rounded-lg p-3 border border-white/5">
-                            <div className="text-xs text-slate-500 mb-1">Subjects</div>
-                            <div className="text-lg font-semibold text-slate-300">{subjects.length}</div>
+                          <div className="bg-surface-base border border-border p-3">
+                            <div className="text-[10px] text-text-muted mb-1 font-medium">Subjects</div>
+                            <div className="text-lg font-bold text-text-primary font-mono">{subjects.length}</div>
                           </div>
                         </div>
 
                         {/* Subjects Pills */}
                         <div className="flex flex-wrap gap-1.5 mb-3">
                           {subjects.slice(0, 3).map(s => (
-                            <span key={s} className="px-2 py-1 text-xs rounded-md bg-brand-500/10 text-brand-300 border border-brand-500/20">
-                              {s}
-                            </span>
+                            <span key={s} className="px-2 py-1 text-[10px] bg-primary-subtle text-primary border border-primary/20 font-medium">{s}</span>
                           ))}
                           {subjects.length > 3 && (
-                            <span className="px-2 py-1 text-xs rounded-md bg-slate-700/50 text-slate-400 border border-white/5">
-                              +{subjects.length - 3} more
-                            </span>
+                            <span className="px-2 py-1 text-[10px] bg-surface-elevated text-text-muted border border-border font-medium">+{subjects.length - 3} more</span>
                           )}
                         </div>
 
-                        {/* Footer with timestamp */}
-                        <div className="text-xs text-slate-500 pt-3 border-t border-white/5">
+                        <div className="text-[10px] text-text-muted pt-3 border-t border-border font-medium">
                           Updated {formatDate(p.updatedAt)}
                         </div>
 
-                        {/* Load button overlay on hover */}
+                        {/* Load button overlay */}
                         {openMenuId !== p.id && (
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 pointer-events-none">
-                            <button
-                              className="btn-primary flex items-center gap-2 shadow-xl pointer-events-auto"
-                              onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}
-                            >
-                              <FolderOpenIcon className="w-4 h-4" />
-                              Load Portfolio
+                          <div className="absolute inset-0 bg-surface-card/90 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 pointer-events-none">
+                            <button className="btn-primary flex items-center gap-2 pointer-events-auto" onClick={(e) => { e.stopPropagation(); handleLoadPortfolio(p); }}>
+                              <span className="material-symbols-outlined text-sm">folder_open</span> Load portfolio
                             </button>
                           </div>
                         )}
@@ -649,119 +437,70 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
               ) : (
                 // List View
                 <div className="space-y-2">
-                  {filteredPortfolios.map(p => {
-                    const lp = atarPreviewById[p.id];
-                    const latestATAR = lp?.results && lp.results.length > 0
-                      ? [...lp.results].sort((a,b)=>a.year-b.year)[lp.results.length-1].estimated_atar
-                      : null;
+                  {filteredPortfolios.map((p, idx) => {
                     const subjects = getSubjects(p);
-                    
+
                     return (
                       <div
                         key={p.id}
-                        className="panel p-4 group cursor-pointer card-hover flex items-center gap-4"
+                        className="panel p-4 group cursor-pointer hover:border-primary flex items-center gap-4 transition-all stagger-item"
+                        style={{ '--stagger-index': idx } as React.CSSProperties}
                         onClick={() => handleLoadPortfolio(p)}
-                        role="button"
-                        tabIndex={0}
+                        role="button" tabIndex={0}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLoadPortfolio(p); } }}
                         aria-label={`Load ${p.name}`}
                       >
-                        {/* Icon */}
-                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
-                          <DocumentTextIcon className="w-6 h-6 text-brand-400" />
+                        <div className="flex-shrink-0 w-10 h-10 bg-primary-subtle border border-primary/20 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-lg text-primary">description</span>
                         </div>
 
-                        {/* Content */}
                         <div className="flex-1 min-w-0">
                           {renamingId === p.id ? (
-                            <input
-                              className="input text-base font-semibold px-2 py-1 -ml-2 w-full"
-                              value={renamingValue}
-                              onChange={(e) => setRenamingValue(e.target.value)}
-                              onBlur={() => handleRenameCommit(p)}
-                              onClick={(e) => e.stopPropagation()}
-                              onKeyDown={(e) => {
-                                e.stopPropagation();
-                                if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur();
-                                if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); }
-                              }}
-                              autoFocus
-                            />
+                            <input className="input text-sm font-bold px-2 py-1 -ml-2 w-full" value={renamingValue} onChange={(e) => setRenamingValue(e.target.value)} onBlur={() => handleRenameCommit(p)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur(); if (e.key === 'Escape') { setRenamingId(null); setRenamingValue(p.name); } }} autoFocus />
                           ) : (
                             <div className="flex items-center gap-2 mb-1 group/title">
-                              <h3 className="text-base font-semibold text-slate-100 truncate">{p.name}</h3>
-                              <button
-                                className="opacity-0 group-hover/title:opacity-100 text-slate-400 hover:text-brand-400 transition-all flex-shrink-0"
-                                onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }}
-                                aria-label="Rename"
-                                title="Rename"
-                              >
-                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              <h3 className="text-sm font-bold text-text-primary truncate tracking-tight">{p.name}</h3>
+                              <button className="opacity-0 group-hover/title:opacity-100 text-text-muted hover:text-primary transition-all flex-shrink-0" onClick={(e) => { e.stopPropagation(); setRenamingId(p.id); setRenamingValue(p.name); }} aria-label="Rename" title="Rename">
+                                <span className="material-symbols-outlined text-xs">edit</span>
                               </button>
                             </div>
                           )}
-                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                          <div className="flex items-center gap-3 text-[10px] text-text-muted font-medium">
                             <span>{p.items.length} standards</span>
-                            <span className="text-slate-600">•</span>
+                            <span>·</span>
                             <span>{subjects.length} subjects</span>
-                            <span className="text-slate-600">•</span>
+                            <span>·</span>
                             <span>{formatDate(p.updatedAt)}</span>
                           </div>
                         </div>
 
-                        {/* ATAR Score */}
-                        <div className="flex-shrink-0 text-right">
-                          {lp?.loading ? (
-                            <div className="w-4 h-4 border-2 border-slate-600 border-t-brand-400 rounded-full animate-spin" />
-                          ) : latestATAR ? (
-                            <div>
-                              <div className="text-2xl font-bold text-brand-400">{latestATAR.toFixed(2)}</div>
-                              <div className="text-xs text-slate-500">ATAR</div>
-                            </div>
-                          ) : (
-                            <div className="text-slate-600 text-sm">—</div>
-                          )}
-                        </div>
 
-                        {/* Actions */}
+
                         <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            className="btn-ghost !px-2 !py-2"
-                            onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); }}
-                            title="Duplicate"
-                            aria-label="Duplicate"
-                          >
-                            <DocumentDuplicateIcon className="w-4 h-4" />
+                          <button className="btn-ghost !px-2 !py-2" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); }} title="Duplicate">
+                            <span className="material-symbols-outlined text-sm">content_copy</span>
                           </button>
                           <div className="relative">
-                            <button
-                              className="btn-ghost !px-2 !py-2"
-                              onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }}
-                              aria-label="More options"
-                              title="More"
-                            >
-                              <EllipsisVerticalIcon className="w-4 h-4" />
+                            <button className="btn-ghost !px-2 !py-2" onClick={(e) => { e.stopPropagation(); setOpenMenuId(prev => prev === p.id ? null : p.id); }} aria-label="More options" title="More">
+                              <span className="material-symbols-outlined text-sm">more_vert</span>
                             </button>
                             {openMenuId === p.id && (
-                                <>
-                                  <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
-                                  <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-white/10 rounded-xl p-1 z-50 shadow-2xl" role="menu" onClick={(e) => e.stopPropagation()}>
-                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
-                                      <DocumentArrowDownIcon className="w-4 h-4" />
-                                      Export JSON
-                                    </button>
-                                    <button className="menu-item text-sm flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
-                                      <DocumentDuplicateIcon className="w-4 h-4" />
-                                      Duplicate
-                                    </button>
-                                    <div className="h-px bg-white/10 my-1" />
-                                    <button className="menu-item text-sm text-error-400 hover:bg-error-500/10 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
-                                      <TrashIcon className="w-4 h-4" />
-                                      Delete
-                                    </button>
-                                  </div>
-                                </>
-                              )}
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-surface-card border border-border p-1 z-50 shadow-modal" role="menu" onClick={(e) => e.stopPropagation()}>
+                                  <button className="menu-item text-xs flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleExportPortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">download</span> Export JSON
+                                  </button>
+                                  <button className="menu-item text-xs flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleDuplicatePortfolio(p); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">content_copy</span> Duplicate
+                                  </button>
+                                  <div className="h-px bg-border my-1" />
+                                  <button className="menu-item text-xs text-error-500 hover:bg-error-50 flex items-center gap-2 font-medium" onClick={(e) => { e.stopPropagation(); handleDeletePortfolio(p.id, p.name); setOpenMenuId(null); }}>
+                                    <span className="material-symbols-outlined text-sm">delete</span> Delete
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -773,279 +512,238 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose }: Props) {
           )}
         </div>
       </div>
- 
-       {/* NCEA Import Modal */}
-       {showNCEAImport && (
-         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-60 animate-reveal-in">
-           <div className="card w-full max-w-[min(92vw,60rem)] max-h-[90vh] overflow-hidden animate-scale-in shadow-2xl">
-             <div className="relative bg-gradient-to-r from-brand-600/20 to-brand-500/10 border-b border-white/10">
-               <div className="p-6 flex items-center justify-between">
-                 <div className="flex items-center gap-4">
-                   <div className="p-3 bg-brand-500/20 rounded-xl border border-brand-400/30">
-                     <CloudArrowUpIcon className="w-7 h-7 text-brand-400" />
-                   </div>
-                   <div>
-                     <h3 className="text-2xl font-bold text-slate-100">Import from NCEA Portal</h3>
-                     <p className="text-slate-400 text-sm mt-1">
-                       Copy all text from your NCEA portal and paste below to auto-import standards
-                     </p>
-                   </div>
-                 </div>
-                 <button
-                   onClick={() => {
-                     setShowNCEAImport(false);
-                     setNCEAText('');
-                     setParseResult(null);
-                   }}
-                   className="btn-ghost hover:bg-red-500/10 hover:text-red-400"
-                   title="Close"
-                 >
-                   <XMarkIcon className="w-5 h-5" />
-                 </button>
-               </div>
-             </div>
- 
-             <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
-               {!parseResult ? (
-                 <div className="space-y-6">
-                   <div>
-                     <label className="block text-slate-300 text-sm font-semibold mb-3 flex items-center gap-2">
-                       <DocumentTextIcon className="w-5 h-5 text-brand-400" />
-                       NCEA Portal Text
-                     </label>
-                     <textarea
-                       value={nceaText}
-                       onChange={(e) => setNCEAText(e.target.value)}
-                       placeholder="Paste your NCEA portal text here... (should include standards tables with Std., Ver., Asm., Title, Lvl., Credits, Result columns)"
-                       className="input h-80 font-mono text-sm bg-slate-900/50 border-white/10 focus:border-brand-500/50"
-                     />
-                   </div>
-                   <div className="flex items-start justify-between gap-4 flex-wrap">
-                     <div className="flex items-start gap-3 text-slate-400 text-sm bg-amber-500/10 px-4 py-3 rounded-xl border border-amber-500/20 flex-1 min-w-[280px]">
-                       <LightBulbIcon className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                       <div>
-                         <div className="font-medium text-amber-300 mb-1">Quick Tip</div>
-                         <div className="text-amber-200/80">Press <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-xs border border-white/10">Ctrl+A</kbd> on your NCEA portal page, then <kbd className="px-1.5 py-0.5 bg-slate-800 rounded text-xs border border-white/10">Ctrl+C</kbd> to copy, and paste here.</div>
-                       </div>
-                     </div>
-                     <button
-                       onClick={handleParseNCEAText}
-                       disabled={!nceaText.trim() || isParsingNCEA}
-                       className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed shadow-lg px-6 py-3"
-                     >
-                       {isParsingNCEA ? (
-                         <>
-                           <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                           Parsing...
-                         </>
-                       ) : (
-                         <>
-                           <CheckCircleIcon className="w-5 h-5" />
-                           Parse Standards
-                         </>
-                       )}
-                     </button>
-                   </div>
-                 </div>
-               ) : (
-                 <div className="space-y-6">
-                   {/* Parse Results Summary */}
-                   <div className="panel p-5">
-                     <h4 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                       <InformationCircleIcon className="w-5 h-5 text-brand-400" />
-                       Import Summary
-                     </h4>
-                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                       <div className="text-center p-3 rounded-lg bg-slate-700/50">
-                         <div className="text-2xl font-bold text-slate-300 mb-1">{parseResult.summary.totalFound}</div>
-                         <div className="text-slate-500 text-xs">Total Standards</div>
-                       </div>
-                       <div className="text-center p-3 rounded-lg bg-brand-500/10 border border-brand-500/20">
-                         <div className="text-2xl font-bold text-brand-400 mb-1">{parseResult.summary.level3Found}</div>
-                         <div className="text-slate-500 text-xs">Level 3 Standards</div>
-                       </div>
-                       <div className="text-center p-3 rounded-lg bg-success-500/10 border border-success-500/20">
-                         <div className="text-2xl font-bold text-success-400 mb-1">{parseResult.summary.validInDatabase}</div>
-                         <div className="text-slate-500 text-xs">Valid for ATAR</div>
-                       </div>
-                       <div className="text-center p-3 rounded-lg bg-error-500/10 border border-error-500/20">
-                         <div className="text-2xl font-bold text-error-400 mb-1">{parseResult.summary.invalidNotInDatabase}</div>
-                         <div className="text-slate-500 text-xs">Not in Database</div>
-                       </div>
-                     </div>
-                     {parseResult.missingGrades > 0 && (
-                       <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm flex items-start gap-2">
-                         <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
-                         <span>
-                           {parseResult.missingGrades} standard(s) did not have a grade on NZQA. We&apos;ve defaulted these to Achieved. Please review and manually adjust grades if needed.
-                         </span>
-                       </div>
-                     )}
-                   </div>
- 
-                   {/* Valid Standards */}
-                   {parseResult.validStandards.length > 0 && (
-                     <div className="panel p-5">
-                       <h4 className="font-semibold text-success-400 mb-4 flex items-center gap-2">
-                         <CheckCircleIcon className="w-5 h-5" />
-                         Standards Ready for Import ({parseResult.validStandards.length})
-                       </h4>
-                       <div className="space-y-2 max-h-48 overflow-y-auto">
-                         {parseResult.validStandards.map((item, index) => (
-                           <div key={index} className="flex items-center justify-between text-sm bg-slate-700/50 rounded-lg p-3 border border-white/5">
-                             <div className="flex-1 min-w-0">
-                               <div className="font-medium text-slate-200 flex items-center gap-2">
-                                 <AcademicCapIcon className="w-4 h-4 text-success-400 flex-shrink-0" />
-                                 <span className="truncate">{item.standard.standard_number} • {item.standard.title}</span>
-                               </div>
-                               <div className="text-slate-400 text-xs mt-1">
-                                 {item.standard.credits} credits • Grade: {item.grade}
-                                 {item.year_achieved && ` • Year: ${item.year_achieved}`}
-                                 {item.standard_version && ` • Version: ${item.standard_version}`}
-                               </div>
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     </div>
-                   )}
- 
-                   {/* Invalid Standards */}
-                   {parseResult.invalidStandards.length > 0 && (
-                     <div className="panel p-5">
-                       <h4 className="font-semibold text-error-400 mb-4 flex items-center gap-2">
-                         <ExclamationCircleIcon className="w-5 h-5" />
-                         Standards Not in Database ({parseResult.invalidStandards.length})
-                       </h4>
-                       <div className="space-y-2 max-h-40 overflow-y-auto">
-                         {parseResult.invalidStandards.map((std, index) => (
-                           <div key={index} className="text-sm bg-slate-700/50 rounded-lg p-3 border border-white/5">
-                             <div className="font-medium text-slate-300 flex items-center gap-2">
-                               <ExclamationCircleIcon className="w-4 h-4 text-error-400 flex-shrink-0" />
-                               <span className="truncate">{std.standard_number} • {std.title}</span>
-                             </div>
-                             <div className="text-slate-500 text-xs mt-1">
-                               Level {std.level} • {std.credits} credits • {std.result}
-                             </div>
-                           </div>
-                         ))}
-                       </div>
-                     </div>
-                   )}
- 
-                   {/* Action Buttons */}
-                   <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                     <button
-                       onClick={() => {
-                         setParseResult(null);
-                         setNCEAText('');
-                       }}
-                       className="btn-ghost"
-                     >
-                       <XMarkIcon className="w-4 h-4" />
-                       Parse Again
-                     </button>
-                     <div className="flex items-center gap-3">
-                       <button
-                         onClick={handleLoadParsedStandards}
-                         disabled={!parseResult.validStandards.length}
-                         className="btn-ghost disabled:opacity-50 disabled:cursor-not-allowed"
-                       >
-                         <FolderOpenIcon className="w-4 h-4" />
-                         Load to Current Portfolio
-                       </button>
-                       <button
-                         onClick={() => { setShowNameModal(true); setNewPortfolioName('NCEA Import'); }}
-                         disabled={!parseResult.validStandards.length}
-                         className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                       >
-                         <BookmarkIcon className="w-4 h-4" />
-                         Save as New Portfolio
-                       </button>
-                     </div>
-                   </div>
-                 </div>
-               )}
-             </div>
- 
-             {/* Name Modal */}
-             {parseResult && showNameModal && (
-               <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
-                 <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in shadow-2xl">
-                   <div className="p-5 border-b border-white/10 flex items-center justify-between">
-                     <div className="flex items-center gap-3">
-                       <div className="p-2 bg-brand-500/20 rounded-lg">
-                         <BookmarkIcon className="w-5 h-5 text-brand-400" />
-                       </div>
-                       <h4 className="text-slate-200 font-semibold text-lg">Name Your Portfolio</h4>
-                     </div>
-                     <button onClick={() => setShowNameModal(false)} className="btn-ghost">
-                       <XMarkIcon className="w-4 h-4" />
-                     </button>
-                   </div>
-                   <div className="p-6 space-y-4">
-                     <div className="space-y-2">
-                       <label className="text-sm font-medium text-slate-300">Portfolio Name</label>
-                       <input
-                         className="input bg-slate-900/50 border-white/10 focus:border-brand-500/50"
-                         value={newPortfolioName}
-                         onChange={(e) => setNewPortfolioName(e.target.value)}
-                         onKeyDown={(e) => {
-                           if (e.key === 'Enter') handleImportParsedStandards(newPortfolioName);
-                         }}
-                         placeholder="e.g., Year 13 2024"
-                         autoFocus
-                       />
-                     </div>
-                     <div className="flex items-center justify-end gap-3 pt-2">
-                       <button onClick={() => setShowNameModal(false)} className="btn-ghost px-4 py-2">Cancel</button>
-                       <button 
-                         onClick={() => handleImportParsedStandards(newPortfolioName)} 
-                         className="btn-primary px-4 py-2 flex items-center gap-2 shadow-lg"
-                         disabled={!newPortfolioName.trim()}
-                       >
-                         <BookmarkIcon className="w-4 h-4" />
-                         Save Portfolio
-                       </button>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-             )}
-           </div>
-         </div>
-       )}
- 
-       {/* Delete Confirmation Modal */}
-       {showDeleteModal && deleteTarget && (
-         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
-           <div className="card w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in shadow-2xl">
-             <div className="p-5 border-b border-white/10 flex items-center justify-between bg-error-500/5">
-               <div className="flex items-center gap-3">
-                 <div className="p-2 bg-error-500/20 rounded-lg">
-                   <TrashIcon className="w-5 h-5 text-error-400" />
-                 </div>
-                 <h4 className="text-slate-200 font-semibold text-lg">Delete Portfolio?</h4>
-               </div>
-               <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">
-                 <XMarkIcon className="w-4 h-4" />
-               </button>
-             </div>
-             <div className="p-6 space-y-4">
-               <p className="text-slate-300">
-                 Are you sure you want to delete <span className="font-semibold text-slate-100">&ldquo;{deleteTarget.name}&rdquo;</span>? This action cannot be undone.
-               </p>
-               <div className="flex items-center justify-end gap-3 pt-2">
-                 <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost px-4 py-2">Cancel</button>
-                 <button onClick={confirmDeletePortfolio} className="btn-danger px-4 py-2 flex items-center gap-2 shadow-lg">
-                   <TrashIcon className="w-4 h-4" />
-                   Delete Portfolio
-                 </button>
-               </div>
-             </div>
-           </div>
-         </div>
-       )}
-     </div>
-   );
-} 
+
+      {/* NCEA Import Modal */}
+      {showNCEAImport && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-60 animate-reveal-in">
+          <div className="bg-surface-card border border-border shadow-modal w-full max-w-[min(92vw,60rem)] max-h-[90vh] overflow-hidden animate-scale-in">
+            <div className="bg-surface-elevated border-b border-border">
+              <div className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-primary flex items-center justify-center text-text-inverse">
+                    <span className="material-symbols-outlined text-xl">cloud_upload</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-text-primary">Import from NCEA portal</h3>
+                    <p className="text-text-muted text-xs mt-0.5">Copy all text from your NCEA portal and paste below</p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowNCEAImport(false); setNCEAText(''); setParseResult(null); }} className="btn-ghost hover:bg-error-50 hover:text-error-500 hover:border-error-200" title="Close">
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+              {!parseResult ? (
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-text-primary text-xs font-bold mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg text-primary">description</span>
+                      NCEA portal text
+                    </label>
+                    <textarea
+                      value={nceaText}
+                      onChange={(e) => setNCEAText(e.target.value)}
+                      placeholder="Paste your NCEA portal text here..."
+                      className="input h-80 font-mono text-sm"
+                    />
+                  </div>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex items-start gap-3 text-text-secondary text-xs bg-warning-50 px-4 py-3 border border-warning-200 flex-1 min-w-[280px]">
+                      <span className="material-symbols-outlined text-lg text-grade-excellence flex-shrink-0 mt-0.5">lightbulb</span>
+                      <div>
+                        <div className="font-bold text-grade-excellence mb-1">Quick tip</div>
+                        <div className="text-text-secondary">Press <kbd className="px-1.5 py-0.5 bg-surface-card border border-border text-[10px] font-mono">Ctrl+A</kbd> on your NCEA portal page, then <kbd className="px-1.5 py-0.5 bg-surface-card border border-border text-[10px] font-mono">Ctrl+C</kbd> to copy, and paste here.</div>
+                      </div>
+                    </div>
+                    <button onClick={handleParseNCEAText} disabled={!nceaText.trim() || isParsingNCEA} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3">
+                      {isParsingNCEA ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/20 border-t-white animate-spin" />
+                          Parsing...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-lg">check_circle</span>
+                          Parse standards
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Parse Results Summary */}
+                  <div className="panel p-5">
+                    <h4 className="font-bold text-text-primary mb-4 flex items-center gap-2 text-sm">
+                      <span className="material-symbols-outlined text-lg text-primary">info</span>
+                      Import summary
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="text-center p-3 bg-surface-base border border-border">
+                        <div className="text-2xl font-bold text-text-primary font-mono mb-1">{parseResult.summary.totalFound}</div>
+                        <div className="text-[10px] text-text-muted font-medium">Total standards</div>
+                      </div>
+                      <div className="text-center p-3 bg-primary-subtle border border-primary/20">
+                        <div className="text-2xl font-bold text-primary font-mono mb-1">{parseResult.summary.level3Found}</div>
+                        <div className="text-[10px] text-text-muted font-medium">Level 3 standards</div>
+                      </div>
+                      <div className="text-center p-3 bg-[#5B8A3C]/5 border border-[#5B8A3C]/20">
+                        <div className="text-2xl font-bold text-grade-achieved font-mono mb-1">{parseResult.summary.validInDatabase}</div>
+                        <div className="text-[10px] text-text-muted font-medium">Valid for ATAR</div>
+                      </div>
+                      <div className="text-center p-3 bg-[#B33A3A]/5 border border-[#B33A3A]/20">
+                        <div className="text-2xl font-bold text-grade-notAchieved font-mono mb-1">{parseResult.summary.invalidNotInDatabase}</div>
+                        <div className="text-[10px] text-text-muted font-medium">Not in database</div>
+                      </div>
+                    </div>
+                    {parseResult.missingGrades > 0 && (
+                      <div className="mt-4 p-3 bg-warning-50 border border-warning-200 text-text-secondary text-xs flex items-start gap-2">
+                        <span className="material-symbols-outlined text-lg text-grade-excellence flex-shrink-0">warning</span>
+                        <span>{parseResult.missingGrades} standard(s) did not have a grade on NZQA. We&apos;ve defaulted these to Achieved.</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Valid Standards */}
+                  {parseResult.validStandards.length > 0 && (
+                    <div className="panel p-5">
+                      <h4 className="font-bold text-grade-achieved mb-4 flex items-center gap-2 text-sm">
+                        <span className="material-symbols-outlined text-lg">check_circle</span>
+                        Standards ready for import ({parseResult.validStandards.length})
+                      </h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {parseResult.validStandards.map((item, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm bg-surface-base p-3 border border-border">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-text-primary flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sm text-grade-achieved flex-shrink-0">school</span>
+                                <span className="truncate">{item.standard.standard_number} · {item.standard.title}</span>
+                              </div>
+                              <div className="text-text-muted text-[10px] mt-1 font-medium">
+                                {item.standard.credits} credits · Grade: {item.grade}
+                                {item.year_achieved && ` · Year: ${item.year_achieved}`}
+                                {item.standard_version && ` · Version: ${item.standard_version}`}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Invalid Standards */}
+                  {parseResult.invalidStandards.length > 0 && (
+                    <div className="panel p-5">
+                      <h4 className="font-bold text-grade-notAchieved mb-4 flex items-center gap-2 text-sm">
+                        <span className="material-symbols-outlined text-lg">error</span>
+                        Standards not in database ({parseResult.invalidStandards.length})
+                      </h4>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {parseResult.invalidStandards.map((std, index) => (
+                          <div key={index} className="text-sm bg-surface-base p-3 border border-border">
+                            <div className="font-bold text-text-secondary flex items-center gap-2">
+                              <span className="material-symbols-outlined text-sm text-grade-notAchieved flex-shrink-0">error</span>
+                              <span className="truncate">{std.standard_number} · {std.title}</span>
+                            </div>
+                            <div className="text-text-muted text-[10px] mt-1 font-medium">
+                              Level {std.level} · {std.credits} credits · {std.result}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <button onClick={() => { setParseResult(null); setNCEAText(''); }} className="btn-ghost">
+                      <span className="material-symbols-outlined text-sm">close</span> Parse again
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={handleLoadParsedStandards} disabled={!parseResult.validStandards.length} className="btn-ghost disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span className="material-symbols-outlined text-sm">folder_open</span> Load to current portfolio
+                      </button>
+                      <button onClick={() => { setShowNameModal(true); setNewPortfolioName('NCEA Import'); }} disabled={!parseResult.validStandards.length} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span className="material-symbols-outlined text-sm">bookmark</span> Save as new portfolio
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Name Modal */}
+            {parseResult && showNameModal && (
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
+                <div className="bg-surface-card border border-border shadow-modal w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
+                  <div className="p-5 border-b border-border flex items-center justify-between bg-surface-elevated">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-primary flex items-center justify-center text-text-inverse">
+                        <span className="material-symbols-outlined text-lg">bookmark</span>
+                      </div>
+                      <h4 className="text-text-primary font-bold text-sm">Name your portfolio</h4>
+                    </div>
+                    <button onClick={() => setShowNameModal(false)} className="btn-ghost">
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Portfolio name</label>
+                      <input
+                        className="input"
+                        value={newPortfolioName}
+                        onChange={(e) => setNewPortfolioName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleImportParsedStandards(newPortfolioName); }}
+                        placeholder="e.g., Year 13 2024"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button onClick={() => setShowNameModal(false)} className="btn-ghost px-4 py-2">Cancel</button>
+                      <button onClick={() => handleImportParsedStandards(newPortfolioName)} className="btn-primary px-4 py-2 flex items-center gap-2" disabled={!newPortfolioName.trim()}>
+                        <span className="material-symbols-outlined text-sm">bookmark</span> Save portfolio
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && deleteTarget && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-70 animate-reveal-in">
+          <div className="bg-surface-card border border-border shadow-modal w-full max-w-[min(92vw,28rem)] overflow-hidden animate-scale-in">
+            <div className="p-5 border-b border-border flex items-center justify-between bg-error-50">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-error-500 flex items-center justify-center text-white">
+                  <span className="material-symbols-outlined text-lg">delete</span>
+                </div>
+                <h4 className="text-text-primary font-bold text-sm">Delete portfolio?</h4>
+              </div>
+              <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost">
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-text-secondary text-sm">
+                Are you sure you want to delete <span className="font-bold text-text-primary">&ldquo;{deleteTarget.name}&rdquo;</span>? This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }} className="btn-ghost px-4 py-2">Cancel</button>
+                <button onClick={confirmDeletePortfolio} className="btn-danger px-4 py-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">delete</span> Delete portfolio
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

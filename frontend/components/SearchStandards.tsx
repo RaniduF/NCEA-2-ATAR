@@ -2,21 +2,92 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getSuggestions, searchStandards, type Standard, type StandardsSearchResponse, type SuggestionsResponse } from '../app/services/api';
-import {
-  MagnifyingGlassIcon,
-  PlusIcon,
-  XMarkIcon,
-  AcademicCapIcon,
-  BookOpenIcon,
-  ArrowRightIcon
-} from '@heroicons/react/24/outline';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
 interface Props {
   onAdd: (standard: Standard) => void;
   onRemove: (standardNumber: number) => void;
   selectedStandardIds: Set<number>;
 }
+
+/* ── Framer-motion variants (adapted from action-searchbar) ── */
+
+const dropdownContainer: Variants = {
+  hidden: { opacity: 0, height: 0 },
+  show: {
+    opacity: 1,
+    height: 'auto',
+    transition: {
+      height: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] },
+      staggerChildren: 0.05,
+    },
+  },
+  exit: {
+    opacity: 0,
+    height: 0,
+    transition: {
+      height: { duration: 0.25 },
+      opacity: { duration: 0.15 },
+    },
+  },
+};
+
+const dropdownItem: Variants = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.25, ease: [0.25, 0.1, 0.25, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -8,
+    transition: { duration: 0.15 },
+  },
+};
+
+const resultsContainer: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06,
+      delayChildren: 0.08,
+    },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.2 },
+  },
+};
+
+const resultCard: Variants = {
+  hidden: { opacity: 0, y: 20, scale: 0.97 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] },
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    scale: 0.97,
+    transition: { duration: 0.2 },
+  },
+};
+
+const resultGroupHeader: Variants = {
+  hidden: { opacity: 0, x: -12 },
+  show: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3 },
+  },
+};
+
+/* ── Component ── */
 
 export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props) {
   const [query, setQuery] = useState('');
@@ -27,6 +98,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   const [error, setError] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
   const [isClient, setIsClient] = useState(false);
 
@@ -63,6 +136,20 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   useEffect(() => { setIsClient(true); }, []);
 
   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        formRef.current && !formRef.current.contains(target) &&
+        (!dropdownRef.current || !dropdownRef.current.contains(target))
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
     if (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0)) {
       updateDropdownPos();
     }
@@ -88,8 +175,11 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   }, [isClient, showSuggestions]);
 
   useEffect(() => {
-    if (query.trim().length < 2 || !showSuggestions) {
+    if (query.trim().length < 2) {
       setSuggestions({ subjects: [], standards: [] });
+      return;
+    }
+    if (!showSuggestions) {
       return;
     }
     let canceled = false;
@@ -137,7 +227,6 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
   };
 
   const closeSuggestions = () => {
-    setSuggestions({ subjects: [], standards: [] });
     setShowSuggestions(false);
   };
 
@@ -191,208 +280,279 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
 
   const relatedGroups = searchData?.related_groups ?? [];
   const suggestion = searchData?.suggestion ?? null;
+  const hasSuggestions = suggestions.subjects.length > 0 || suggestions.standards.length > 0;
 
   return (
     <div className="space-y-6">
-      <form onSubmit={onSubmit} className="relative z-40">
-        <div className="relative group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-500 to-accent-500 rounded-2xl opacity-30 group-hover:opacity-60 blur transition duration-500"></div>
-          <div className="relative flex items-center bg-[#0B101B] rounded-xl border border-white/10 shadow-xl">
-            <div className="pl-4 text-slate-400">
-              <MagnifyingGlassIcon className="w-6 h-6" />
+      {/* ── Search Bar (unchanged styling) ── */}
+      <form ref={formRef} onSubmit={onSubmit} className="relative z-40">
+        <div className="flex items-center bg-surface-card border border-border shadow-card">
+          <div className="pl-4 text-text-muted">
+            <span className="material-symbols-outlined text-xl">search</span>
+          </div>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578)..."
+            className="w-full bg-transparent border-none px-4 py-4 text-sm text-text-primary placeholder:text-text-muted placeholder:text-xs focus:ring-0 outline-none"
+            onFocus={() => setShowSuggestions(true)}
+          />
+          {loadingSuggest && query && (
+            <div className="px-3 text-xs text-text-muted flex items-center gap-2 animate-pulse">
+              <div className="w-1.5 h-1.5 bg-primary" />
+              Searching...
             </div>
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578)..."
-              className="w-full bg-transparent border-none px-4 py-4 text-lg text-white placeholder:text-slate-500 focus:ring-0 outline-none"
-              onFocus={() => setShowSuggestions(true)}
-            />
-            <div className="pr-2">
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery('');
-                    setSearchData(null);
-                    setSuggestions({ subjects: [], standards: [] });
-                    setShowSuggestions(false);
-                    inputRef.current?.focus();
-                  }}
-                  className="p-2 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                >
-                  <XMarkIcon className="w-5 h-5" />
-                </button>
-              )}
-            </div>
-            <div className="pr-2">
+          )}
+          <div className="pr-2">
+            {query && (
               <button
-                type="submit"
-                disabled={loadingSearch}
-                className="p-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={() => {
+                  setQuery('');
+                  setSearchData(null);
+                  setSuggestions({ subjects: [], standards: [] });
+                  setShowSuggestions(false);
+                  inputRef.current?.focus();
+                }}
+                className="p-2 hover:bg-surface-hover text-text-muted hover:text-text-primary transition-colors"
               >
-                {loadingSearch ? (
-                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <ArrowRightIcon className="w-6 h-6" />
-                )}
+                <span className="material-symbols-outlined text-xl">close</span>
               </button>
-            </div>
+            )}
+          </div>
+          <div className="pr-2">
+            <button
+              type="submit"
+              disabled={loadingSearch}
+              className="p-2 bg-primary hover:bg-primary-light text-text-inverse transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingSearch ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-xl">arrow_forward</span>
+              )}
+            </button>
           </div>
         </div>
-
-        {loadingSuggest && query && (
-          <div className="absolute -bottom-8 left-0 text-xs text-slate-400 flex items-center gap-2 animate-pulse">
-            <div className="w-1.5 h-1.5 bg-brand-400 rounded-full" />
-            Fetching suggestions...
-          </div>
-        )}
       </form>
 
-      {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-sm flex items-center gap-3 animate-reveal-in">
-          <XMarkIcon className="w-5 h-5 flex-shrink-0" />
-          {error}
-        </div>
-      )}
-
-      {suggestion && !relatedGroups.length && (
-        <div className="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-200 text-sm flex items-center gap-2 animate-reveal-in">
-          <span>Did you mean</span>
-          <button
-            className="font-bold underline hover:text-white transition-colors"
-            onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}
+      {/* ── Inline feedback (error / did-you-mean) ── */}
+      <AnimatePresence mode="wait">
+        {error && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="p-4 bg-error-50 border border-error-200 text-error-500 text-sm flex items-center gap-3"
           >
-            {suggestion.value}
-          </button>
-          <span>?</span>
-        </div>
-      )}
+            <span className="material-symbols-outlined text-xl">error</span>
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {relatedGroups.length > 0 && (
-        <div className="space-y-6 animate-reveal-up">
-          {relatedGroups.map((group, idx) => (
-            <div key={idx} className="space-y-3">
-              <div className="flex items-center gap-2 text-slate-300 px-1">
-                <BookOpenIcon className="w-5 h-5 text-brand-400" />
-                <h3 className="font-medium text-lg">{group.name}</h3>
-                <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">{group.standards.length}</span>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {group.standards.map(std => (
-                  <StandardCard key={std.standard_number} std={std} onAdd={addStandard} onRemove={onRemove} selected={selectedStandardIds.has(std.standard_number)} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isClient && createPortal(
-        (showSuggestions && (suggestions.subjects.length > 0 || suggestions.standards.length > 0) && dropdownPos) ? (
-          <div
-            className="fixed z-[9999] rounded-xl border border-white/10 bg-[#0B101B]/95 backdrop-blur-xl text-slate-100 shadow-2xl overflow-hidden ring-1 ring-white/5"
-            style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: `${dropdownPos.maxHeight}px` }}
+      <AnimatePresence mode="wait">
+        {suggestion && !relatedGroups.length && (
+          <motion.div
+            key="suggestion"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className="p-4 bg-primary-subtle border border-primary/20 text-text-primary text-sm flex items-center gap-2"
           >
-            <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: `${dropdownPos.maxHeight}px` }}>
-              {suggestions.subjects.length > 0 && (
-                <div className="py-2">
-                  <div className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <BookOpenIcon className="w-3 h-3" />
-                    Subjects
-                  </div>
-                  {suggestions.subjects.map((subject, idx) => (
-                    <button
-                      key={`subject-${idx}`}
-                      type="button"
-                      onClick={() => {
-                        setShowSuggestions(false);
-                        setQuery(subject);
-                        performSearch(subject);
-                        inputRef.current?.blur();
-                      }}
-                      className="w-full text-left px-4 py-2.5 hover:bg-brand-500/20 hover:text-white text-slate-300 transition-colors flex items-center gap-3 group"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-slate-800/50 group-hover:bg-brand-500/20 flex items-center justify-center transition-colors">
-                        <BookOpenIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-300" />
-                      </div>
-                      <span className="font-medium">{subject}</span>
-                    </button>
+            <span>Did you mean</span>
+            <button
+              className="font-bold underline text-primary hover:text-primary-dark transition-colors"
+              onClick={() => { setQuery(suggestion.value); performSearch(suggestion.value); }}
+            >
+              {suggestion.value}
+            </button>
+            <span>?</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Search Results with stagger animation ── */}
+      <AnimatePresence mode="wait">
+        {relatedGroups.length > 0 && (
+          <motion.div
+            key="results"
+            className="space-y-6"
+            variants={resultsContainer}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+          >
+            {relatedGroups.map((group, idx) => (
+              <motion.div key={idx} className="space-y-3" variants={resultCard}>
+                <motion.div
+                  className="flex items-center gap-2 text-text-primary px-1"
+                  variants={resultGroupHeader}
+                >
+                  <span className="material-symbols-outlined text-xl text-primary">menu_book</span>
+                  <h3 className="font-bold text-sm tracking-tight">{group.name}</h3>
+                  <span className="text-[10px] bg-surface-elevated border border-border px-2 py-0.5 text-text-muted font-bold">{group.standards.length}</span>
+                </motion.div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {group.standards.map((std, stdIdx) => (
+                    <motion.div key={std.standard_number} variants={resultCard}>
+                      <StandardCard
+                        std={std}
+                        onAdd={addStandard}
+                        onRemove={onRemove}
+                        selected={selectedStandardIds.has(std.standard_number)}
+                        index={stdIdx}
+                      />
+                    </motion.div>
                   ))}
                 </div>
-              )}
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {suggestions.standards.length > 0 && (
-                <div className="py-2 border-t border-white/5">
-                  <div className="px-4 py-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                    <AcademicCapIcon className="w-3 h-3" />
-                    Standards
+      {/* ── Suggestion Dropdown (portal) with container/item stagger ── */}
+      {isClient && createPortal(
+        <AnimatePresence>
+          {showSuggestions && hasSuggestions && dropdownPos && (
+            <motion.div
+              ref={dropdownRef}
+              className="fixed z-[9999] border border-border bg-surface-card text-text-primary shadow-modal overflow-hidden"
+              style={{ left: dropdownPos.left, top: dropdownPos.top, width: dropdownPos.width, maxHeight: `${dropdownPos.maxHeight}px` }}
+              variants={dropdownContainer}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+            >
+              <motion.div className="overflow-y-auto" style={{ maxHeight: `${dropdownPos.maxHeight}px` }}>
+                {suggestions.subjects.length > 0 && (
+                  <div className="py-2">
+                    <motion.div
+                      className="px-4 py-1.5 text-[10px] font-bold text-text-muted uppercase tracking-[0.15em] flex items-center gap-2"
+                      variants={dropdownItem}
+                      layout="position"
+                    >
+                      <span className="material-symbols-outlined text-xs">menu_book</span>
+                      Subjects
+                    </motion.div>
+                    <AnimatePresence mode="popLayout">
+                      {suggestions.subjects.map((subject) => (
+                        <motion.button
+                          key={subject}
+                          type="button"
+                          variants={dropdownItem}
+                          layout="position"
+                          initial="hidden"
+                          animate="show"
+                          exit="exit"
+                          onClick={() => {
+                            setShowSuggestions(false);
+                            setQuery(subject);
+                            performSearch(subject);
+                            inputRef.current?.blur();
+                          }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-primary-subtle hover:text-primary text-text-secondary transition-colors flex items-center gap-3 group"
+                        >
+                          <div className="w-8 h-8 bg-surface-elevated group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                            <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary">menu_book</span>
+                          </div>
+                          <span className="font-bold text-sm">{subject}</span>
+                        </motion.button>
+                      ))}
+                    </AnimatePresence>
                   </div>
-                  {suggestions.standards.map((standard, idx) => {
-                    const match = standard.match(/^\d+/);
-                    const standardNumber = match ? match[0] : standard;
-                    return (
-                      <button
-                        key={`standard-${idx}`}
-                        type="button"
-                        onClick={() => {
-                          handleStandardSuggestionClick(standardNumber);
-                        }}
-                        className="w-full text-left px-4 py-2.5 hover:bg-brand-500/20 hover:text-white text-slate-300 transition-colors flex items-center gap-3 group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-slate-800/50 group-hover:bg-brand-500/20 flex items-center justify-center transition-colors">
-                          <AcademicCapIcon className="w-4 h-4 text-slate-400 group-hover:text-brand-300" />
-                        </div>
-                        <span className="truncate text-sm">{standard}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null,
+                )}
+
+                {suggestions.standards.length > 0 && (
+                  <div className="py-2 border-t border-border">
+                    <motion.div
+                      className="px-4 py-1.5 text-[10px] font-bold text-text-muted uppercase tracking-[0.15em] flex items-center gap-2"
+                      variants={dropdownItem}
+                      layout="position"
+                    >
+                      <span className="material-symbols-outlined text-xs">school</span>
+                      Standards
+                    </motion.div>
+                    <AnimatePresence mode="popLayout">
+                      {suggestions.standards.map((standard) => {
+                        const match = standard.match(/^\d+/);
+                        const standardNumber = match ? match[0] : standard;
+                        return (
+                          <motion.button
+                            key={standard}
+                            type="button"
+                            variants={dropdownItem}
+                            layout="position"
+                            initial="hidden"
+                            animate="show"
+                            exit="exit"
+                            onClick={() => {
+                              handleStandardSuggestionClick(standardNumber);
+                            }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-primary-subtle hover:text-primary text-text-secondary transition-colors flex items-center gap-3 group"
+                          >
+                            <div className="w-8 h-8 bg-surface-elevated group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                              <span className="material-symbols-outlined text-sm text-text-muted group-hover:text-primary">school</span>
+                            </div>
+                            <span className="truncate text-sm">{standard}</span>
+                          </motion.button>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>
   );
 }
 
-function StandardCard({ std, onAdd, onRemove, selected }: {
+function StandardCard({ std, onAdd, onRemove, selected, index }: {
   std: Standard;
   onAdd: (s: Standard) => void;
   onRemove: (standardNumber: number) => void;
   selected: boolean;
+  index: number;
 }) {
   return (
-    <div className="group relative bg-slate-900/40 border border-white/5 hover:border-brand-500/30 rounded-xl p-4 transition-all duration-300 hover:bg-slate-800/60 hover:shadow-lg hover:-translate-y-0.5">
+    <div
+      className="group relative bg-surface-card border border-border hover:border-border-strong p-4 transition-all duration-300 hover:shadow-card-hover hover:-translate-y-0.5"
+    >
       <div className="flex justify-between items-start gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-brand-300 font-semibold">{std.standard_number}</span>
+            <span className="font-mono text-primary font-bold">{std.standard_number}</span>
             {std.is_ue && (
               <span className="badge-ue text-[10px] py-0 px-1.5 h-4">UE</span>
             )}
           </div>
-          <h4 className="text-sm font-medium text-slate-200 leading-snug line-clamp-2 mb-2 min-h-[2.5em]">{std.title}</h4>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>{std.credits} Credits</span>
-            <span>•</span>
+          <h4 className="text-sm font-bold text-text-primary leading-snug line-clamp-2 mb-2 min-h-[2.5em] tracking-tight">{std.title}</h4>
+          <div className="flex items-center gap-2 text-[10px] text-text-muted font-medium">
+            <span>{std.credits} credits</span>
+            <span>·</span>
             <span className="truncate max-w-[100px]">{std.assessment_type}</span>
           </div>
         </div>
 
         <button
           onClick={() => selected ? onRemove(std.standard_number) : onAdd(std)}
-          className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${selected
-              ? 'bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white'
-              : 'bg-white/5 text-slate-400 hover:bg-brand-500 hover:text-white'
+          className={`shrink-0 w-9 h-9 flex items-center justify-center transition-all duration-200 border ${selected
+              ? 'bg-error-50 text-error-500 border-error-200 hover:bg-error-500 hover:text-white hover:border-error-500'
+              : 'bg-surface-base text-text-muted border-border hover:bg-primary hover:text-text-inverse hover:border-primary'
             }`}
           title={selected ? "Remove standard" : "Add standard"}
         >
-          {selected ? <XMarkIcon className="w-5 h-5" /> : <PlusIcon className="w-5 h-5" />}
+          <span className="material-symbols-outlined text-lg">{selected ? 'close' : 'add'}</span>
         </button>
       </div>
     </div>
