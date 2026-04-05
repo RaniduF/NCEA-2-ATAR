@@ -510,6 +510,7 @@ class ATARCalculator:
 
         for c in candidates:
             if total_used >= 90:
+                _excl_max_w = self._get_max_grade_weight(c['std_num'], c['year_achieved'], c['version'], c['std_info'].standards_type)
                 excluded.append(calc_schemas.ExcludedItem(
                     standard_number=c['std_num'],
                     reason="not in top 90",
@@ -517,6 +518,7 @@ class ATARCalculator:
                     subject=c['std_info'].subject,
                     grade=c['grade'],
                     weight_applied=c['weight'],
+                    weight_at_max_grade=float(_excl_max_w) if _excl_max_w is not None else None,
                     standards_type=c['std_info'].standards_type,
                     assessment_type=c['std_info'].assessment_type,
                     credits_available=int(c['credits'])
@@ -526,6 +528,7 @@ class ATARCalculator:
             subj_used = subject_used.get(subject, 0.0)
             subj_remaining = max(0.0, 24.0 - subj_used)
             if subj_remaining <= 0.0:
+                _excl_max_w = self._get_max_grade_weight(c['std_num'], c['year_achieved'], c['version'], c['std_info'].standards_type)
                 excluded.append(calc_schemas.ExcludedItem(
                     standard_number=c['std_num'],
                     reason="subject cap 24 reached",
@@ -533,6 +536,7 @@ class ATARCalculator:
                     subject=c['std_info'].subject,
                     grade=c['grade'],
                     weight_applied=c['weight'],
+                    weight_at_max_grade=float(_excl_max_w) if _excl_max_w is not None else None,
                     standards_type=c['std_info'].standards_type,
                     assessment_type=c['std_info'].assessment_type,
                     credits_available=int(c['credits'])
@@ -541,6 +545,7 @@ class ATARCalculator:
 
             global_remaining = max(0.0, 90.0 - total_used)
             if global_remaining <= 0.0:
+                _excl_max_w = self._get_max_grade_weight(c['std_num'], c['year_achieved'], c['version'], c['std_info'].standards_type)
                 excluded.append(calc_schemas.ExcludedItem(
                     standard_number=c['std_num'],
                     reason="not in top 90",
@@ -548,6 +553,7 @@ class ATARCalculator:
                     subject=c['std_info'].subject,
                     grade=c['grade'],
                     weight_applied=c['weight'],
+                    weight_at_max_grade=float(_excl_max_w) if _excl_max_w is not None else None,
                     standards_type=c['std_info'].standards_type,
                     assessment_type=c['std_info'].assessment_type,
                     credits_available=int(c['credits'])
@@ -557,6 +563,7 @@ class ATARCalculator:
             credits_avail = float(c['credits'])
             credits_to_take = min(credits_avail, subj_remaining, global_remaining)
             if credits_to_take <= 0.0:
+                _excl_max_w = self._get_max_grade_weight(c['std_num'], c['year_achieved'], c['version'], c['std_info'].standards_type)
                 excluded.append(calc_schemas.ExcludedItem(
                     standard_number=c['std_num'],
                     reason="no remaining capacity",
@@ -564,6 +571,7 @@ class ATARCalculator:
                     subject=c['std_info'].subject,
                     grade=c['grade'],
                     weight_applied=c['weight'],
+                    weight_at_max_grade=float(_excl_max_w) if _excl_max_w is not None else None,
                     standards_type=c['std_info'].standards_type,
                     assessment_type=c['std_info'].assessment_type,
                     credits_available=int(c['credits'])

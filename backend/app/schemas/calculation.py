@@ -66,6 +66,7 @@ class ExcludedItem(BaseModel):
     subject: str | None = None
     grade: str | None = None
     weight_applied: float | None = None
+    weight_at_max_grade: float | None = None  # Weight at Excellence (Achievement) or Achieved (Unit Standard)
     standards_type: str | None = None
     assessment_type: str | None = None
     credits_available: int | None = None
