@@ -295,7 +295,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Search subjects (e.g., Calculus) or standards (e.g., 91578)..."
+            placeholder="Search subjects (e.g. Calculus) or standards (e.g. 91578 or Differentiation)..."
             className="w-full bg-transparent border-none px-4 py-4 text-sm text-text-primary placeholder:text-text-muted placeholder:text-xs focus:ring-0 outline-none"
             onFocus={() => setShowSuggestions(true)}
           />
@@ -547,8 +547,8 @@ function StandardCard({ std, onAdd, onRemove, selected, index }: {
         <button
           onClick={() => selected ? onRemove(std.standard_number) : onAdd(std)}
           className={`shrink-0 w-9 h-9 flex items-center justify-center transition-all duration-200 border ${selected
-              ? 'bg-error-50 text-error-500 border-error-200 hover:bg-error-500 hover:text-white hover:border-error-500'
-              : 'bg-surface-base text-text-muted border-border hover:bg-primary hover:text-text-inverse hover:border-primary'
+            ? 'bg-error-50 text-error-500 border-error-200 hover:bg-error-500 hover:text-white hover:border-error-500'
+            : 'bg-surface-base text-text-muted border-border hover:bg-primary hover:text-text-inverse hover:border-primary'
             }`}
           title={selected ? "Remove standard" : "Add standard"}
         >

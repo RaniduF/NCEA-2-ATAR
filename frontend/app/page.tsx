@@ -200,7 +200,7 @@ export default function Page() {
           NCEA results to an <span className="text-primary">ATAR.</span>
         </h1>
         <p className="text-sm text-text-secondary max-w-xl leading-relaxed">
-          Search for your standards, assign your grades, and estimate your Australian ATAR ranking.
+          Search for your standards, assign your grades, and estimate your ATAR using historical data.
         </p>
       </section>
 
