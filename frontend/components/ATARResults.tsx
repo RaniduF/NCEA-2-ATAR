@@ -430,10 +430,20 @@ export function ATARResults({ results, breakdown }: Props) {
           {/* Contribution Breakdown */}
           <div className="panel overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between bg-surface-elevated">
-              <h3 className="font-bold text-text-primary flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-lg text-primary">bar_chart</span>
-                Contribution breakdown
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-text-primary flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-lg text-primary">bar_chart</span>
+                  Contribution breakdown
+                </h3>
+                <div className="group relative flex items-center">
+                  <span className="material-symbols-outlined text-sm text-text-muted hover:text-text-primary transition-colors cursor-help">info</span>
+                  <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
+                    <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
+                      Your best 90 credits in order. These are the standards that are currently contributing to your estimated ATAR, ordered from most influential to least. We automatically select your top-performing credits based on historical weighting.
+                    </div>
+                  </div>
+                </div>
+              </div>
               <select
                 value={activeYear ?? ''}
                 onChange={(e) => setActiveYear(parseInt(e.target.value))}
@@ -496,10 +506,20 @@ export function ATARResults({ results, breakdown }: Props) {
           {/* Best Potential Standards */}
           <div className="panel overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between bg-surface-elevated">
-              <h3 className="font-bold text-text-primary flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-lg text-grade-excellence">star</span>
-                Best potential standards
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-text-primary flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-lg text-grade-excellence">star</span>
+                  Best potential standards
+                </h3>
+                <div className="group relative flex items-center">
+                  <span className="material-symbols-outlined text-sm text-text-muted hover:text-text-primary transition-colors cursor-help">info</span>
+                  <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
+                    <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
+                      These are the standards that would have the biggest impact on your ATAR in order. This section projects how much value each standard inherently holds. Prioritise focusing on the standards near the top to maximize your ATAR potential.
+                    </div>
+                  </div>
+                </div>
+              </div>
               <span className="text-[10px] text-text-muted font-medium">Sorted by 2024 weight</span>
             </div>
             <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">

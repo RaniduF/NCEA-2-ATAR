@@ -12,6 +12,7 @@ interface Props {
   onChangeGrade: (standardNumber: number, grade: Grade) => void;
   onChangeYear: (standardNumber: number, year_achieved: number | undefined) => void;
   onChangeVersion: (standardNumber: number, standard_version: number | undefined) => void;
+  onOpenImport?: () => void;
 }
 
 const gradeColorMap: Record<Grade, { bg: string; text: string; border: string; active: string }> = {
@@ -28,7 +29,7 @@ const gradeAccentMap: Record<Grade, string> = {
   'Not Achieved': 'border-l-[#B33A3A]',
 };
 
-export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear, onChangeVersion }: Props) {
+export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear, onChangeVersion, onOpenImport }: Props) {
   const [expandedStandards, setExpandedStandards] = useState<Set<number>>(new Set());
   const [collapsedSubjects, setCollapsedSubjects] = useState<Set<string>>(new Set());
   const [availableYearsByStandard, setAvailableYearsByStandard] = useState<Record<number, number[]>>({});
@@ -134,7 +135,13 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
           <span className="material-symbols-outlined text-2xl text-text-muted">school</span>
         </div>
         <div className="text-text-secondary text-base font-bold mb-1">Your portfolio is empty</div>
-        <div className="text-text-muted text-xs max-w-xs">Use the search bar above to find and add your NCEA standards.</div>
+        <div className="text-text-muted text-xs max-w-xs mb-6">Use the search bar above to find and add your NCEA standards, or import them directly.</div>
+        {onOpenImport && (
+          <button onClick={onOpenImport} className="btn-primary flex items-center gap-2 px-5 py-2.5">
+            <span className="material-symbols-outlined text-lg">cloud_upload</span>
+            Import from NCEA
+          </button>
+        )}
       </div>
     );
   }
