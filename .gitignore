@@ -2,7 +2,9 @@
 # Environment Variables
 # ===================================================================
 backend/.env
-
+.env
+credits_breakdown.csv
+subject_trends_data.csv
 
 # ===================================================================
 # Python Cache & Dependencies
@@ -26,7 +28,7 @@ htmlcov/
 # ===================================================================
 .idea/
 .vscode/
-# Environment variables
-.env
-credits_breakdown.csv
-subject_trends_data.csv
+
+
+# TypeScript build info
+*.tsbuildinfo

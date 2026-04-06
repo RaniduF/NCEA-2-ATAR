@@ -5,6 +5,7 @@ import { SearchStandards } from '../components/SearchStandards';
 import { SelectedStandards } from '../components/SelectedStandards';
 import { ATARResults } from '../components/ATARResults';
 import { PortfolioManager } from '../components/PortfolioManager';
+import { NCEAParserModal } from '../components/NCEAParserModal';
 import { calculateATAR, calculateATARBreakdown, type ATARResult, type Standard, type CalculationBreakdownResponse } from './services/api';
 import { portfolioService } from './services/portfolio';
 import { useReveal } from './hooks/useReveal';
@@ -27,6 +28,7 @@ export default function Page() {
   const [results, setResults] = useState<ATARResult[] | null>(null);
   const [breakdown, setBreakdown] = useState<CalculationBreakdownResponse | null>(null);
   const [isPortfolioManagerOpen, setIsPortfolioManagerOpen] = useState(false);
+  const [isNCEAParserOpen, setIsNCEAParserOpen] = useState(false);
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string | undefined>(undefined);
   const [currentPortfolioName, setCurrentPortfolioName] = useState<string | undefined>(undefined);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -113,6 +115,14 @@ export default function Page() {
     portfolioService.clearAutoSave();
     setCurrentPortfolioId(undefined);
     setCurrentPortfolioName(undefined);
+  };
+
+  const openPortfolioManager = (view?: 'import' | 'browser') => {
+    if (view === 'import') {
+      setIsNCEAParserOpen(true);
+    } else {
+      setIsPortfolioManagerOpen(true);
+    }
   };
 
   const handleSavePortfolio = (): void => {
@@ -235,6 +245,7 @@ export default function Page() {
           onChangeGrade={handleChangeGrade}
           onChangeYear={handleChangeYear}
           onChangeVersion={handleChangeVersion}
+          onOpenImport={() => openPortfolioManager('import')}
         />
 
         {/* Action Bar */}
@@ -250,7 +261,7 @@ export default function Page() {
             </button>
             <button
               className="btn-ghost gap-2"
-              onClick={() => setIsPortfolioManagerOpen(true)}
+              onClick={() => openPortfolioManager('browser')}
             >
               <span className="material-symbols-outlined text-base">folder_open</span>
               Load
@@ -370,6 +381,16 @@ export default function Page() {
       <PortfolioManager
         isOpen={isPortfolioManagerOpen}
         onClose={() => setIsPortfolioManagerOpen(false)}
+        onLoadPortfolio={handleLoadPortfolio}
+        onOpenImport={() => {
+          setIsPortfolioManagerOpen(false);
+          setIsNCEAParserOpen(true);
+        }}
+      />
+
+      <NCEAParserModal
+        isOpen={isNCEAParserOpen}
+        onClose={() => setIsNCEAParserOpen(false)}
         onLoadPortfolio={handleLoadPortfolio}
       />
     </div>
