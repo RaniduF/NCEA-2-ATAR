@@ -75,6 +75,3 @@ Utility scripts live in `scripts/`:
 | `analyze_high_atar_stability.py` | High-ATAR stability analysis |
 | `fix_maori_encoding.py` | Fix macron encoding in data files |
 
-## License
-
-All rights reserved.
