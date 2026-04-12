@@ -3,6 +3,7 @@ import React from 'react';
 import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
 import type { Metadata } from 'next';
 import type { Viewport } from 'next';
+import Link from 'next/link';
 import { ToastProvider } from './providers/ToastProvider';
 
 const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm-sans' });
@@ -62,13 +63,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Header */}
           <header className="fixed top-0 left-0 right-0 border-b border-border bg-surface-card/95 backdrop-blur-sm z-50 transition-all duration-300">
             <div className="max-w-[900px] mx-auto px-6 h-14 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <Link href="/" className="flex items-center gap-3">
                 <img src="/N-A_logo.svg" alt="NCEA → ATAR logo" className="w-8 h-8 object-contain" />
                 <span className="text-base font-bold tracking-tight text-text-primary">NCEA → ATAR</span>
+              </Link>
+              <div className="flex items-center gap-6">
+                <Link href="/how-it-works" className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors">
+                  How it works
+                </Link>
+                <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-text-muted">
+                  Beta
+                </span>
               </div>
-              <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-text-muted">
-                Beta
-              </span>
             </div>
           </header>
 

@@ -6,7 +6,6 @@ This directory contains the database schema and data files for the NCEA ATAR app
 
 ### Schema and Initialization
 - `init.sql` - Main database initialization script that creates tables with UTF-8 support
-- `schema.sql` - Original schema file (kept for reference)
 
 ### Data Files
 - `02-standards-data.sql` - NCEA standards data with search keywords (includes Māori text with macrons)

@@ -4,6 +4,13 @@ export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      zIndex: {
+        '60': '60',
+        '70': '70',
+        '80': '80',
+        '90': '90',
+        '100': '100',
+      },
       fontFamily: {
         display: ['var(--font-dm-sans)', 'DM Sans', 'sans-serif'],
         sans: ['var(--font-dm-sans)', 'DM Sans', 'sans-serif'],

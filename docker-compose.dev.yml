@@ -13,7 +13,7 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data_dev:/var/lib/mysql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./database/02-standards-data.sql:/docker-entrypoint-initdb.d/02-standards-data.sql:ro
       - ./database/03-standard-weightings-data.sql:/docker-entrypoint-initdb.d/03-standard-weightings-data.sql:ro
       - ./database/04-atar-distributions-data.sql:/docker-entrypoint-initdb.d/04-atar-distributions-data.sql:ro

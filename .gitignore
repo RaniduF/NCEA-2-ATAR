@@ -3,8 +3,6 @@
 # ===================================================================
 backend/.env
 .env
-credits_breakdown.csv
-subject_trends_data.csv
 
 # ===================================================================
 # Python Cache & Dependencies
@@ -14,6 +12,11 @@ __pycache__/
 venv/
 .venv/
 
+# ===================================================================
+# Node.js
+# ===================================================================
+node_modules/
+.next/
 
 # ===================================================================
 # Testing Artifacts & Reports
@@ -22,13 +25,25 @@ venv/
 htmlcov/
 .coverage
 
-
 # ===================================================================
 # IDE and Editor Files
 # ===================================================================
 .idea/
 .vscode/
 
-
-# TypeScript build info
+# ===================================================================
+# TypeScript Build Info
+# ===================================================================
 *.tsbuildinfo
+
+# ===================================================================
+# Generated Analysis & Debug Output
+# ===================================================================
+debug_*.txt
+debug_*.csv
+subject_analysis_*.csv
+subject_analysis_*.txt
+subject_trends_data.csv
+credits_breakdown.csv
+high_atar_stability_analysis.png
+on

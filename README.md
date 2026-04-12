@@ -1,0 +1,80 @@
+# NCEA → ATAR Estimator
+
+Calculate your Australian Tertiary Admission Rank (ATAR) from New Zealand NCEA results. Search for subjects and standards, assign grades, and receive an estimated ATAR with confidence intervals across multiple academic years.
+
+## Architecture
+
+| Service | Stack | Directory |
+|---------|-------|-----------|
+| **Frontend** | Next.js · TypeScript · Tailwind CSS | `frontend/` |
+| **Backend** | FastAPI · Python | `backend/` |
+| **Database** | MySQL 8.0 | `database/` |
+| **Reverse Proxy** | Nginx (rate limiting + routing) | `nginx/` |
+
+All services are orchestrated with Docker Compose.
+
+## Directory Structure
+
+```
+NCEA-2-ATAR/
+├── backend/           # FastAPI application
+│   ├── app/           # Source code (api, core, db, models, schemas, services)
+│   └── tests/         # API endpoint tests
+├── frontend/          # Next.js application
+│   ├── app/           # Pages, hooks, providers, services
+│   └── components/    # Reusable UI components
+├── database/          # SQL schema & seed data for Docker init
+├── data/              # Source CSV datasets (standards, weightings, distributions)
+├── docs/              # Project documentation & reference materials
+├── nginx/             # Nginx reverse proxy configuration
+├── scripts/           # Utility scripts (scrapers, analysers, setup)
+└── visualisations/    # Generated analysis charts
+```
+
+## Quick Start
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
+
+### Development
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+- **Frontend:** http://localhost:3000 (hot reload)
+- **Backend API:** http://localhost:8000 (auto reload)
+- **API Docs:** http://localhost:8000/docs
+
+### Production
+
+```bash
+docker compose up --build
+```
+
+- **Application:** http://localhost (via Nginx)
+
+See [docs/docker-setup.md](docs/docker-setup.md) for detailed setup instructions and troubleshooting.
+
+## Scripts
+
+Utility scripts live in `scripts/`:
+
+| Script | Purpose |
+|--------|---------|
+| `setup.sh` / `setup.ps1` | Interactive Docker setup wizard |
+| `master_data_ingestion.py` | Ingest raw data into database format |
+| `nzqa_subject_scraper.py` | Scrape NZQA subject listings |
+| `enhanced_nzqa_scraper.py` | Extended scraper with more detail |
+| `populate_search_keywords.py` | Generate search keywords for standards |
+| `update_ue_status.py` | Update University Entrance status flags |
+| `enhanced_subject_analyser.py` | Subject performance analysis |
+| `subject_weight_analyser.py` | Standard weighting analysis |
+| `subject_visualiser.py` | Generate visualisation charts |
+| `analyze_high_atar_stability.py` | High-ATAR stability analysis |
+| `fix_maori_encoding.py` | Fix macron encoding in data files |
+
+## License
+
+All rights reserved.
