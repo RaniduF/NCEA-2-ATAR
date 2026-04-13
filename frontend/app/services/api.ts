@@ -53,6 +53,7 @@ export interface StandardContribution {
   subject_credits_used_to_date: number;
   subject_capped: boolean;
   priority_tier: number;
+  fallback_reason?: string | null;
 }
 
 export interface BreakdownTotals {
@@ -111,6 +112,9 @@ export interface DistributionResponse {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+
+const versionsCache = new Map<number, Promise<number[]>>();
+const yearsCache = new Map<string, Promise<number[]>>();
 
 /**
  * Fetches subject and standard suggestions matching the query.
@@ -191,11 +195,19 @@ export async function calculateATARBreakdown(standards: { standard_number: numbe
  * @throws Error if the network request fails or returns a non-OK response
  */
 export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
-  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch available years');
-  const data = await res.json();
-  return data.available_years;
+  const cacheKey = `${standardNumber}-${version || 'any'}`;
+  if (yearsCache.has(cacheKey)) {
+    return yearsCache.get(cacheKey)!;
+  }
+  const promise = (async () => {
+    const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch available years');
+    const data = await res.json();
+    return data.available_years;
+  })();
+  yearsCache.set(cacheKey, promise);
+  return promise;
 }
 
 /**
@@ -206,11 +218,18 @@ export async function getAvailableYears(standardNumber: number, version?: number
  * @throws If the HTTP request fails or returns a non-OK response
  */
 export async function getAvailableVersions(standardNumber: number): Promise<number[]> {
-  const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch available versions');
-  const data = await res.json();
-  return data.available_versions;
+  if (versionsCache.has(standardNumber)) {
+    return versionsCache.get(standardNumber)!;
+  }
+  const promise = (async () => {
+    const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to fetch available versions');
+    const data = await res.json();
+    return data.available_versions;
+  })();
+  versionsCache.set(standardNumber, promise);
+  return promise;
 }
 
 /**

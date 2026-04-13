@@ -406,32 +406,41 @@ class ATARCalculator:
             return 3
         return 4
 
-    def _get_weight_for(self, std_num: int, grade: str, year: int, version: int | None) -> float | None:
+    def _get_weight_info(self, std_num: int, grade: str, year: int, version: int | None, fallback_year: int | None = None) -> Tuple[float | None, int | None, int | None]:
         """
-        Retrieve the numeric weighting applied to a given grade for a standard in a specific academic year and optional version.
-        
-        If `version` is provided, the weighting for that exact version in the given `year` is used when available. If `version` is not provided, the latest available version for that `year` is selected. If no weighting exists for the given year (and version, if specified), no weight is returned.
-        
-        Parameters:
-            std_num (int): Standard identifier number.
-            grade (str): Grade name (e.g., "Excellence", "Merit", "Achieved", "Not Achieved").
-            year (int): Academic year to search weightings in.
-            version (int | None): Optional standard version to prefer.
-        
-        Returns:
-            float | None: The weight value for the grade if found, `None` otherwise.
+        Retrieve the numeric weighting applied, along with the actual year and version used.
+        If no weighting exists in `year`, it falls back to `fallback_year` if provided.
         """
         year_weightings = [w for w in self.all_weightings.get(std_num, []) if w.academic_year == year]
+        used_year = year
+
+        if not year_weightings and fallback_year is not None:
+            year_weightings = [w for w in self.all_weightings.get(std_num, []) if w.academic_year == fallback_year]
+            used_year = fallback_year
+
         if version is not None:
             filtered = [w for w in year_weightings if w.standard_version == version]
             if filtered:
                 year_weightings = filtered
+            elif year_weightings:
+                latest = max(year_weightings, key=lambda w: w.standard_version or 0)
+                year_weightings = [latest]
         elif year_weightings:
             latest = max(year_weightings, key=lambda w: w.standard_version or 0)
             year_weightings = [latest]
+
         if not year_weightings:
-            return None
-        return self._get_weight_for_grade(year_weightings[0], grade)
+            return None, None, None
+
+        used_version = year_weightings[0].standard_version
+        return self._get_weight_for_grade(year_weightings[0], grade), used_year, used_version
+
+    def _get_weight_for(self, std_num: int, grade: str, year: int, version: int | None) -> float | None:
+        """
+        Legacy helper for retrieving numeric weighting without fallback or version info.
+        """
+        weight, _, _ = self._get_weight_info(std_num, grade, year, version)
+        return weight
 
     def _get_max_grade_weight(self, std_num: int, year: int, version: int | None, standards_type: str | None) -> float | None:
         """
@@ -483,9 +492,21 @@ class ATARCalculator:
             if not best:
                 continue
             weight_year = best.year_achieved if best.year_achieved else year
-            weight = self._get_weight_for(std_num, best.grade, weight_year, best.standard_version)
+            weight, used_y, used_v = self._get_weight_info(std_num, best.grade, weight_year, best.standard_version, fallback_year=year)
             if weight is None or weight <= 0.001:
                 continue
+
+            fallback_reasons = []
+            if best.year_achieved and used_y != best.year_achieved:
+                fallback_reasons.append(f"No {best.year_achieved} weight available, used {used_y}")
+            elif used_y != year:
+                fallback_reasons.append(f"Using {used_y} weight in {year} calculation")
+                
+            if best.standard_version is not None and used_v != best.standard_version:
+                fallback_reasons.append(f"Version {best.standard_version} unattainable, defaulted to v{used_v}")
+
+            fallback_reason_str = " & ".join(fallback_reasons) if fallback_reasons else None
+
             tier = self._priority_tier(std_info)
             candidates.append({
                 'std_info': std_info,
@@ -495,7 +516,8 @@ class ATARCalculator:
                 'version': best.standard_version,
                 'credits': std_info.credits,
                 'weight': float(min(max(weight, 0.0), 1.0)),
-                'tier': tier
+                'tier': tier,
+                'fallback_reason': fallback_reason_str
             })
 
         # Sort by tier then weight desc
@@ -609,7 +631,8 @@ class ATARCalculator:
                 contribution=float(contribution),
                 subject_credits_used_to_date=float(new_subj_used),
                 subject_capped=new_subj_used >= 24.0,
-                priority_tier=int(c['tier'])
+                priority_tier=int(c['tier']),
+                fallback_reason=c.get('fallback_reason')
             ))
 
         total_contribution = sum(x.contribution for x in best90)
@@ -654,9 +677,21 @@ class ATARCalculator:
             if not best:
                 continue
             weight_year = best.year_achieved if best.year_achieved else year
-            weight = self._get_weight_for(std_num, best.grade, weight_year, best.standard_version)
+            weight, used_y, used_v = self._get_weight_info(std_num, best.grade, weight_year, best.standard_version, fallback_year=year)
             if weight is None or weight <= 0.001:
                 continue
+                
+            fallback_reasons = []
+            if best.year_achieved and used_y != best.year_achieved:
+                fallback_reasons.append(f"No {best.year_achieved} weight available, used {used_y}")
+            elif used_y != year:
+                fallback_reasons.append(f"Using {used_y} weight in {year} calculation")
+                
+            if best.standard_version is not None and used_v != best.standard_version:
+                fallback_reasons.append(f"Version {best.standard_version} unattainable, defaulted to v{used_v}")
+
+            fallback_reason_str = " & ".join(fallback_reasons) if fallback_reasons else None
+
             tier = self._priority_tier(std_info)
             by_subject.setdefault(subject, []).append({
                 'std_info': std_info,
@@ -665,7 +700,8 @@ class ATARCalculator:
                 'year_achieved': weight_year,
                 'credits': std_info.credits,
                 'weight': float(min(max(weight, 0.0), 1.0)),
-                'tier': tier
+                'tier': tier,
+                'fallback_reason': fallback_reason_str
             })
 
         outputs: List[calc_schemas.SubjectSSPBreakdown] = []
@@ -709,7 +745,8 @@ class ATARCalculator:
                     contribution=float(contrib),
                     subject_credits_used_to_date=float(credits_mapped),
                     subject_capped=False,
-                    priority_tier=int(c['tier'])
+                    priority_tier=int(c['tier']),
+                    fallback_reason=c.get('fallback_reason')
                 ))
 
             total_credits_available = sum(float(x['credits']) for x in items)

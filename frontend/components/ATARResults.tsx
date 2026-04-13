@@ -81,6 +81,7 @@ export function ATARResults({ results, breakdown }: Props) {
     availableYears.length ? availableYears[availableYears.length - 1] : null
   );
   const [isMethodologyModalOpen, setIsMethodologyModalOpen] = useState(false);
+  const [bestSortYear, setBestSortYear] = useState<number>(2024);
 
   const latestResult = data.length > 0 ? data[data.length - 1] : null;
   const [histogramYear, setHistogramYear] = useState<number>(latestResult?.year || 2024);
@@ -255,10 +256,15 @@ export function ATARResults({ results, breakdown }: Props) {
       }
     }
 
+    const getWeightForSortYear = (s: StandardWeightInfo) => {
+      if (bestSortYear === 2024) return s.weight_2024 ?? s.max_weight;
+      if (bestSortYear === 2023) return s.weight_2023 ?? s.max_weight;
+      if (bestSortYear === 2022) return s.weight_2022 ?? s.max_weight;
+      return s.max_weight;
+    };
+
     const sortedStandards = [...standards].sort((a, b) => {
-      const weightA = a.weight_2024 ?? a.max_weight;
-      const weightB = b.weight_2024 ?? b.max_weight;
-      return weightB - weightA;
+      return getWeightForSortYear(b) - getWeightForSortYear(a);
     });
 
     let creditsAccumulated = 0;
@@ -280,7 +286,7 @@ export function ATARResults({ results, breakdown }: Props) {
     }
 
     return { standards: sortedStandards, top90CutoffIndex: cutoffIndex };
-  }, [breakdown, activeYear, yearsMap]);
+  }, [breakdown, activeYear, yearsMap, bestSortYear]);
 
   const allStandardsWithStatus = useMemo(() => {
     if (!breakdown || !activeYear || !yearsMap[activeYear]) return [];
@@ -312,7 +318,8 @@ export function ATARResults({ results, breakdown }: Props) {
       subject_capped: false,
       priority_tier: 999,
       is_used: false,
-      exclusion_reason: excl.reason
+      exclusion_reason: excl.reason,
+      fallback_reason: (excl as any).fallback_reason
     }));
 
     return [...usedStandards.sort((a, b) => b.weight_applied - a.weight_applied), ...excludedStandards];
@@ -408,7 +415,19 @@ export function ATARResults({ results, breakdown }: Props) {
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 gap-4">
             <div className="panel p-4">
-              <div className="text-xs text-text-muted font-medium mb-1">Credits used</div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="text-xs text-text-muted font-medium">Credits used</div>
+                {yearsMap[activeYear].totals.total_credits_used < 60 && (
+                  <div className="group relative flex items-center">
+                    <span className="material-symbols-outlined text-sm text-grade-excellence cursor-help">warning</span>
+                    <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
+                      <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
+                        Official ATARs are only calculated if a student has 60 or more assessed level 3 credits.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="text-2xl font-bold text-text-primary font-mono">
                 {yearsMap[activeYear].totals.total_credits_used.toFixed(0)} <span className="text-sm text-text-muted font-normal">/ 90</span>
               </div>
@@ -473,11 +492,37 @@ export function ATARResults({ results, breakdown }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
                         <div className="flex flex-col min-w-0 flex-1 mr-2">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 truncate ${item.is_used ? 'text-primary' : 'text-text-muted'}`}>{item.subject}</span>
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider truncate ${item.is_used ? 'text-primary' : 'text-text-muted'}`}>{item.subject}</span>
+                            {item.pro_rated && (
+                              <div className="group/proratedbreakdown relative flex items-center shrink-0">
+                                <span className="text-[9px] font-bold uppercase px-1 py-0.5 bg-[#4A7A8C]/10 text-[#4A7A8C] border border-[#4A7A8C]/30 cursor-help leading-none">Pro-rated</span>
+                                <div className="absolute left-0 bottom-full mb-1.5 hidden group-hover/proratedbreakdown:block w-[220px] z-50">
+                                  <div className="p-2 bg-surface-card border border-[#4A7A8C]/30 shadow-modal text-[10px] leading-relaxed text-text-secondary whitespace-normal normal-case">
+                                    <strong className="text-[#4A7A8C] mb-0.5 block">Pro-rated</strong>
+                                    This standard was pro-rated — fewer credits were used than available, so only a proportional share of the credit contributed to the 90-credit total.
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           <span className={`text-sm font-bold truncate tracking-tight ${item.is_used ? 'text-text-primary' : 'text-text-muted'}`}>
                             {item.title}
                           </span>
-                          <span className="text-[10px] text-text-muted font-mono">{item.standard_number}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-text-muted font-mono">{item.standard_number}</span>
+                            {item.fallback_reason && (
+                              <div className="group/warn relative flex items-center">
+                                <span className="material-symbols-outlined text-[13px] text-warning-500 cursor-help">warning</span>
+                                <div className="absolute left-0 bottom-full mb-1.5 hidden group-hover/warn:block w-[240px] z-50">
+                                  <div className="p-2 bg-surface-card border border-warning-200 shadow-modal text-[10px] leading-relaxed text-text-secondary whitespace-normal normal-case">
+                                    <strong className="text-warning-500 mb-0.5 block">Notice</strong>
+                                    {item.fallback_reason}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-col items-end shrink-0 ml-2">
                           <span className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 font-medium">Weight</span>
@@ -520,7 +565,15 @@ export function ATARResults({ results, breakdown }: Props) {
                   </div>
                 </div>
               </div>
-              <span className="text-[10px] text-text-muted font-medium">Sorted by 2024 weight</span>
+              <select
+                value={bestSortYear}
+                onChange={(e) => setBestSortYear(parseInt(e.target.value))}
+                className="bg-surface-card border border-border text-xs py-1 px-2 text-text-primary outline-none focus:border-primary font-medium"
+              >
+                <option value={2024}>2024 weights</option>
+                <option value={2023}>2023 weights</option>
+                <option value={2022}>2022 weights</option>
+              </select>
             </div>
             <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
               {standardsByWeight.standards.map((item, index) => (
@@ -537,18 +590,16 @@ export function ATARResults({ results, breakdown }: Props) {
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-xs bg-surface-base p-2 border border-border">
-                      <div className="flex flex-col">
-                        <span className="text-primary font-bold text-[10px] mb-0.5">2024</span>
-                        <span className="font-mono text-primary font-bold">{item.weight_2024 ? (item.weight_2024 * 100).toFixed(2) + '%' : '-'}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-text-muted text-[10px] mb-0.5 font-medium">2023</span>
-                        <span className="font-mono text-text-secondary">{item.weight_2023 ? (item.weight_2023 * 100).toFixed(2) + '%' : '-'}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-text-muted text-[10px] mb-0.5 font-medium">2022</span>
-                        <span className="font-mono text-text-secondary">{item.weight_2022 ? (item.weight_2022 * 100).toFixed(2) + '%' : '-'}</span>
-                      </div>
+                      {([2024, 2023, 2022] as const).map(yr => {
+                        const w = yr === 2024 ? item.weight_2024 : yr === 2023 ? item.weight_2023 : item.weight_2022;
+                        const isActive = bestSortYear === yr;
+                        return (
+                          <div key={yr} className="flex flex-col">
+                            <span className={`text-[10px] mb-0.5 ${isActive ? 'text-primary font-bold' : 'text-text-muted font-medium'}`}>{yr}</span>
+                            <span className={`font-mono ${isActive ? 'text-primary font-bold' : 'text-text-secondary'}`}>{w ? (w * 100).toFixed(2) + '%' : '-'}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

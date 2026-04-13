@@ -57,6 +57,7 @@ class StandardContribution(BaseModel):
     subject_credits_used_to_date: float
     subject_capped: bool = False
     priority_tier: int
+    fallback_reason: Optional[str] = None
 
 
 class ExcludedItem(BaseModel):
@@ -70,6 +71,7 @@ class ExcludedItem(BaseModel):
     standards_type: str | None = None
     assessment_type: str | None = None
     credits_available: int | None = None
+    fallback_reason: str | None = None
 
 
 class BreakdownTotals(BaseModel):

@@ -55,18 +55,32 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
       return next;
     });
     if (expanding) {
+      const item = items.find(i => i.standard.standard_number === standardNumber);
+      const currentVersion = item?.standard_version;
+
       if (!availableVersionsByStandard[standardNumber]) {
         getAvailableVersions(standardNumber)
           .then(versions => {
             const sorted = [...versions].sort((a, b) => b - a);
             setAvailableVersionsByStandard(prev => ({ ...prev, [standardNumber]: sorted }));
+            
+            if (!availableYearsByStandard[standardNumber]) {
+              const versionToFetch = currentVersion || sorted[0];
+              if (versionToFetch) {
+                getAvailableYears(standardNumber, versionToFetch)
+                  .then(years => setAvailableYearsByStandard(prev => ({ ...prev, [standardNumber]: years })))
+                  .catch(console.error);
+              }
+            }
           })
           .catch(console.error);
-      }
-      if (!availableYearsByStandard[standardNumber]) {
-        getAvailableYears(standardNumber)
-          .then(years => setAvailableYearsByStandard(prev => ({ ...prev, [standardNumber]: years })))
-          .catch(console.error);
+      } else if (!availableYearsByStandard[standardNumber]) {
+        const versionToFetch = currentVersion || availableVersionsByStandard[standardNumber][0];
+        if (versionToFetch) {
+          getAvailableYears(standardNumber, versionToFetch)
+            .then(years => setAvailableYearsByStandard(prev => ({ ...prev, [standardNumber]: years })))
+            .catch(console.error);
+        }
       }
     }
   };
@@ -116,14 +130,17 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
     el.addEventListener('transitionend', onEnd as any);
   };
 
-  const handleVersionChange = (standardNumber: number, version: string) => {
-    const versionNum = Number(version);
-    onChangeVersion(standardNumber, versionNum);
-    getAvailableVersions(standardNumber).then(versions => {
-      const sorted = [...versions].sort((a, b) => b - a);
+  const handleVersionChange = (standardNumber: number, versionNum: number, isDefault: boolean) => {
+    onChangeVersion(standardNumber, isDefault ? undefined : versionNum);
+    setAvailableYearsByStandard(prev => {
+      const next = { ...prev };
+      delete next[standardNumber];
+      return next;
+    });
+    getAvailableYears(standardNumber, versionNum).then(years => {
       setAvailableYearsByStandard(prev => ({
         ...prev,
-        [standardNumber]: sorted
+        [standardNumber]: years
       }));
     }).catch(console.error);
   };
@@ -280,45 +297,49 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
                                   <span className="material-symbols-outlined text-xs">description</span>
                                   Version
                                 </label>
-                                <select
-                                  value={displayVersion}
-                                  onChange={e => {
-                                    const selectedVersion = Number(e.target.value);
-                                    if (selectedVersion === defaultVersion) {
-                                      onChangeVersion(standard.standard_number, undefined);
-                                    } else {
-                                      handleVersionChange(standard.standard_number, e.target.value);
-                                    }
-                                  }}
-                                  className="input text-xs py-2 h-9"
-                                >
-                                  {(availableVersionsByStandard[standard.standard_number] || []).map((version: number) => (
-                                    <option key={version} value={version}>Version {version}</option>
-                                  ))}
-                                </select>
+                                {availableVersionsByStandard[standard.standard_number] === undefined ? (
+                                  <div className="h-9 bg-surface-base border border-border animate-pulse w-full"></div>
+                                ) : (
+                                  <select
+                                    value={displayVersion}
+                                    onChange={e => {
+                                      const selectedVersion = Number(e.target.value);
+                                      handleVersionChange(standard.standard_number, selectedVersion, selectedVersion === defaultVersion);
+                                    }}
+                                    className="input text-xs py-2 h-9"
+                                  >
+                                    {availableVersionsByStandard[standard.standard_number].map((version: number) => (
+                                      <option key={version} value={version}>Version {version}</option>
+                                    ))}
+                                  </select>
+                                )}
                               </div>
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-text-muted flex items-center gap-1.5 uppercase tracking-wider">
                                   <span className="material-symbols-outlined text-xs">calendar_today</span>
                                   Year achieved
                                 </label>
-                                <select
-                                  value={displayYear}
-                                  onChange={e => {
-                                    const value = e.target.value;
-                                    if (value === 'Iterative') {
-                                      onChangeYear(standard.standard_number, undefined);
-                                    } else {
-                                      onChangeYear(standard.standard_number, Number(value));
-                                    }
-                                  }}
-                                  className="input text-xs py-2 h-9"
-                                >
-                                  <option value="Iterative">Iterative (Default)</option>
-                                  {(availableYearsByStandard[standard.standard_number] || []).map((year: number) => (
-                                    <option key={year} value={year}>{year}</option>
-                                  ))}
-                                </select>
+                                {availableYearsByStandard[standard.standard_number] === undefined ? (
+                                  <div className="h-9 bg-surface-base border border-border animate-pulse w-full"></div>
+                                ) : (
+                                  <select
+                                    value={displayYear}
+                                    onChange={e => {
+                                      const value = e.target.value;
+                                      if (value === 'Iterative') {
+                                        onChangeYear(standard.standard_number, undefined);
+                                      } else {
+                                        onChangeYear(standard.standard_number, Number(value));
+                                      }
+                                    }}
+                                    className="input text-xs py-2 h-9"
+                                  >
+                                    <option value="Iterative">Iterative (Default)</option>
+                                    {availableYearsByStandard[standard.standard_number].map((year: number) => (
+                                      <option key={year} value={year}>{year}</option>
+                                    ))}
+                                  </select>
+                                )}
                               </div>
                             </div>
                           </div>

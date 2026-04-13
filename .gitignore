@@ -47,3 +47,9 @@ subject_trends_data.csv
 credits_breakdown.csv
 high_atar_stability_analysis.png
 on
+
+# ===================================================================
+# Claude
+# ===================================================================
+install.cmd
+.claude/

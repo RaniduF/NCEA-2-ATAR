@@ -140,12 +140,15 @@ h6 {
   .grade-block-excellence {
     @apply bg-grade-excellence text-white;
   }
+
   .grade-block-merit {
     @apply bg-grade-merit text-white;
   }
+
   .grade-block-achieved {
     @apply bg-grade-achieved text-white;
   }
+
   .grade-block-not-achieved {
     @apply bg-grade-notAchieved text-white;
   }

@@ -83,8 +83,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
 
           {/* Footer */}
-          <footer className="border-t border-border py-6 text-center">
-            <p className="text-xs text-text-muted tracking-wide">NCEA → ATAR · Beta · 2026</p>
+          <footer className="border-t border-border py-8 text-center px-6">
+            <div className="max-w-[900px] mx-auto flex flex-col gap-4 max-w-3xl">
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                This tool provides estimated ATAR calculations based on publicly available NZQA weighting and distribution data. Results are approximations only and should not be relied upon for university admission decisions. This calculator is not affiliated with, endorsed by, or operated by NZQA, any Australian tertiary admissions centre, or any university. Official ATAR calculations are performed solely by NZQA and the relevant Australian admissions authority. For your official ATAR, refer directly to NZQA.
+              </p>
+              <p className="text-xs text-text-muted tracking-wide">NCEA → ATAR · Beta · 2026</p>
+            </div>
           </footer>
         </ToastProvider>
       </body>
