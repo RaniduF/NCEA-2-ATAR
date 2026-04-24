@@ -1,18 +1,17 @@
 # backend/tests/test_standards_endpoint.py
 
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-# Use absolute imports as configured in the project
 from app.core.config import settings
 from app.main import app
-from app.api.standards import get_db
+from app.db.session import get_db
 
 # --- Test Database Setup ---
-# Uses the same database URL as the main application, loaded from .env
-TEST_DATABASE_URL = settings.DATABASE_URL
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.DATABASE_URL)
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False,

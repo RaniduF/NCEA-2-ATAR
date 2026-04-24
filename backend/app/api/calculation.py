@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from ..db import session
+from ..db.session import get_db
 from ..schemas import calculation as calculation_schemas
 from ..services.atar_engine import ATARCalculator
 
@@ -8,14 +8,6 @@ router = APIRouter(
     prefix="/calculate-atar",
     tags=["ATAR Calculation"]
 )
-
-
-def get_db():
-    db = session.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 @router.post("/", response_model=calculation_schemas.ATARCalculationResponse)

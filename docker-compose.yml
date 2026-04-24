@@ -26,7 +26,8 @@ services:
     # Port not exposed to host — backend connects via internal network
     # Uncomment below for local debugging only:
     # ports:
-    #   - "127.0.0.1:5432:5432"    volumes:
+    #   - "127.0.0.1:5432:5432"
+    volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./database/02-standards-data.sql:/docker-entrypoint-initdb.d/02-standards-data.sql:ro
@@ -55,7 +56,7 @@ services:
       DB_NAME: ${DB_NAME:-ncea_atar}
       DB_USER: ${DB_USER:-ncea_user}
       DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
-      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+      CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000"]'
     # Port not exposed to host — Nginx proxies to this service internally
     depends_on:
       database:

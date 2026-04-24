@@ -8,7 +8,7 @@ Calculate your Australian Tertiary Admission Rank (ATAR) from New Zealand NCEA r
 |---------|-------|-----------|
 | **Frontend** | Next.js · TypeScript · Tailwind CSS | `frontend/` |
 | **Backend** | FastAPI · Python | `backend/` |
-| **Database** | MySQL 8.0 | `database/` |
+| **Database** | PostgreSQL 15 | `database/` |
 | **Reverse Proxy** | Nginx (rate limiting + routing) | `nginx/` |
 
 All services are orchestrated with Docker Compose.

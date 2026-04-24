@@ -11,18 +11,22 @@ class ATARCalculator:
     def __init__(self, db: Session, user_standards: List[UserStandardInput]):
         self.db = db
         self.user_standards = user_standards
+        self._standard_numbers = {us.standard_number for us in user_standards}
         self.all_standards_info = self._get_all_standards_info()
         self.all_weightings = self._get_all_weightings()
         self.all_distributions = self._get_all_distributions()
-        # --- NEW: Load participation rate data ---
         self.participation_rates = self._get_participation_rates()
 
     def _get_all_standards_info(self):
-        standards = self.db.query(standard_models.Standard).all()
+        standards = self.db.query(standard_models.Standard).filter(
+            standard_models.Standard.standard_number.in_(self._standard_numbers)
+        ).all()
         return {s.standard_number: s for s in standards}
 
     def _get_all_weightings(self):
-        weightings = self.db.query(standard_models.StandardWeighting).all()
+        weightings = self.db.query(standard_models.StandardWeighting).filter(
+            standard_models.StandardWeighting.standard_number.in_(self._standard_numbers)
+        ).all()
         lookup = {}
         for w in weightings:
             if w.standard_number not in lookup: lookup[w.standard_number] = []
@@ -86,19 +90,11 @@ class ATARCalculator:
         rates = self.db.query(standard_models.ParticipationRate).all()
         return {r.academic_year: r.weighted_statnz_population for r in rates}
 
-    def _get_latest_weight_year(self) -> int:
-        """Get the latest available academic year from standard weightings.
-        
-        Returns:
-            int: The latest academic year available in the database, 
-                 or 2024 as fallback if no data is found.
-        """
+    def _get_latest_weight_year(self) -> int | None:
         try:
-            latest_year = self.db.query(func.max(standard_models.StandardWeighting.academic_year)).scalar()
-            return latest_year if latest_year is not None else 2024
+            return self.db.query(func.max(standard_models.StandardWeighting.academic_year)).scalar()
         except Exception:
-            # Fallback to safe default if query fails
-            return 2024
+            return None
 
     def _estimate_atar_from_stat(self, stat_value: float, year: int) -> float | None:
         """

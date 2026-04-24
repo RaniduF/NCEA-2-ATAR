@@ -6,8 +6,7 @@ from sqlalchemy.orm import sessionmaker
 # Use absolute imports as configured in the project
 from app.core.config import settings
 from app.main import app
-from app.api.calculation import get_db
-# Import the model needed for the diagnostic query
+from app.db.session import get_db
 from app.models.standard_models import ParticipationRate
 
 # --- Test Database Setup ---

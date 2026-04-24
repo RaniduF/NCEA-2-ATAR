@@ -39,7 +39,7 @@ services:
       DB_NAME: ${DB_NAME:-ncea_atar}
       DB_USER: ${DB_USER:-ncea_user}
       DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
-      CORS_ORIGINS: "http://localhost:3000,http://frontend:3000"
+      CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000","http://127.0.0.1:3000"]'
     ports:
       - "8000:8000"
     depends_on:

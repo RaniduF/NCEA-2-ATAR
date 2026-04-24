@@ -207,7 +207,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       setSearchData(data);
     } catch (e) {
       console.error(e);
-      setError('Search failed. Please try again.');
+      setError(`Search failed. Please try again. ${e instanceof Error ? '(' + e.message + ')' : ''}`);
     } finally {
       setLoadingSearch(false);
     }
@@ -272,7 +272,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       }
     } catch (e) {
       console.error(e);
-      setError('Search failed. Please try again.');
+      setError(`Search failed. Please try again. ${e instanceof Error ? '(' + e.message + ')' : ''}`);
     } finally {
       setLoadingSearch(false);
     }

@@ -4,10 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 # Use absolute imports as configured in the project
+import os
 from app.core.config import settings
 from app.main import app
-from app.api.calculation import get_db
-import os
+from app.db.session import get_db
 
 # --- Test Database Setup ---
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.DATABASE_URL)

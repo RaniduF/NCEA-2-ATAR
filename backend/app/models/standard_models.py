@@ -14,7 +14,7 @@ class Standard(Base):
     credits = Column(Integer, nullable=False)
     assessment_type = Column(String(50))
     standards_type = Column(String(50))
-    is_ue = Column(Boolean, default=False)
+    is_ue = Column(Boolean, default=False, server_default='false')
     subject = Column(String(100))
     search_keywords = Column(JSONB)
 
