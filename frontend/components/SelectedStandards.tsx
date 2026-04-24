@@ -85,15 +85,6 @@ export function SelectedStandards({ items, onRemove, onChangeGrade, onChangeYear
     }
   };
 
-  const toggleSubject = (subject: string) => {
-    setCollapsedSubjects(prev => {
-      const next = new Set(prev);
-      if (next.has(subject)) next.delete(subject);
-      else next.add(subject);
-      return next;
-    });
-  };
-
   const startRemove = (standardNumber: number) => {
     const el = itemRefs.current[standardNumber];
     setRemovingStandardIds(prev => {

@@ -4,7 +4,6 @@ import { searchStandards } from './api';
 
 export interface ParsedStandard {
   standard_number: number;
-  version: number;
   assessment_type: 'IN' | 'EX';
   title: string;
   level: number;
@@ -29,24 +28,24 @@ export interface ParseResult {
 }
 
 export class NCEAPortalParser {
-  
+
   // Map NCEA result codes to our grade system
   private mapResultToGrade(result: string): Grade {
     const normalizedResult = result.trim().toUpperCase();
     switch (normalizedResult) {
-      case 'E': 
+      case 'E':
       case 'EXCELLENCE*':
       case 'EXCELLENCE':
-         return 'Excellence';
-      case 'M': 
+        return 'Excellence';
+      case 'M':
       case 'MERIT':
-         return 'Merit';
-      case 'A': 
+        return 'Merit';
+      case 'A':
       case 'ACHIEVED':
-         return 'Achieved';
-      case 'N': 
+        return 'Achieved';
+      case 'N':
       case 'NOT ACHIEVED':
-         return 'Not Achieved';
+        return 'Not Achieved';
       // WARNING: Defaulting to 'Achieved' for unknown results.
       default: return 'Achieved';
     }
@@ -61,24 +60,24 @@ export class NCEAPortalParser {
   // Extract year from section headers like "2024", "2023", etc.
   private extractYearFromContext(text: string, startIndex: number): number {
     const lines = text.substring(0, startIndex).split('\n');
-    
+
     // Look backwards for year headers
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
-      
+
       // Look for standalone year (2024, 2023, etc.)
       const yearMatch = line.match(/^(20\d{2})$/);
       if (yearMatch) {
         return parseInt(yearMatch[1]);
       }
-      
+
       // Look for "Credit Summary for Year" or similar patterns
       const yearInContextMatch = line.match(/(20\d{2})/);
       if (yearInContextMatch && line.includes('Year')) {
         return parseInt(yearInContextMatch[1]);
       }
     }
-    
+
     // Default to current year if no year context found
     return new Date().getFullYear();
   }
@@ -86,18 +85,18 @@ export class NCEAPortalParser {
   // Extract course name from section headers
   private extractCourseFromContext(text: string, startIndex: number): string | undefined {
     const lines = text.substring(0, startIndex).split('\n');
-    
+
     // Look backwards for course headers like "Chemistry Three - Endorsed with..."
     for (let i = lines.length - 1; i >= 0; i--) {
       const line = lines[i].trim();
-      
+
       // Look for course endorsement lines
       const courseMatch = line.match(/^(.+?)\s*-\s*Endorsed with/);
       if (courseMatch) {
         return courseMatch[1].trim();
       }
     }
-    
+
     return undefined;
   }
 
@@ -106,32 +105,31 @@ export class NCEAPortalParser {
     // Split by tabs and filter out empty strings
     const allParts = row.split('\t');
     const parts = allParts.map(p => p.trim()).filter(p => p !== '');
-    
+
     if (parts.length < 4) return null;
-    
+
     const standardNumber = parseInt(parts[0]);
     if (!standardNumber || isNaN(standardNumber)) return null;
 
-    let version = 1; // Default
     let assessmentType: 'IN' | 'EX' = 'IN';
     let title = '';
     let level = 0;
     let credits = 0;
     let result = '';
 
-    // If second part is a number, it's the old format (version number)
+    // If second part is a small number, it's the old format (had a version column)
     const isOldFormat = !isNaN(parseInt(parts[1]));
 
     if (isOldFormat) {
-      version = parseInt(parts[1]);
+      // Skip parts[1] (version) — we always default to latest version
       const rawAsm = (parts[2] ?? '').toString().toUpperCase();
       assessmentType = rawAsm.startsWith('EX') ? 'EX' : 'IN';
       title = parts[3] || '';
-      
+
       if (allParts.length > 4 && /^[123]$/.test(allParts[4]?.trim())) {
         level = parseInt(allParts[4].trim());
       }
-      
+
       for (let i = Math.max(4, allParts.length - 6); i < allParts.length; i++) {
         const part = allParts[i]?.trim();
         if (part && /^\d{1,2}$/.test(part)) {
@@ -139,7 +137,7 @@ export class NCEAPortalParser {
           if (num >= 1 && num <= 40 && credits === 0) credits = num;
         }
       }
-      
+
       for (let i = allParts.length - 1; i >= 0; i--) {
         const part = allParts[i]?.trim();
         if (part && /^(N|A|M|E|ABS|SNA|RNA)$/.test(part)) {
@@ -154,7 +152,7 @@ export class NCEAPortalParser {
       const methodStr = (parts[3] ?? '').toUpperCase();
       assessmentType = (methodStr.includes('PAPER') || methodStr.includes('EXAM')) ? 'EX' : 'IN';
       credits = parseInt(parts[4]) || 0;
-      
+
       // Result may be missing if not yet graded
       if (parts.length >= 6) {
         result = parts.slice(5).join(' ').trim();
@@ -173,10 +171,9 @@ export class NCEAPortalParser {
     if (!standardNumber || !title || !level) {
       return null;
     }
-    
+
     return {
       standard_number: standardNumber,
-      version,
       assessment_type: assessmentType,
       title,
       level,
@@ -191,23 +188,23 @@ export class NCEAPortalParser {
   async parseNCEAPortalText(portalText: string): Promise<ParseResult> {
     const lines = portalText.split('\n');
     const standards: ParsedStandard[] = [];
-    
+
     let currentYear = new Date().getFullYear();
     let currentCourse: string | undefined;
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      
+
       // Skip empty lines and headers
       if (!line || line.startsWith('Std.') || line.startsWith('Enr.')) {
         continue;
       }
-      
+
       // Update context for year and course
       const lineIndex = lines.slice(0, i).join('\n').length;
       currentYear = this.extractYearFromContext(portalText, lineIndex);
       currentCourse = this.extractCourseFromContext(portalText, lineIndex);
-      
+
       // Try to parse as standard row (starts with standard number)
       if (/^\d{5,6}\t/.test(line)) {
         const parsed = this.parseStandardRow(line, currentYear, currentCourse);
@@ -216,53 +213,50 @@ export class NCEAPortalParser {
         }
       }
     }
-    
+
     // Filter for Level 3 standards only
     const level3Standards = standards.filter(std => std.level === 3);
 
-    // We don't need missingGrades anymore since we track unsatStandardNumbers, but let's find the unsat ones:
-    const unsatLevel3 = level3Standards.filter(std => !this.isKnownGrade(std.result));
-    
     // Include standards with unknown grades (default to Achieved later), exclude ABS/SNA/RNA explicit failures
     const validResultStandards = level3Standards.filter(std => {
-       const res = (std.result || '').trim().toUpperCase();
-       return !['ABS', 'SNA', 'RNA', 'ABSENT'].includes(res);
+      const res = (std.result || '').trim().toUpperCase();
+      return !['ABS', 'SNA', 'RNA', 'ABSENT'].includes(res);
     });
-    
+
     // Validate against database
     const validStandards: SelectedItem[] = [];
     const invalidStandards: ParsedStandard[] = [];
     const unsatStandardNumbers: number[] = [];
-    
+
     for (const std of validResultStandards) {
       try {
         // Search for the standard in our database
         const searchResults = await searchStandards(std.standard_number.toString());
-        
+
         // Check both direct results and related groups
-        let foundStandard = searchResults.direct_results.find((standard: any) => 
+        let foundStandard = searchResults.direct_results.find((standard: any) =>
           standard.standard_number === std.standard_number
         );
-        
+
         if (!foundStandard) {
           // Search in related groups
           for (const group of searchResults.related_groups) {
-            foundStandard = group.standards.find((standard: any) => 
+            foundStandard = group.standards.find((standard: any) =>
               standard.standard_number === std.standard_number
             );
             if (foundStandard) break;
           }
         }
-        
+
         if (foundStandard) {
           const selectedItem: SelectedItem = {
             standard: foundStandard,
             grade: this.mapResultToGrade(std.result),
             year_achieved: std.year,
-            standard_version: std.version
+            standard_version: undefined
           };
           validStandards.push(selectedItem);
-          
+
           if (!this.isKnownGrade(std.result)) {
             unsatStandardNumbers.push(foundStandard.standard_number);
           }
@@ -274,7 +268,7 @@ export class NCEAPortalParser {
         invalidStandards.push(std);
       }
     }
-    
+
     return {
       standards,
       level3Standards,

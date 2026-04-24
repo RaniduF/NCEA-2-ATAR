@@ -67,6 +67,18 @@ export default function Page() {
     if (autoSaved && autoSaved.length > 0) {
       setSelectedItems(autoSaved);
     }
+    try {
+      const savedResults = sessionStorage.getItem('atar_results');
+      if (savedResults) setResults(JSON.parse(savedResults));
+    } catch (e) {
+      console.error('Failed to load results from sessionStorage:', e);
+    }
+    try {
+      const savedBreakdown = sessionStorage.getItem('atar_breakdown');
+      if (savedBreakdown) setBreakdown(JSON.parse(savedBreakdown));
+    } catch (e) {
+      console.error('Failed to load breakdown from sessionStorage:', e);
+    }
   }, []);
 
   useEffect(() => {
@@ -83,6 +95,22 @@ export default function Page() {
       setExistingPortfolios(portfolioService.getPortfolios());
     }
   }, [showSaveModal]);
+
+  useEffect(() => {
+    if (results) {
+      sessionStorage.setItem('atar_results', JSON.stringify(results));
+    } else {
+      sessionStorage.removeItem('atar_results');
+    }
+  }, [results]);
+
+  useEffect(() => {
+    if (breakdown) {
+      sessionStorage.setItem('atar_breakdown', JSON.stringify(breakdown));
+    } else {
+      sessionStorage.removeItem('atar_breakdown');
+    }
+  }, [breakdown]);
 
   useReveal();
   useRipple('.ripple');

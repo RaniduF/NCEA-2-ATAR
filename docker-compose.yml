@@ -14,29 +14,30 @@ services:
     networks:
       - ncea-network
 
-  # MySQL Database
+  # Postgres Database
   database:
-    image: mysql:8.0
+    image: postgres:15-alpine
     container_name: ncea-database
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${DB_NAME:-ncea_atar}
-      MYSQL_USER: ${DB_USER:-ncea_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-ncea_password}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password}
-    ports:
-      - "3307:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
+      POSTGRES_DB: ${DB_NAME:-ncea_atar}
+      POSTGRES_USER: ${DB_USER:-ncea_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ncea_password}
+    # Port not exposed to host — backend connects via internal network
+    # Uncomment below for local debugging only:
+    # ports:
+    #   - "127.0.0.1:5432:5432"    volumes:
+      - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./database/02-standards-data.sql:/docker-entrypoint-initdb.d/02-standards-data.sql:ro
       - ./database/03-standard-weightings-data.sql:/docker-entrypoint-initdb.d/03-standard-weightings-data.sql:ro
       - ./database/04-atar-distributions-data.sql:/docker-entrypoint-initdb.d/04-atar-distributions-data.sql:ro
       - ./database/05-participation-rates-data.sql:/docker-entrypoint-initdb.d/05-participation-rates-data.sql:ro
+      - ./database/06-alter-tables.sql:/docker-entrypoint-initdb.d/06-alter-tables.sql:ro
     networks:
       - ncea-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "pg_isready", "-U", "${DB_USER:-ncea_user}", "-d", "${DB_NAME:-ncea_atar}" ]
       timeout: 20s
       retries: 10
 
@@ -50,7 +51,7 @@ services:
     restart: unless-stopped
     environment:
       DB_HOST: database
-      DB_PORT: 3306
+      DB_PORT: 5432
       DB_NAME: ${DB_NAME:-ncea_atar}
       DB_USER: ${DB_USER:-ncea_user}
       DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
@@ -61,34 +62,28 @@ services:
         condition: service_healthy
     networks:
       - ncea-network
-    volumes:
-      - ./backend:/app
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4" ]
   # Next.js Frontend
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: ncea-frontend
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost
       API_BASE_URL_INTERNAL: http://backend:8000
-      NODE_ENV: development
+      NODE_ENV: production
     # Port not exposed to host — Nginx proxies to this service internally
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     depends_on:
       - backend
     networks:
       - ncea-network
 
 volumes:
-  mysql_data:
+  postgres_data:
     driver: local
 
 networks:
   ncea-network:
-    driver: bridge 
+    driver: bridge

@@ -244,8 +244,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
         setQuery(firstSubject);
         performSearch(firstSubject);
         inputRef.current?.blur();
-      } else if (suggestions.standards.length > 0) {
-        const firstStandard = suggestions.standards[0];
+      } else if (sortedStandards.length > 0) {
+        const firstStandard = sortedStandards[0];
         const standardNumber = firstStandard.split(' • ')[0];
         handleStandardSuggestionClick(standardNumber);
       } else {
@@ -277,6 +277,15 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
       setLoadingSearch(false);
     }
   };
+
+  const sortedStandards = useMemo(() => {
+    if (!suggestions.standards || suggestions.standards.length === 0) return [];
+    return [...suggestions.standards].sort((a, b) => {
+      const numA = parseInt(a.match(/^\d+/)?.[0] || '0', 10);
+      const numB = parseInt(b.match(/^\d+/)?.[0] || '0', 10);
+      return numB - numA;
+    });
+  }, [suggestions.standards]);
 
   const relatedGroups = searchData?.related_groups ?? [];
   const suggestion = searchData?.suggestion ?? null;
@@ -490,7 +499,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
                       Standards
                     </motion.div>
                     <AnimatePresence mode="popLayout">
-                      {suggestions.standards.map((standard) => {
+                      {sortedStandards.map((standard) => {
                         const match = standard.match(/^\d+/);
                         const standardNumber = match ? match[0] : standard;
                         return (

@@ -4,11 +4,11 @@ FROM python:3.11-slim as base
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies for MySQL connector and other packages
+# Install system dependencies for PostgreSQL connector and other packages
 RUN apt-get update && apt-get install -y \
     gcc \
     pkg-config \
-    default-libmysqlclient-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better Docker layer caching

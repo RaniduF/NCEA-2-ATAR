@@ -117,11 +117,20 @@ class ATARCalculator:
         pop = self.participation_rates.get(year)
         if not dist or not pop:
             return None
+            
+        distribution_list = dist.get("distribution", [])
+        if not distribution_list:
+            return None
+            
+        min_stat_value = distribution_list[-1]["value"]
+        if stat_value < min_stat_value:
+            return 0.0
+            
         students_per_band = round(float(pop) * 0.0005)
         if students_per_band == 0:
             return None
         user_rank = 1
-        for entry in dist["distribution"]:
+        for entry in distribution_list:
             if stat_value >= entry["value"]:
                 break
             user_rank += entry["count"]

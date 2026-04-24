@@ -3,14 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { portfolioService, type SavedPortfolio } from '../app/services/portfolio';
 
-import type { SelectedItem, Grade } from '../app/page';
-
-const gradeColorMap: Record<Grade, { bg: string; text: string; border: string; active: string }> = {
-  'Excellence': { bg: 'bg-[#C4962D]/10', text: 'text-[#C4962D]', border: 'border-[#C4962D]/20', active: 'bg-[#C4962D] text-white' },
-  'Merit': { bg: 'bg-[#4A7A8C]/10', text: 'text-[#4A7A8C]', border: 'border-[#4A7A8C]/20', active: 'bg-[#4A7A8C] text-white' },
-  'Achieved': { bg: 'bg-[#5B8A3C]/10', text: 'text-[#5B8A3C]', border: 'border-[#5B8A3C]/20', active: 'bg-[#5B8A3C] text-white' },
-  'Not Achieved': { bg: 'bg-[#B33A3A]/10', text: 'text-[#B33A3A]', border: 'border-[#B33A3A]/20', active: 'bg-[#B33A3A] text-white' },
-};
+import type { SelectedItem } from '../app/page';
 
 import { useToast } from '../app/providers/ToastProvider';
 
@@ -24,7 +17,7 @@ interface Props {
 export function PortfolioManager({ onLoadPortfolio, isOpen, onClose, onOpenImport }: Props) {
   const [portfolios, setPortfolios] = useState<SavedPortfolio[]>([]);
   const [storageInfo, setStorageInfo] = useState({ used: 0, available: 0, portfolioCount: 0 });
-          const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState<string>('');
 
@@ -32,7 +25,7 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose, onOpenImpor
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'standards'>('updated');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-      const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -190,11 +183,11 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose, onOpenImpor
             </div>
             <div className="flex items-center gap-2">
               {onOpenImport && (
-              <button onClick={onOpenImport} className="btn-primary flex items-center gap-2 px-4 py-2.5" title="Import from NCEA Portal">
-                <span className="material-symbols-outlined text-lg">cloud_upload</span>
-                <span className="hidden sm:inline">Import from NCEA</span>
-              </button>
-            )}
+                <button onClick={onOpenImport} className="btn-primary flex items-center gap-2 px-4 py-2.5" title="Import from NCEA Portal">
+                  <span className="material-symbols-outlined text-lg">cloud_upload</span>
+                  <span className="hidden sm:inline">Import from NCEA</span>
+                </button>
+              )}
               <button onClick={handleImportPortfolio} className="btn-ghost px-3 py-2.5" title="Import JSON File">
                 <span className="material-symbols-outlined text-lg">upload_file</span>
               </button>
@@ -282,11 +275,11 @@ export function PortfolioManager({ onLoadPortfolio, isOpen, onClose, onOpenImpor
                 Create your first portfolio by adding NCEA standards and saving, or import directly from your NCEA portal.
               </p>
               {onOpenImport && (
-              <button onClick={onOpenImport} className="btn-primary flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">cloud_upload</span>
-                Import from NCEA portal
-              </button>
-            )}
+                <button onClick={onOpenImport} className="btn-primary flex items-center gap-2">
+                  <span className="material-symbols-outlined text-lg">cloud_upload</span>
+                  Import from NCEA portal
+                </button>
+              )}
             </div>
           ) : filteredPortfolios.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">

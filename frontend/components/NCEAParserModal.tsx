@@ -216,7 +216,7 @@ export function NCEAParserModal({ isOpen, onClose, onLoadPortfolio }: Props) {
                   <div className="panel p-5">
                     <h4 className="font-bold text-grade-achieved mb-4 flex items-center gap-2 text-sm">
                       <span className="material-symbols-outlined text-lg">check_circle</span>
-                      Standards ready for import ({parseResult.validStandards.filter(s => !parseResult.unsatStandardNumbers.includes(s.standard.standard_number)).length})
+                      Standards ready for import ({parseResult.validStandards.filter(s => !parseResult.unsatStandardNumbers || !parseResult.unsatStandardNumbers.includes(s.standard.standard_number)).length})
                     </h4>
                     <div className="space-y-2 max-h-48 overflow-y-auto">
                       {parseResult.validStandards.filter(s => !parseResult.unsatStandardNumbers || !parseResult.unsatStandardNumbers.includes(s.standard.standard_number)).map((item, index) => (

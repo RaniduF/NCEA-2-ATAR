@@ -87,10 +87,7 @@ async def get_search_suggestions(q: str | None = None,
     keyword_sql = """
                  SELECT DISTINCT s.standard_number, s.title
                  FROM standards s,
-                      JSON_TABLE(
-                              s.search_keywords,
-                              '$.primary[*]' COLUMNS (value VARCHAR(100) PATH '$')
-                      ) AS jp
+                      jsonb_array_elements_text(s.search_keywords->'primary') AS jp(value)
                  WHERE jp.value LIKE :search_term
                  """
 
@@ -103,7 +100,8 @@ async def get_search_suggestions(q: str | None = None,
         keyword_sql += "AND s.standard_number NOT IN :excluded_list\n"
         params["excluded_list"] = excluded_numbers
 
-    keyword_sql += "LIMIT :limit_count;"
+    keyword_sql += "ORDER BY s.standard_number LIMIT :limit_count;"
+
 
     keyword_query = text(keyword_sql)
 

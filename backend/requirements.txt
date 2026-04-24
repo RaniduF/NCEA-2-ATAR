@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
 python-dotenv
-mysql-connector-python
+psycopg2-binary
 SQLAlchemy
 pydantic-settings
 thefuzz[speedup]
