@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { ATARResult, CalculationBreakdownResponse, YearlyBreakdown, DistributionResponse } from '../app/services/api';
 import { getDistribution } from '../app/services/api';
@@ -439,7 +440,17 @@ export function ATARResults({ results, breakdown }: Props) {
               </div>
             </div>
             <div className="panel p-4">
-              <div className="text-xs text-text-muted font-medium mb-1">Statistical score</div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="text-xs text-text-muted font-medium">Statistical Value</div>
+                <div className="group relative flex items-center">
+                  <span className="material-symbols-outlined text-sm text-text-muted hover:text-text-primary transition-colors cursor-help">info</span>
+                  <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
+                    <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
+                      The weighted average of your best 90 credits. <Link href="/how-it-works#step-4" className="text-primary hover:underline">See step 4 in How it works</Link>.
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div className="text-2xl font-bold text-primary font-mono">
                 {yearsMap[activeYear].statistical_value.toFixed(4)}
               </div>
@@ -458,7 +469,7 @@ export function ATARResults({ results, breakdown }: Props) {
                   <span className="material-symbols-outlined text-sm text-text-muted hover:text-text-primary transition-colors cursor-help">info</span>
                   <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
                     <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
-                      Your best 90 credits in order. These are the standards that are currently contributing to your estimated ATAR, ordered from most influential to least. We automatically select your top-performing credits based on historical weighting.
+                      Your best 90 credits in order. These are the standards that are currently contributing to your estimated ATAR. We automatically select your top-performing credits based on historical weighting.
                     </div>
                   </div>
                 </div>
@@ -560,7 +571,7 @@ export function ATARResults({ results, breakdown }: Props) {
                   <span className="material-symbols-outlined text-sm text-text-muted hover:text-text-primary transition-colors cursor-help">info</span>
                   <div className="absolute left-0 sm:-left-4 top-full pt-2 hidden group-hover:block w-[280px] sm:w-[320px] z-50">
                     <div className="p-3 bg-surface-card border border-border shadow-modal text-xs text-text-secondary leading-relaxed font-normal normal-case tracking-normal">
-                      These are the standards that would have the biggest impact on your ATAR in order. This section projects how much value each standard inherently holds. Prioritise focusing on the standards near the top to maximize your ATAR potential.
+                      These are the standards that would have the biggest impact on your ATAR in order. This section shows the maximum weight for a standard (i.e. the weight at E). Prioritise focusing on the standards near the top to maximize your ATAR potential.
                     </div>
                   </div>
                 </div>

@@ -1,12 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from .api import standards
 from .api import suggestions
 from .api import calculation
 from .api import subject_analysis
 from .core.config import settings
+from .core.limiter import limiter
 
 app = FastAPI(title="NCEA to ATAR API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

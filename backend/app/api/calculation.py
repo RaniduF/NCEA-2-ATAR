@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from ..db.session import get_db
 from ..schemas import calculation as calculation_schemas
 from ..services.atar_engine import ATARCalculator
+from ..core.limiter import limiter
 
 router = APIRouter(
     prefix="/calculate-atar",
@@ -11,8 +12,10 @@ router = APIRouter(
 
 
 @router.post("/", response_model=calculation_schemas.ATARCalculationResponse)
+@limiter.limit("10/minute")
 async def calculate_atar_endpoint(
-        request: calculation_schemas.ATARCalculationRequest,
+        request: Request,
+        body: calculation_schemas.ATARCalculationRequest,
         db: Session = Depends(get_db)
 ):
     """
@@ -28,11 +31,11 @@ async def calculate_atar_endpoint(
             HTTPException: 400 if no standards are provided.
             HTTPException: 404 if ATARs could not be calculated for any year with the provided standards.
         """
-    if not request.standards:
+    if not body.standards:
         raise HTTPException(status_code=400, detail="No standards provided")
 
     # Instantiate the calculator with the user's data
-    calculator = ATARCalculator(db, request.standards)
+    calculator = ATARCalculator(db, body.standards)
 
     # Perform the calculation
     results = calculator.calculate_for_all_years()
@@ -88,7 +91,9 @@ async def get_distributions_endpoint(
         dict: A dictionary containing:
             - year (int): The academic year
             - distribution (list): List of dicts with 'statistical_value' and 'frequency'
-            - participation_rate (float): The weighted StatNZ population for that year
+            - weighted_statnz_population (float): The weighted StatNZ population for that year
+            - nz_total_candidature (int): The NZ total candidature count for that year
+            - participation_rate (float): Derived as nz_total_candidature / weighted_statnz_population
     
     Raises:
         HTTPException: 404 if no distribution data exists for the specified year.
@@ -110,7 +115,13 @@ async def get_distributions_endpoint(
         standard_models.ParticipationRate.academic_year == year
     ).first()
     
-    participation_rate = float(participation.weighted_statnz_population) if participation else None
+    weighted_population = float(participation.weighted_statnz_population) if participation else None
+    nz_total_candidature = int(participation.nz_total_candidature) if participation else None
+    
+    # Derive participation rate: NZ Total Candidature / Weighted StatNZ Population
+    participation_rate = None
+    if weighted_population and nz_total_candidature and weighted_population > 0:
+        participation_rate = nz_total_candidature / weighted_population
     
     # Format response
     distribution_data = [
@@ -124,5 +135,7 @@ async def get_distributions_endpoint(
     return {
         "year": year,
         "distribution": distribution_data,
+        "weighted_statnz_population": weighted_population,
+        "nz_total_candidature": nz_total_candidature,
         "participation_rate": participation_rate
     }

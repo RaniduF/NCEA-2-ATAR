@@ -42,9 +42,11 @@ CREATE TABLE IF NOT EXISTS atar_distributions (
 
 -- Table to store the historical participation rate data needed to calculate
 -- the number of students per ATAR band for a given year.
+-- participation_rate is derived as: nz_total_candidature / weighted_statnz_population
 CREATE TABLE IF NOT EXISTS participation_rates (
     academic_year INTEGER PRIMARY KEY,
-    weighted_statnz_population DECIMAL(20, 10) NOT NULL
+    weighted_statnz_population DECIMAL(20, 10) NOT NULL,
+    nz_total_candidature INT NOT NULL
 );
 
 -- ============================================

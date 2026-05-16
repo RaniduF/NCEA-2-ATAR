@@ -80,15 +80,25 @@ class ATARCalculator:
                 {"value": float(d.statistical_value), "count": d.frequency})
         return lookup
 
-    def _get_participation_rates(self) -> Dict[int, int]:
+    def _get_participation_rates(self) -> Dict[int, Dict]:
         """
-        Return a mapping from academic year to the weighted StatNZ population.
+        Return a mapping from academic year to participation rate data.
+        
+        Each entry contains the weighted StatNZ population and the NZ total candidature,
+        which are used to derive the participation rate for ATAR band calculation.
         
         Returns:
-            dict[int, int]: Mapping where keys are academic years and values are the corresponding weighted StatNZ population.
+            dict[int, dict]: Mapping where keys are academic years and values are dicts
+            with 'population' (weighted StatNZ population) and 'candidature' (NZ total candidature).
         """
         rates = self.db.query(standard_models.ParticipationRate).all()
-        return {r.academic_year: r.weighted_statnz_population for r in rates}
+        return {
+            r.academic_year: {
+                'population': float(r.weighted_statnz_population),
+                'candidature': int(r.nz_total_candidature)
+            }
+            for r in rates
+        }
 
     def _get_latest_weight_year(self) -> int | None:
         try:
@@ -100,7 +110,12 @@ class ATARCalculator:
         """
         Estimate an ATAR value corresponding to a given statistical score for a specific academic year.
         
-        Returns None when the year's distribution or participation population is unavailable or when the computed band size is zero.
+        Uses participation-rate-adjusted band sizes: each ATAR band represents
+        (0.05% / participation_rate) of the NZ Total Candidature, where
+        participation_rate = nz_total_candidature / weighted_statnz_population.
+        
+        Returns None when the year's distribution or participation data is unavailable
+        or when the computed band size is zero.
         
         Parameters:
         	stat_value (float): The statistical score to map to an ATAR.
@@ -110,8 +125,8 @@ class ATARCalculator:
         	float or None: ATAR rounded to two decimals (capped at 99.95 and floored at 0.0) if computable, `None` otherwise.
         """
         dist = self.all_distributions.get(year)
-        pop = self.participation_rates.get(year)
-        if not dist or not pop:
+        rate_data = self.participation_rates.get(year)
+        if not dist or not rate_data:
             return None
             
         distribution_list = dist.get("distribution", [])
@@ -121,8 +136,19 @@ class ATARCalculator:
         min_stat_value = distribution_list[-1]["value"]
         if stat_value < min_stat_value:
             return 0.0
+        
+        population = rate_data['population']
+        candidature = rate_data['candidature']
+        
+        if population <= 0 or candidature <= 0:
+            return None
+        
+        # Participation rate = NZ Total Candidature / Weighted StatNZ Population
+        participation_rate = candidature / population
+        # Each ATAR band step adjusted by participation rate
+        effective_step = 0.0005 / participation_rate
+        students_per_band = round(effective_step * candidature)
             
-        students_per_band = round(float(pop) * 0.0005)
         if students_per_band == 0:
             return None
         user_rank = 1

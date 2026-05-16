@@ -108,21 +108,16 @@ export interface DistributionDataPoint {
 export interface DistributionResponse {
   year: number;
   distribution: DistributionDataPoint[];
+  weighted_statnz_population: number | null;
+  nz_total_candidature: number | null;
   participation_rate: number | null;
 }
 
-let API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+let API_BASE = 'http://localhost:8000';
 
-// In the browser context, adapt to whether we are in dev (port 3000) or prod (nginx reverse proxy)
 if (typeof window !== 'undefined') {
-  if (window.location.port === '3000') {
-    // Development mode via docker-compose.dev.yml
-    // If the user connects via 127.0.0.1 or their LAN IP instead of localhost, adapt the API origin to match their exact IP but on port 8000!
-    API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
-  } else {
-    // Production mode via docker-compose.yml (NGINX handles routing natively)
-    API_BASE = '';
-  }
+  // Always direct to backend on port 8000, using whatever hostname the user is on
+  API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
 }
 
 const versionsCache = new Map<number, Promise<number[]>>();

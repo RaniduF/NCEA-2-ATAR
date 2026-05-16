@@ -82,8 +82,13 @@ def test_calculate_atar_success_with_diagnostics():
     # Fetch the participation rates to calculate the band sizes for diagnostics
     db = TestingSessionLocal()
     rates = db.query(ParticipationRate).all()
-    participation_rates = {r.academic_year: r.weighted_statnz_population for r
-                           in rates}
+    participation_data = {
+        r.academic_year: {
+            'population': float(r.weighted_statnz_population),
+            'candidature': int(r.nz_total_candidature)
+        }
+        for r in rates
+    }
     db.close()
 
     for result in data["results"]:
@@ -91,15 +96,21 @@ def test_calculate_atar_success_with_diagnostics():
         estimated_atar = result["estimated_atar"]
         stat_value = result["statistical_value"]
 
-        population = participation_rates.get(year)
-        if population:
-            students_per_band = round(float(population) * 0.0005)
+        rate_data = participation_data.get(year)
+        if rate_data:
+            population = rate_data['population']
+            candidature = rate_data['candidature']
+            participation_rate = candidature / population if population > 0 else 0
+            effective_step = 0.0005 / participation_rate if participation_rate > 0 else 0
+            students_per_band = round(effective_step * candidature)
         else:
+            participation_rate = "N/A"
             students_per_band = "N/A"
 
         print("\n------------------------------------")
         print(f"YEAR: {year}")
         print("------------------------------------")
+        print(f"  - Participation Rate: {participation_rate:.4f}" if isinstance(participation_rate, float) else f"  - Participation Rate: {participation_rate}")
         print(f"  - Students per ATAR Band: {students_per_band}")
         print(f"  - Calculated Statistical Value: {stat_value:.6f}")
         print(f"  - Final Estimated ATAR: {estimated_atar:.2f}")

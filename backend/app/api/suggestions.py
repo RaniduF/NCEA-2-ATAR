@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy import bindparam
-from sqlalchemy import func
+from sqlalchemy import func, cast, String
 
 from ..db.session import get_db
 from ..models import standard_models
@@ -50,7 +50,7 @@ async def get_search_suggestions(q: str | None = None,
     standards_by_number = []
     if search_term.isdigit():
         standards_by_number = db.query(standard_models.Standard).filter(
-            standard_models.Standard.standard_number.like(f"{search_term}%")
+            cast(standard_models.Standard.standard_number, String).like(f"{search_term}%")
         ).limit(5).all()
 
     remaining_slots = max(0, 7 - len(standards_by_number))

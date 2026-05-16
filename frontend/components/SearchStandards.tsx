@@ -248,6 +248,8 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
         const firstStandard = sortedStandards[0];
         const standardNumber = firstStandard.split(' • ')[0];
         handleStandardSuggestionClick(standardNumber);
+      } else if (/^\d+$/.test(query.trim())) {
+        handleStandardSuggestionClick(query.trim());
       } else {
         closeSuggestions();
         performSearch(query);
@@ -320,7 +322,7 @@ export function SearchStandards({ onAdd, onRemove, selectedStandardIds }: Props)
             </div>
             <div className="absolute right-0 top-full pt-2 hidden group-hover:block w-[320px] sm:w-[400px] z-[9999]">
               <div className="p-4 bg-surface-elevated border border-border shadow-modal text-xs text-text-secondary leading-relaxed text-left">
-                Don&apos;t see your subjects or standards? We use <a href="https://www2.nzqa.govt.nz/ncea/understanding-secondary-quals/university-entrance/ue-subjects/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">NZQA&apos;s Approved subjects for UE list</a>. For Non-UE Subject we use NZQA&apos;s Official subject name. If you can&apos;t find your subject, enter the individual standard code (e.g. 91234) and we&apos;ll pull up the subject we&apos;ve got it listed under. And if all else fails then that means either the standard isn&apos;t level 3, the standard is new or we don&apos;t have any historical data on it :(
+                Don&apos;t see your subjects or standards? We use <a href="https://www2.nzqa.govt.nz/ncea/understanding-secondary-quals/university-entrance/ue-subjects/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-bold">NZQA&apos;s Approved subjects for UE list</a>. For Non-UE Subject we use NZQA&apos;s Official subject name.
               </div>
             </div>
           </div>

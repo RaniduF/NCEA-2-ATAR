@@ -49,3 +49,4 @@ class ParticipationRate(Base):
     academic_year = Column(Integer, primary_key=True)
     # FIX: Changed data type from Integer to DECIMAL
     weighted_statnz_population = Column(DECIMAL(20, 10), nullable=False)
+    nz_total_candidature = Column(Integer, nullable=False)
