@@ -47,6 +47,6 @@ class ATARDistribution(Base):
 class ParticipationRate(Base):
     __tablename__ = "participation_rates"
     academic_year = Column(Integer, primary_key=True)
-    # FIX: Changed data type from Integer to DECIMAL
+    # DECIMAL to support fractional population values
     weighted_statnz_population = Column(DECIMAL(20, 10), nullable=False)
     nz_total_candidature = Column(Integer, nullable=False)

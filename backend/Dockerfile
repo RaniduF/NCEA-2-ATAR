@@ -12,9 +12,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better Docker layer caching
-COPY requirements.txt .
+COPY requirements.txt requirements-dev.txt ./
 
-# Install Python dependencies
+# Install production dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
@@ -34,14 +34,14 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # Production stage
 FROM base as production
 
-# Command to run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application with multiple workers for production
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 
 # Development stage
 FROM base as dev
 
-# Install additional development dependencies if needed
-# RUN pip install --no-cache-dir watchdog
+# Install testing and development dependencies
+RUN pip install --no-cache-dir -r requirements-dev.txt
 
 # Command to run the application with hot reloading
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"] 

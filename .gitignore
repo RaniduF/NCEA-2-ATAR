@@ -46,10 +46,11 @@ subject_analysis_*.txt
 subject_trends_data.csv
 credits_breakdown.csv
 high_atar_stability_analysis.png
-on
 
 # ===================================================================
-# Claude
+# Claude / Dev Tooling
 # ===================================================================
 install.cmd
 .claude/
+skills-lock.json
+DESIGN.json

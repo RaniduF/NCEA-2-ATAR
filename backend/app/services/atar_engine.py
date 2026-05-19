@@ -305,7 +305,7 @@ class ATARCalculator:
             if weighting is None or weighting <= 0.001:
                 continue
                 
-            hierarchy = self._get_standard_hierarchy(std_info)
+            hierarchy = self._priority_tier(std_info)
             
             processed_standards.append({
                 "credits": std_info.credits, 
@@ -394,29 +394,6 @@ class ATARCalculator:
         
         return max(std_results, key=get_sort_key)
     
-    def _get_standard_hierarchy(self, std_info):
-        """
-        Compute a numeric hierarchy for a standard to determine selection priority.
-        
-        The hierarchy is determined from the standard's `is_ue` flag and its `standards_type` string:
-        - 1: UE and `standards_type` starts with "achievement"
-        - 2: UE and `standards_type` does not start with "achievement"
-        - 3: not UE and `standards_type` starts with "achievement"
-        - 4: all other cases
-        
-        Parameters:
-            std_info: Standard-like object with attributes `is_ue` (bool) and `standards_type` (str or None).
-        
-        Returns:
-            int: The computed hierarchy value (1–4) as described above.
-        """
-        if std_info.is_ue:
-            return 1 if (std_info.standards_type or '').lower().startswith('achievement') else 2
-        elif (std_info.standards_type or '').lower().startswith('achievement'):
-            return 3
-        return 4
-
-    # --- New: Helpers for breakdown selection ---
     def _priority_tier(self, std_info: standard_models.Standard) -> int:
         """
         Determine the numeric priority tier for a standard based on its UE status and standards_type.

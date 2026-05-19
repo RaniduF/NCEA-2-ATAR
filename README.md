@@ -47,7 +47,7 @@ docker compose -f docker-compose.dev.yml up --build
 - **Backend API:** http://localhost:8000 (auto reload)
 - **API Docs:** http://localhost:8000/docs
 
-### Production
+### Production (Local)
 
 ```bash
 docker compose up --build
@@ -56,6 +56,35 @@ docker compose up --build
 - **Application:** http://localhost (via Nginx)
 
 See [docs/docker-setup.md](docs/docker-setup.md) for detailed setup instructions and troubleshooting.
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DB_HOST` | Yes | — | PostgreSQL hostname |
+| `DB_PORT` | Yes | — | PostgreSQL port |
+| `DB_NAME` | Yes | — | Database name |
+| `DB_USER` | Yes | — | Database username |
+| `DB_PASSWORD` | Yes | — | Database password |
+| `CORS_ORIGINS` | No | `localhost:3000` | JSON array of allowed origins |
+| `NEXT_PUBLIC_SITE_URL` | No | `http://localhost:3000` | Public URL for SEO metadata / sitemap |
+| `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | API base URL (build-time for Next.js) |
+
+Docker Compose files set sensible defaults for all variables.
+
+## Testing
+
+### Backend
+
+```bash
+# Run from within the backend container or with a local venv
+pip install -r requirements-dev.txt
+pytest
+```
+
+### Database Schema
+
+The database schema is documented visually in [docs/ncea2atar_schema_2025-07-01.svg](docs/ncea2atar_schema_2025-07-01.svg).
 
 ## Scripts
 
@@ -75,3 +104,6 @@ Utility scripts live in `scripts/`:
 | `analyze_high_atar_stability.py` | High-ATAR stability analysis |
 | `fix_maori_encoding.py` | Fix macron encoding in data files |
 
+## Licence
+
+See [LICENSE](LICENSE) for details.
