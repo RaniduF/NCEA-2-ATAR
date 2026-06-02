@@ -4,6 +4,7 @@ from ..db.session import get_db
 from ..schemas import calculation as calculation_schemas
 from ..services.atar_engine import ATARCalculator
 from ..core.limiter import limiter
+from ..core import data_cache
 
 router = APIRouter(
     prefix="/calculate-atar",
@@ -77,65 +78,35 @@ async def calculate_atar_breakdown_endpoint(
 
 
 @router.get("/distributions/{year}")
-async def get_distributions_endpoint(
-        year: int,
-        db: Session = Depends(get_db)
-):
-    """
-    Fetch the ATAR distribution data for a specific academic year.
-    
-    Parameters:
-        year (int): The academic year to fetch distribution data for.
-    
-    Returns:
-        dict: A dictionary containing:
-            - year (int): The academic year
-            - distribution (list): List of dicts with 'statistical_value' and 'frequency'
-            - weighted_statnz_population (float): The weighted StatNZ population for that year
-            - nz_total_candidature (int): The NZ total candidature count for that year
-            - participation_rate (float): Derived as nz_total_candidature / weighted_statnz_population
-    
-    Raises:
-        HTTPException: 404 if no distribution data exists for the specified year.
-    """
-    from ..models import standard_models
-    
-    # Fetch distribution data
-    distributions = db.query(standard_models.ATARDistribution).filter(
-        standard_models.ATARDistribution.academic_year == year
-    ).order_by(
-        standard_models.ATARDistribution.statistical_value.asc()
-    ).all()
-    
-    if not distributions:
+async def get_distributions_endpoint(year: int):
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Academic year must be between 2000 and 2100")
+
+    all_distributions = data_cache.get_distributions()
+    all_participation = data_cache.get_participation_rates()
+
+    if all_distributions is None or year not in all_distributions:
         raise HTTPException(status_code=404, detail=f"No distribution data found for year {year}")
-    
-    # Fetch participation rate
-    participation = db.query(standard_models.ParticipationRate).filter(
-        standard_models.ParticipationRate.academic_year == year
-    ).first()
-    
-    weighted_population = float(participation.weighted_statnz_population) if participation else None
-    nz_total_candidature = int(participation.nz_total_candidature) if participation else None
-    
-    # Derive participation rate: NZ Total Candidature / Weighted StatNZ Population
+
+    rate_data = all_participation.get(year) if all_participation else None
+    weighted_population = rate_data["population"] if rate_data else None
+    nz_total_candidature = rate_data["candidature"] if rate_data else None
+
     participation_rate = None
     if weighted_population and nz_total_candidature and weighted_population > 0:
         participation_rate = nz_total_candidature / weighted_population
-    
-    # Format response
+
+    # Cache stores entries ordered desc; endpoint contract is asc — reverse here.
+    raw = all_distributions[year]["distribution"]
     distribution_data = [
-        {
-            "statistical_value": float(d.statistical_value),
-            "frequency": d.frequency
-        }
-        for d in distributions
+        {"statistical_value": entry["value"], "frequency": entry["count"]}
+        for entry in reversed(raw)
     ]
-    
+
     return {
         "year": year,
         "distribution": distribution_data,
         "weighted_statnz_population": weighted_population,
         "nz_total_candidature": nz_total_candidature,
-        "participation_rate": participation_rate
+        "participation_rate": participation_rate,
     }
