@@ -3,7 +3,7 @@
 import json
 import os
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import func
 from sqlalchemy import cast
@@ -18,8 +18,7 @@ from ..models import standard_models
 # --- Load Manual Overrides ---
 def load_manual_overrides():
     overrides_path = os.path.join(
-        os.path.dirname(__file__), '..', '..', '..', 'scripts',
-        'search_overrides.json'
+        os.path.dirname(__file__), '..', 'data', 'search_overrides.json'
     )
     try:
         with open(overrides_path, 'r') as f:
@@ -49,7 +48,12 @@ async def search_standards(q: str | None = None,
     if not q:
         return {"direct_results": [], "related_groups": [], "suggestion": None}
 
-    search_term = q.lower().strip()
+    # Limit search query length to 100 characters to prevent denial-of-service / excessive matching
+    q_sanitized = q.strip()
+    if len(q_sanitized) > 100:
+        q_sanitized = q_sanitized[:100]
+
+    search_term = q_sanitized.lower()
 
     # --- Cache the list of subjects for performance ---
     all_subjects_query = db.query(
@@ -141,6 +145,12 @@ async def search_standards(q: str | None = None,
 
 @router.get("/{standard_number}/available-years")  # noqa: B008
 def get_available_years_for_standard(standard_number: int, version: Optional[int] = None, db: Session = Depends(get_db)):
+    # Validate standard_number and version range
+    if not (0 <= standard_number <= 999999):
+        raise HTTPException(status_code=400, detail="Invalid standard number")
+    if version is not None and not (0 <= version <= 100):
+        raise HTTPException(status_code=400, detail="Invalid version number")
+
     query = db.query(standard_models.StandardWeighting.academic_year)\
         .filter(standard_models.StandardWeighting.standard_number == standard_number)
 
@@ -157,6 +167,10 @@ def get_available_years_for_standard(standard_number: int, version: Optional[int
 
 @router.get("/{standard_number}/available-versions")  # noqa: B008
 def get_available_versions_for_standard(standard_number: int, db: Session = Depends(get_db)):
+    # Validate standard_number range
+    if not (0 <= standard_number <= 999999):
+        raise HTTPException(status_code=400, detail="Invalid standard number")
+
     available_versions = db.query(standard_models.StandardWeighting.standard_version)\
         .filter(standard_models.StandardWeighting.standard_number == standard_number)\
         .distinct()\

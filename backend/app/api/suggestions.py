@@ -14,17 +14,28 @@ router = APIRouter(
 )
 
 
+def escape_like_term(term: str) -> str:
+    """Escapes %, _ and \ characters for SQL LIKE queries."""
+    return term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+
 @router.get("/")
 async def get_search_suggestions(q: str | None = None,
                                  db: Session = Depends(get_db)):
-    if not q or len(q) < 2:
+    if not q or len(q.strip()) < 2:
         return {"subjects": [], "standards": []}
 
-    search_term = q.lower().strip()
+    # Limit search query length to 100 characters to prevent denial-of-service / excessive matching
+    q_sanitized = q.strip()
+    if len(q_sanitized) > 100:
+        q_sanitized = q_sanitized[:100]
+
+    search_term = q_sanitized.lower()
+    escaped_term = escape_like_term(search_term)
 
     # --- 1. Find matching subjects ---
     subject_matches = db.query(standard_models.Standard.subject).filter(
-        func.lower(standard_models.Standard.subject).like(f"{search_term}%")
+        func.lower(standard_models.Standard.subject).like(f"{escaped_term}%", escape='\\')
     ).distinct().all()
 
     scored_subjects = []
@@ -50,7 +61,7 @@ async def get_search_suggestions(q: str | None = None,
     standards_by_number = []
     if search_term.isdigit():
         standards_by_number = db.query(standard_models.Standard).filter(
-            cast(standard_models.Standard.standard_number, String).like(f"{search_term}%")
+            cast(standard_models.Standard.standard_number, String).like(f"{escaped_term}%", escape='\\')
         ).limit(5).all()
 
     remaining_slots = max(0, 7 - len(standards_by_number))
@@ -58,15 +69,15 @@ async def get_search_suggestions(q: str | None = None,
 
     keyword_results = []
     if remaining_slots > 0:
-        keyword_sql = """
+        keyword_sql = r"""
                      SELECT DISTINCT s.standard_number, s.title
                      FROM standards s,
                           jsonb_array_elements_text(s.search_keywords->'primary') AS jp(value)
-                     WHERE jp.value LIKE :search_term
+                     WHERE jp.value LIKE :search_term ESCAPE '\'
                      """
 
         params = {
-            "search_term": f"{search_term}%",
+            "search_term": f"{escaped_term}%",
             "limit_count": remaining_slots
         }
 

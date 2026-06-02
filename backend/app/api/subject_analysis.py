@@ -124,6 +124,13 @@ async def get_subject_rankings(
     ue_only: Optional[bool] = Query(False, description="Show only UE-approved subjects"),
     db: Session = Depends(get_db)
 ):
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Academic year must be between 2000 and 2100")
+    if top_n is not None and not (1 <= top_n <= 1000):
+        raise HTTPException(status_code=400, detail="top_n must be between 1 and 1000")
+    if min_score is not None and not (0.0 <= min_score <= 1.0):
+        raise HTTPException(status_code=400, detail="min_score must be between 0.0 and 1.0")
+
     try:
         query = text("""
             SELECT
@@ -232,6 +239,9 @@ async def get_subject_trends(
     min_years: Optional[int] = Query(2, description="Minimum number of years required for trend analysis"),
     db: Session = Depends(get_db)
 ):
+    if min_years is not None and not (1 <= min_years <= 50):
+        raise HTTPException(status_code=400, detail="min_years must be between 1 and 50")
+
     try:
         years_query = text("SELECT DISTINCT academic_year FROM standard_weightings ORDER BY academic_year")
         available_years = [row[0] for row in db.execute(years_query).fetchall()]
@@ -310,6 +320,9 @@ async def get_ssp_rankings(
     year: int,
     db: Session = Depends(get_db)
 ):
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Academic year must be between 2000 and 2100")
+
     try:
         query = text("""
             SELECT
@@ -417,6 +430,13 @@ async def get_detailed_subject_analysis(
     year: int,
     db: Session = Depends(get_db)
 ):
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Academic year must be between 2000 and 2100")
+
+    subject_name_sanitized = subject_name.strip()
+    if not subject_name_sanitized or len(subject_name_sanitized) > 100:
+        raise HTTPException(status_code=400, detail="Invalid subject name")
+
     try:
         query = text("""
             SELECT
@@ -435,12 +455,12 @@ async def get_detailed_subject_analysis(
             ORDER BY sw.weight_excellence DESC
         """)
 
-        result = db.execute(query, {"subject": subject_name, "year": year}).fetchall()
+        result = db.execute(query, {"subject": subject_name_sanitized, "year": year}).fetchall()
 
         if not result:
             raise HTTPException(
                 status_code=404,
-                detail=f"No data found for {subject_name} in {year}"
+                detail=f"No data found for {subject_name_sanitized} in {year}"
             )
 
         standards_breakdown = []
@@ -463,12 +483,12 @@ async def get_detailed_subject_analysis(
 
         try:
             rankings_response = await get_subject_rankings(year=year, db=db)
-            subject_rank = next((r.rank for r in rankings_response.rankings if r.subject == subject_name), None)
+            subject_rank = next((r.rank for r in rankings_response.rankings if r.subject == subject_name_sanitized), None)
         except Exception:
             subject_rank = None
 
         return DetailedSubjectAnalysis(
-            subject=subject_name,
+            subject=subject_name_sanitized,
             year=year,
             optimal_score=optimal_score,
             total_standards_available=len(standards_breakdown),
@@ -500,6 +520,9 @@ async def get_available_subjects(
     year: Optional[int] = Query(None, description="Filter by specific year"),
     db: Session = Depends(get_db)
 ):
+    if year is not None and not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Academic year must be between 2000 and 2100")
+
     try:
         if year:
             query = text("""
