@@ -636,6 +636,7 @@ The next step is to determine an adjustment factor to reflect the relative diffi
 
 This is done by comparing the performance of candidates taking the standard being assessed for difficulty (the target standard  $S_i$ ) with their performance on each other standard  $(S_i)$ . For example if, of the 1000 candidates taking standard S<sub>i</sub> 50 are also taking the standard S<sub>i</sub>, then the relative performance of these 50 candidates on  $S_i$  and  $S_i$  is measured. This assessment is done for the subset of candidates taking each pair of standards, using the formula:
 
+$D_i = \frac{\sum_{j=1}^{n} c_{ij} \rho_{ij} (R_j - R_i)}{\sum_{j=1}^{n} c_{ij}}$
 ![](_page_25_Figure_11.jpeg)
 
 Where:
