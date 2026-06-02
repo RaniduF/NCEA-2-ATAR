@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: ${DB_NAME:-ncea_atar}
       POSTGRES_USER: ${DB_USER:-ncea_user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-ncea_password}
-    # Port not exposed to host — backend connects via internal network
+    # Port not exposed to host — backend connects via internal network.
     # Uncomment below for local debugging only:
     # ports:
     #   - "127.0.0.1:5432:5432"
@@ -20,6 +20,7 @@ services:
       - ./database/04-atar-distributions-data.sql:/docker-entrypoint-initdb.d/04-atar-distributions-data.sql:ro
       - ./database/05-participation-rates-data.sql:/docker-entrypoint-initdb.d/05-participation-rates-data.sql:ro
       - ./database/06-alter-tables.sql:/docker-entrypoint-initdb.d/06-alter-tables.sql:ro
+      - ./database/07-atar-map.sql:/docker-entrypoint-initdb.d/07-atar-map.sql:ro
     networks:
       - ncea-network
     healthcheck:
@@ -32,7 +33,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: production
     container_name: ncea-backend
     restart: unless-stopped
     environment:
@@ -41,7 +41,7 @@ services:
       DB_NAME: ${DB_NAME:-ncea_atar}
       DB_USER: ${DB_USER:-ncea_user}
       DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
-      CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000"]'
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000","http://frontend:3000"]'
     ports:
       - "8000:8000"
     depends_on:
@@ -49,7 +49,10 @@ services:
         condition: service_healthy
     networks:
       - ncea-network
+    # Local dev has more resources than Fargate (256 CPU / 512 MB),
+    # so 4 workers is fine here.
     command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4" ]
+
   # Next.js Frontend
   frontend:
     build:

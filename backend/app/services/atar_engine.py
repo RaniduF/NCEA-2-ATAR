@@ -3,6 +3,7 @@ from sqlalchemy import func
 from ..models import standard_models
 from ..schemas.calculation import UserStandardInput
 from ..schemas import calculation as calc_schemas
+from ..core import data_cache
 from typing import List, Dict, Tuple
 import math
 
@@ -14,8 +15,18 @@ class ATARCalculator:
         self._standard_numbers = {us.standard_number for us in user_standards}
         self.all_standards_info = self._get_all_standards_info()
         self.all_weightings = self._get_all_weightings()
-        self.all_distributions = self._get_all_distributions()
-        self.participation_rates = self._get_participation_rates()
+
+        cached_dist = data_cache.get_distributions()
+        self.all_distributions = cached_dist if cached_dist is not None else self._get_all_distributions()
+
+        cached_rates = data_cache.get_participation_rates()
+        self.participation_rates = cached_rates if cached_rates is not None else self._get_participation_rates()
+
+        cached_map = data_cache.get_atar_map()
+        self.atar_map = cached_map if cached_map is not None else {}
+
+        cached_year = data_cache.get_latest_weight_year()
+        self._latest_weight_year = cached_year if cached_year is not None else self._get_latest_weight_year()
 
     def _get_all_standards_info(self):
         standards = self.db.query(standard_models.Standard).filter(
@@ -106,58 +117,134 @@ class ATARCalculator:
         except Exception:
             return None
 
+    @staticmethod
+    def _f_pr(x: float, pr: float) -> float:
+        """
+        Harrison-Hyndman one-parameter participation model point estimate.
+
+        Returns the participation-adjusted allocation factor at proportion rank x.
+        This is a density/point-estimate function, NOT a cumulative distribution.
+
+        Three regimes:
+          - Low participation  (PR < 0.25):  f(x) = x^((1-PR)/PR)
+          - Mid-range          (0.25 ≤ PR ≤ 0.75): piecewise cubic spline
+          - High participation (PR > 0.75):  f(x) = 1 - (1-x)^(PR/(1-PR))
+
+        Parameters:
+            x (float): Proportion rank, in [0, 1] (i.e. ATAR / 100).
+            pr (float): Overall participation rate E / Y, as a fraction.
+
+        Returns:
+            float: The f_PR(x) value in [0, 1].
+        """
+        if pr < 0.25:
+            # Low participation rate: power function
+            if x <= 0.0:
+                return 0.0
+            return x ** ((1.0 - pr) / pr)
+        elif pr > 0.75:
+            # High participation rate: power function
+            if x >= 1.0:
+                return 1.0
+            return 1.0 - (1.0 - x) ** (pr / (1.0 - pr))
+        else:
+            # Mid-range participation rate: cubic spline
+            alpha = 1.5 - 2.0 * pr
+            if x <= alpha:
+                if alpha <= 0.0:
+                    return 0.0
+                return (x ** 3) / (alpha ** 2)
+            else:
+                if alpha >= 1.0:
+                    return 1.0
+                return 1.0 - ((1.0 - x) ** 3) / ((1.0 - alpha) ** 2)
+
+    def _build_atar_map_for_year(self, year: int) -> list | None:
+        """
+        Compute the ATAR band map on-the-fly for a given year using the
+        Harrison-Hyndman spline, as a fallback when no precalculated atar_map
+        table exists in the database.
+
+        Returns a list of (atar_band, cumulative_limit) tuples sorted descending
+        by atar_band (99.95 first), or None if participation data is unavailable.
+        """
+        rate_data = self.participation_rates.get(year)
+        if not rate_data:
+            return None
+
+        population = rate_data['population']
+        candidature = rate_data['candidature']
+        if population <= 0 or candidature <= 0:
+            return None
+
+        pr = candidature / population
+        h = population / 2000.0
+
+        result = []
+        cum = 0.0
+        for i in range(1999, -1, -1):  # 99.95 down to 0.00
+            band = round(i * 0.05, 2)
+            x = i * 0.05 / 100.0
+            f_val = self._f_pr(x, pr)
+            places = f_val * h
+            cum += places
+            result.append((band, cum))
+        return result
+
     def _estimate_atar_from_stat(self, stat_value: float, year: int) -> float | None:
         """
-        Estimate an ATAR value corresponding to a given statistical score for a specific academic year.
-        
-        Uses participation-rate-adjusted band sizes: each ATAR band represents
-        (0.05% / participation_rate) of the NZ Total Candidature, where
-        participation_rate = nz_total_candidature / weighted_statnz_population.
-        
-        Returns None when the year's distribution or participation data is unavailable
-        or when the computed band size is zero.
-        
-        Parameters:
-        	stat_value (float): The statistical score to map to an ATAR.
-        	year (int): The academic year whose distribution and participation rates to use.
-        
-        Returns:
-        	float or None: ATAR rounded to two decimals (capped at 99.95 and floored at 0.0) if computable, `None` otherwise.
+        Estimate an ATAR value for a given statistical score using the
+        Harrison-Hyndman cubic spline participation model.
+
+        The student's rank in the distribution is looked up against the
+        precalculated atar_map (or a fallback on-the-fly computation), which
+        stores the cumulative limit for each 0.05 ATAR band.  The student is
+        awarded the highest ATAR band b where:
+            rank ≤ cumulative_limit_b
+
+        Returns None when the year's distribution or participation data is
+        unavailable.
         """
         dist = self.all_distributions.get(year)
         rate_data = self.participation_rates.get(year)
         if not dist or not rate_data:
             return None
-            
+
         distribution_list = dist.get("distribution", [])
         if not distribution_list:
             return None
-            
+
         min_stat_value = distribution_list[-1]["value"]
         if stat_value < min_stat_value:
             return 0.0
-        
+
         population = rate_data['population']
         candidature = rate_data['candidature']
-        
         if population <= 0 or candidature <= 0:
             return None
-        
-        # Participation rate = NZ Total Candidature / Weighted StatNZ Population
-        participation_rate = candidature / population
-        # Each ATAR band step adjusted by participation rate
-        effective_step = 0.0005 / participation_rate
-        students_per_band = round(effective_step * candidature)
-            
-        if students_per_band == 0:
-            return None
+
+        # Count students with strictly higher stat value to find rank from top
         user_rank = 1
         for entry in distribution_list:
             if stat_value >= entry["value"]:
                 break
             user_rank += entry["count"]
-        band_index = (user_rank - 1) // students_per_band
-        return max(0.0, round(99.95 - (band_index * 0.05), 2))
+
+        # Look up the precalculated ATAR map (or compute fallback)
+        year_map = self.atar_map.get(year)
+        if year_map is None:
+            year_map = self._build_atar_map_for_year(year)
+            if year_map is None:
+                return None
+            # Cache for subsequent lookups within this calculator instance
+            self.atar_map[year] = year_map
+
+        # Find the highest ATAR band where rank ≤ cumulative_limit
+        for atar_band, cum_limit in year_map:
+            if user_rank <= cum_limit:
+                return atar_band
+
+        return 0.0
 
     def calculate_for_all_years(self) -> List[Dict]:
         """
@@ -367,7 +454,7 @@ class ATARCalculator:
             Returns:
                 tuple: (grade_priority, weight) where `grade_priority` is an integer ranking the grade (higher is better) and `weight` is the numeric weight applied for sorting (0.0 if no valid weight).
             """
-            weight_year = user_std.year_achieved if user_std.year_achieved else self._get_latest_weight_year()  # Default to latest available year
+            weight_year = user_std.year_achieved if user_std.year_achieved else self._latest_weight_year
             weight_version = user_std.standard_version
             
             year_weightings = [w for w in self.all_weightings.get(std_num, []) 

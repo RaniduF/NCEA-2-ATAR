@@ -18,6 +18,7 @@ services:
       - ./database/04-atar-distributions-data.sql:/docker-entrypoint-initdb.d/04-atar-distributions-data.sql:ro
       - ./database/05-participation-rates-data.sql:/docker-entrypoint-initdb.d/05-participation-rates-data.sql:ro
       - ./database/06-alter-tables.sql:/docker-entrypoint-initdb.d/06-alter-tables.sql:ro
+      - ./database/07-atar-map.sql:/docker-entrypoint-initdb.d/07-atar-map.sql:ro
     networks:
       - ncea-network
     healthcheck:
@@ -30,7 +31,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: dev
     container_name: ncea-backend-dev
     restart: unless-stopped
     environment:
@@ -39,7 +39,7 @@ services:
       DB_NAME: ${DB_NAME:-ncea_atar}
       DB_USER: ${DB_USER:-ncea_user}
       DB_PASSWORD: ${DB_PASSWORD:-ncea_password}
-      CORS_ORIGINS: '["http://localhost:3000","http://frontend:3000","http://127.0.0.1:3000"]'
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000","http://frontend:3000"]'
     ports:
       - "8000:8000"
     depends_on:
@@ -50,6 +50,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_cache:/app/__pycache__
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload" ]
 
   # Next.js Frontend (Development with hot reloading)
   frontend:
@@ -80,4 +81,4 @@ volumes:
 
 networks:
   ncea-network:
-    driver: bridge 
+    driver: bridge

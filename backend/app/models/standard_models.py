@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DECIMAL, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DECIMAL, Float, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -29,10 +29,10 @@ class StandardWeighting(Base):
     academic_year = Column(Integer, primary_key=True)
     standard_version = Column(Integer, primary_key=True)
 
-    weight_not_achieved = Column(DECIMAL(20, 15))
-    weight_achieved = Column(DECIMAL(20, 15))
-    weight_merit = Column(DECIMAL(20, 15))
-    weight_excellence = Column(DECIMAL(20, 15))
+    weight_not_achieved = Column(Float)
+    weight_achieved = Column(Float)
+    weight_merit = Column(Float)
+    weight_excellence = Column(Float)
 
     standard = relationship("Standard", back_populates="weightings")
 
@@ -50,3 +50,13 @@ class ParticipationRate(Base):
     # DECIMAL to support fractional population values
     weighted_statnz_population = Column(DECIMAL(20, 10), nullable=False)
     nz_total_candidature = Column(Integer, nullable=False)
+
+
+class ATARMap(Base):
+    """Precalculated Harrison-Hyndman cubic spline band allocations per year."""
+    __tablename__ = "atar_map"
+    academic_year = Column(Integer, primary_key=True)
+    atar_band = Column(DECIMAL(5, 2), primary_key=True)
+    x = Column(Float, nullable=False)
+    band_places = Column(Float, nullable=False)
+    cumulative_limit = Column(Float, nullable=False)
