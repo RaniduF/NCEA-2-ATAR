@@ -1,0 +1,64 @@
+name: Build DB Init Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_task:
+        description: 'Print the run-task command (does NOT auto-execute)'
+        required: false
+        default: 'true'
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  build:
+    name: Build & Push Migration Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database
+          file: ./database/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ vars.ECR_MIGRATION_URI }}:latest
+            ${{ vars.ECR_MIGRATION_URI }}:${{ github.sha }}
+
+      - name: Print run-task command
+        if: ${{ inputs.run_task == 'true' }}
+        run: |
+          echo "============================================"
+          echo "Image pushed. Run the migration task with:"
+          echo "============================================"
+          echo ""
+          echo "aws ecs run-task \\"
+          echo "  --cluster ${{ vars.ECS_CLUSTER }} \\"
+          echo "  --task-definition ${{ vars.MIGRATION_TASK_FAMILY }} \\"
+          echo "  --launch-type FARGATE \\"
+          echo "  --network-configuration 'awsvpcConfiguration={subnets=[${{ vars.SUBNET_IDS }}],securityGroups=[${{ vars.ECS_SECURITY_GROUP }}],assignPublicIp=ENABLED}' \\"
+          echo "  --region ${{ env.AWS_REGION }}"
+          echo ""
+          echo "Then check CloudWatch: /ecs/${{ vars.ECS_CLUSTER }}/db-init"

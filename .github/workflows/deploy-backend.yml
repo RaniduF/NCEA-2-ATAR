@@ -1,0 +1,78 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  deploy:
+    name: Build, Push & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ vars.ECR_BACKEND_URI }}:latest
+            ${{ vars.ECR_BACKEND_URI }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Register new ECS task definition and update service
+        run: |
+          # 1. Download current task definition
+          aws ecs describe-task-definition \
+            --task-definition ${{ vars.ECS_BACKEND_SERVICE }} \
+            --output json > task-def-raw.json
+
+          # 2. Clean metadata fields and update the container image
+          NEW_IMAGE="${{ vars.ECR_BACKEND_URI }}:${{ github.sha }}"
+          jq --arg IMAGE "$NEW_IMAGE" \
+            '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) | (.containerDefinitions[] | select(.name == "backend")).image = $IMAGE' \
+            task-def-raw.json > task-def.json
+
+          # 3. Register the new task definition and get the new ARN
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          # 4. Update the service with the new task definition
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --service ${{ vars.ECS_BACKEND_SERVICE }} \
+            --task-definition "$NEW_ARN" \
+            --no-cli-pager
+
+          echo "Deployment completed with task definition: $NEW_ARN"
