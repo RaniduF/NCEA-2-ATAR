@@ -210,45 +210,34 @@ class ATARCalculator:
         
         if population <= 0 or candidature <= 0:
             return None
-        
-        # 1. Calculate the user's exact rank
+            
+        # FIX 1: The Epsilon tie-breaker
+        # Guarantees microscopic floating-point errors don't inflate your rank
+        epsilon = 1e-12
         user_rank = 1
         for entry in distribution_list:
-            if stat_value >= entry["value"]:
+            if stat_value >= entry["value"] - epsilon:
                 break
             user_rank += entry["count"]
-
-        # 2. Set up the Spline parameters
-        participation_rate = candidature / population
-        h = population / 2000.0
-        alpha = 1.5 - (2 * participation_rate)
-
-        # 3. Calculate Cumulative ATAR Mapping
-        cumulative_capacity = 0.0
+            
+        # FIX 2: The ACTAC Continuous Integral limit
+        p = (candidature / population) * 100.0  # Formula requires a percentage (e.g., 63.86)
+        N = candidature
         
-        # Iterate from the top band (99.95) down to 0.00
-        for band_step in range(2000):
-            atar = 99.95 - (band_step * 0.05)
-            x = atar / 100.0
-            
-            # Apply the Harrison-Hyndman Piecewise Curve
-            if participation_rate < 0.25:
-                f_pr = math.pow(x, (1 - participation_rate) / participation_rate)
-            elif participation_rate > 0.75:
-                f_pr = 1 - math.pow(1 - x, participation_rate / (1 - participation_rate))
+        def get_cumulative_limit(atar_x: float) -> float:
+            """Calculates the exact upper bound capacity for ATARs >= x"""
+            if 0 <= atar_x <= 150 - (2 * p):
+                return N * (1 - (math.pow(atar_x, 4) / (400 * p * math.pow(150 - 2*p, 2))))
             else:
-                if x <= alpha:
-                    f_pr = math.pow(x, 3) / math.pow(alpha, 2)
-                else:
-                    f_pr = 1 - (math.pow(1 - x, 3) / math.pow(1 - alpha, 2))
-                    
-            # Add this specific band's capacity to the cumulative limit
-            band_capacity = f_pr * h
-            cumulative_capacity += band_capacity
+                return (N / p) * (100 - atar_x - (math.pow(100 - atar_x, 4) / (400 * math.pow(50 - 2*p, 2))))
+
+        # Find the highest ATAR band where the user's rank fits within the cumulative limit
+        for band_step in range(2000):
+            atar = round(99.95 - (band_step * 0.05), 2)
+            limit = get_cumulative_limit(atar)
             
-            # The student is assigned the first band where the cumulative capacity can hold their rank
-            if user_rank <= cumulative_capacity:
-                return round(atar, 2)
+            if user_rank <= limit:
+                return atar
                 
         return 0.0
 
