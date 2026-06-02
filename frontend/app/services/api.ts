@@ -113,12 +113,9 @@ export interface DistributionResponse {
   participation_rate: number | null;
 }
 
-let API_BASE = 'http://localhost:8000';
-
-if (typeof window !== 'undefined') {
-  // Always direct to backend on port 8000, using whatever hostname the user is on
-  API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
-}
+// Production: "" (relative paths — CloudFront serves static + proxies /api/* to ALB)
+// Local dev: "http://localhost:8000" (no env var set, falls through to default)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const versionsCache = new Map<number, Promise<number[]>>();
 const yearsCache = new Map<string, Promise<number[]>>();

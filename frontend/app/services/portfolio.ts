@@ -1,5 +1,4 @@
-// Portfolio management service using localStorage
-import type { SelectedItem } from '../page';
+import type { SelectedItem, Grade } from '../page';
 
 export interface SavedPortfolio {
   id: string;
@@ -10,10 +9,52 @@ export interface SavedPortfolio {
   updatedAt: string;
 }
 
+export function sanitizeInputText(text: string, maxLength: number): string {
+  if (!text) return '';
+  // Strip HTML tags using regex
+  const stripped = text.replace(/<[^>]*>/g, '');
+  // Truncate to maxLength
+  return stripped.slice(0, maxLength).trim();
+}
+
 class PortfolioService {
   private readonly STORAGE_KEY = 'ncea-portfolios';
   private readonly CURRENT_PORTFOLIO_KEY = 'ncea-current-portfolio';
   private readonly AUTO_SAVE_KEY = 'ncea-auto-save';
+
+  private validateAndSanitizeItems(items: any[]): SelectedItem[] {
+    if (!Array.isArray(items)) return [];
+    const validGrades = new Set(['Excellence', 'Merit', 'Achieved', 'Not Achieved']);
+    
+    return items
+      .filter(item => {
+        return (
+          item &&
+          item.standard &&
+          typeof item.standard.standard_number === 'number' &&
+          typeof item.standard.title === 'string' &&
+          typeof item.standard.credits === 'number' &&
+          validGrades.has(item.grade)
+        );
+      })
+      .map(item => {
+        const std = item.standard;
+        return {
+          standard: {
+            standard_number: std.standard_number,
+            title: sanitizeInputText(std.title, 200),
+            credits: std.credits,
+            assessment_type: typeof std.assessment_type === 'string' ? sanitizeInputText(std.assessment_type, 50) : null,
+            standards_type: typeof std.standards_type === 'string' ? sanitizeInputText(std.standards_type, 50) : null,
+            is_ue: Boolean(std.is_ue),
+            subject: typeof std.subject === 'string' ? sanitizeInputText(std.subject, 100) : null,
+          },
+          grade: item.grade as Grade,
+          year_achieved: typeof item.year_achieved === 'number' ? item.year_achieved : undefined,
+          standard_version: typeof item.standard_version === 'number' ? item.standard_version : undefined,
+        };
+      });
+  }
 
   // Get all saved portfolios
   getPortfolios(): SavedPortfolio[] {
@@ -31,11 +72,15 @@ class PortfolioService {
     const portfolios = this.getPortfolios();
     const now = new Date().toISOString();
     
+    const sanitizedName = sanitizeInputText(name, 100) || 'My Portfolio';
+    const sanitizedDescription = description ? sanitizeInputText(description, 500) : undefined;
+    const validatedItems = this.validateAndSanitizeItems(items);
+    
     const newPortfolio: SavedPortfolio = {
       id: `portfolio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      name,
-      description,
-      items: JSON.parse(JSON.stringify(items)), // Deep clone
+      name: sanitizedName,
+      description: sanitizedDescription,
+      items: validatedItems,
       createdAt: now,
       updatedAt: now
     };
@@ -52,9 +97,20 @@ class PortfolioService {
     
     if (index === -1) return null;
 
+    const sanitizedUpdates: Partial<Pick<SavedPortfolio, 'name' | 'description' | 'items'>> = {};
+    if (updates.name !== undefined) {
+      sanitizedUpdates.name = sanitizeInputText(updates.name, 100) || 'My Portfolio';
+    }
+    if (updates.description !== undefined) {
+      sanitizedUpdates.description = updates.description ? sanitizeInputText(updates.description, 500) : undefined;
+    }
+    if (updates.items !== undefined) {
+      sanitizedUpdates.items = this.validateAndSanitizeItems(updates.items);
+    }
+
     portfolios[index] = {
       ...portfolios[index],
-      ...updates,
+      ...sanitizedUpdates,
       updatedAt: new Date().toISOString()
     };
 
@@ -82,8 +138,9 @@ class PortfolioService {
   // Auto-save current portfolio state
   autoSave(items: SelectedItem[]): void {
     try {
+      const validatedItems = this.validateAndSanitizeItems(items);
       const autoSaveData = {
-        items: JSON.parse(JSON.stringify(items)),
+        items: validatedItems,
         timestamp: new Date().toISOString()
       };
       localStorage.setItem(this.AUTO_SAVE_KEY, JSON.stringify(autoSaveData));
@@ -104,7 +161,7 @@ class PortfolioService {
       
       // Only restore if auto-save is less than 24 hours old
       if (hoursSinceAutoSave < 24) {
-        return autoSaveData.items || [];
+        return this.validateAndSanitizeItems(autoSaveData.items || []);
       }
       
       // Clear old auto-save
@@ -124,7 +181,8 @@ class PortfolioService {
   // Set current active portfolio
   setCurrentPortfolio(items: SelectedItem[]): void {
     try {
-      localStorage.setItem(this.CURRENT_PORTFOLIO_KEY, JSON.stringify(items));
+      const validatedItems = this.validateAndSanitizeItems(items);
+      localStorage.setItem(this.CURRENT_PORTFOLIO_KEY, JSON.stringify(validatedItems));
     } catch (error) {
       console.error('Error saving current portfolio:', error);
     }
@@ -134,7 +192,7 @@ class PortfolioService {
   getCurrentPortfolio(): SelectedItem[] | null {
     try {
       const data = localStorage.getItem(this.CURRENT_PORTFOLIO_KEY);
-      return data ? JSON.parse(data) : null;
+      return data ? this.validateAndSanitizeItems(JSON.parse(data)) : null;
     } catch (error) {
       console.error('Error loading current portfolio:', error);
       return null;
@@ -155,14 +213,21 @@ class PortfolioService {
       const data = JSON.parse(jsonData);
       
       // Validate portfolio structure
-      if (!data.name || !Array.isArray(data.items)) {
+      if (!data.name || typeof data.name !== 'string' || !Array.isArray(data.items)) {
         throw new Error('Invalid portfolio format');
       }
 
+      const sanitizedName = sanitizeInputText(data.name, 100);
+      const sanitizedDescription = typeof data.description === 'string'
+        ? sanitizeInputText(data.description, 500)
+        : undefined;
+
+      const validatedItems = this.validateAndSanitizeItems(data.items);
+
       return this.savePortfolio(
-        `${data.name} (Imported)`,
-        data.items,
-        data.description
+        `${sanitizedName} (Imported)`,
+        validatedItems,
+        sanitizedDescription
       );
     } catch (error) {
       console.error('Error importing portfolio:', error);
