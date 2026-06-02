@@ -30,22 +30,44 @@ client = TestClient(app)
 # ===================================================================
 
 def test_get_suggestions_success():
-    """Tests that a valid query returns a list of string suggestions."""
+    """Tests that a valid query returns a dictionary with subjects and standards suggestions."""
     response = client.get("/api/v1/suggestions?q=phys")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
-    # Check if the expected suggestion is present
-    assert "physics" in [item.lower() for item in data]
+    assert isinstance(data, dict)
+    assert "subjects" in data
+    assert "standards" in data
+    assert "Physics" in data["subjects"]
 
 def test_get_suggestions_too_short():
-    """Tests that a query with less than 2 characters returns an empty list."""
+    """Tests that a query with less than 2 characters returns an empty suggestions structure."""
     response = client.get("/api/v1/suggestions?q=p")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"subjects": [], "standards": []}
 
 def test_get_suggestions_no_match():
-    """Tests that a query with no possible match returns an empty list."""
+    """Tests that a query with no possible match returns an empty suggestions structure."""
     response = client.get("/api/v1/suggestions?q=zyxw")
     assert response.status_code == 200
-    assert response.json() == []
+    assert response.json() == {"subjects": [], "standards": []}
+
+
+def test_get_suggestions_extremely_long():
+    """Tests that a very long suggestions query is handled safely and truncated."""
+    long_query = "x" * 200
+    response = client.get(f"/api/v1/suggestions?q={long_query}")
+    assert response.status_code == 200
+    assert response.json() == {"subjects": [], "standards": []}
+
+
+def test_get_suggestions_wildcard_escaping():
+    """Tests that SQL wildcards like % and _ are escaped and do not cause broad query matching."""
+    response = client.get("/api/v1/suggestions?q=%")
+    assert response.status_code == 200
+    assert response.json() == {"subjects": [], "standards": []}
+
+    response = client.get("/api/v1/suggestions?q=_")
+    assert response.status_code == 200
+    assert response.json() == {"subjects": [], "standards": []}
+
+

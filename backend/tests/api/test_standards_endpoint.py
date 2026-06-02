@@ -135,3 +135,39 @@ def test_search_empty_query():
     assert data["direct_results"] == []
     assert data["related_groups"] == []
 
+
+def test_search_extremely_long_query():
+    """
+    Tests that a very long search query is truncated and handled safely.
+    """
+    long_query = "x" * 200
+    response = client.get(f"/api/v1/standards?q={long_query}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["direct_results"] == []
+
+
+def test_get_years_invalid_standard_or_version():
+    """
+    Tests that available-years returns 400 when standard number or version is out of bounds.
+    """
+    # Standard number too large
+    res = client.get("/api/v1/standards/1000000/available-years")
+    assert res.status_code == 400
+    assert res.json()["detail"] == "Invalid standard number"
+
+    # Version too large
+    res = client.get("/api/v1/standards/91523/available-years?version=101")
+    assert res.status_code == 400
+    assert res.json()["detail"] == "Invalid version number"
+
+
+def test_get_versions_invalid_standard():
+    """
+    Tests that available-versions returns 400 when standard number is out of bounds.
+    """
+    res = client.get("/api/v1/standards/-1/available-versions")
+    assert res.status_code == 400
+    assert res.json()["detail"] == "Invalid standard number"
+
+
