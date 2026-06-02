@@ -24,10 +24,10 @@ CREATE TABLE IF NOT EXISTS standard_weightings (
     standard_number INT NOT NULL,
     academic_year INTEGER NOT NULL,
     standard_version INT NOT NULL,
-    weight_not_achieved DECIMAL(20, 15),
-    weight_achieved DECIMAL(20, 15),
-    weight_merit DECIMAL(20, 15),
-    weight_excellence DECIMAL(20, 15),
+    weight_not_achieved DOUBLE PRECISION,
+    weight_achieved DOUBLE PRECISION,
+    weight_merit DOUBLE PRECISION,
+    weight_excellence DOUBLE PRECISION,
     PRIMARY KEY (standard_number, academic_year, standard_version),
     FOREIGN KEY (standard_number) REFERENCES standards(standard_number)
 );
