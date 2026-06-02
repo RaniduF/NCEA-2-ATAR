@@ -221,8 +221,11 @@ class ATARCalculator:
             user_rank += entry["count"]
             
         # FIX 2: The ACTAC Continuous Integral limit
-        p = (candidature / population) * 100.0  # Formula requires a percentage (e.g., 63.86)
-        N = candidature
+        p = (candidature / population) * 100.0  # Formula requires a percentage (e.g., 60.84)
+        
+        # FIX APPLIED HERE: N must be the total number of students in the ranking pool, 
+        # not just the 16-20 subset used to find 'p'.
+        N = sum(entry["count"] for entry in distribution_list) 
         
         def get_cumulative_limit(atar_x: float) -> float:
             """Calculates the exact upper bound capacity for ATARs >= x"""
