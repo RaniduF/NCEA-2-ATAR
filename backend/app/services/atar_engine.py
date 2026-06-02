@@ -192,58 +192,64 @@ class ATARCalculator:
         return result
 
     def _estimate_atar_from_stat(self, stat_value: float, year: int) -> float | None:
-        """
-        Estimate an ATAR value for a given statistical score using the
-        Harrison-Hyndman cubic spline participation model.
-
-        The student's rank in the distribution is looked up against the
-        precalculated atar_map (or a fallback on-the-fly computation), which
-        stores the cumulative limit for each 0.05 ATAR band.  The student is
-        awarded the highest ATAR band b where:
-            rank ≤ cumulative_limit_b
-
-        Returns None when the year's distribution or participation data is
-        unavailable.
-        """
         dist = self.all_distributions.get(year)
         rate_data = self.participation_rates.get(year)
         if not dist or not rate_data:
             return None
-
+            
         distribution_list = dist.get("distribution", [])
         if not distribution_list:
             return None
-
+            
         min_stat_value = distribution_list[-1]["value"]
         if stat_value < min_stat_value:
             return 0.0
-
+        
         population = rate_data['population']
         candidature = rate_data['candidature']
+        
         if population <= 0 or candidature <= 0:
             return None
-
-        # Count students with strictly higher stat value to find rank from top
+        
+        # 1. Calculate the user's exact rank
         user_rank = 1
         for entry in distribution_list:
             if stat_value >= entry["value"]:
                 break
             user_rank += entry["count"]
 
-        # Look up the precalculated ATAR map (or compute fallback)
-        year_map = self.atar_map.get(year)
-        if year_map is None:
-            year_map = self._build_atar_map_for_year(year)
-            if year_map is None:
-                return None
-            # Cache for subsequent lookups within this calculator instance
-            self.atar_map[year] = year_map
+        # 2. Set up the Spline parameters
+        participation_rate = candidature / population
+        h = population / 2000.0
+        alpha = 1.5 - (2 * participation_rate)
 
-        # Find the highest ATAR band where rank ≤ cumulative_limit
-        for atar_band, cum_limit in year_map:
-            if user_rank <= cum_limit:
-                return atar_band
-
+        # 3. Calculate Cumulative ATAR Mapping
+        cumulative_capacity = 0.0
+        
+        # Iterate from the top band (99.95) down to 0.00
+        for band_step in range(2000):
+            atar = 99.95 - (band_step * 0.05)
+            x = atar / 100.0
+            
+            # Apply the Harrison-Hyndman Piecewise Curve
+            if participation_rate < 0.25:
+                f_pr = math.pow(x, (1 - participation_rate) / participation_rate)
+            elif participation_rate > 0.75:
+                f_pr = 1 - math.pow(1 - x, participation_rate / (1 - participation_rate))
+            else:
+                if x <= alpha:
+                    f_pr = math.pow(x, 3) / math.pow(alpha, 2)
+                else:
+                    f_pr = 1 - (math.pow(1 - x, 3) / math.pow(1 - alpha, 2))
+                    
+            # Add this specific band's capacity to the cumulative limit
+            band_capacity = f_pr * h
+            cumulative_capacity += band_capacity
+            
+            # The student is assigned the first band where the cumulative capacity can hold their rank
+            if user_rank <= cumulative_capacity:
+                return round(atar, 2)
+                
         return 0.0
 
     def calculate_for_all_years(self) -> List[Dict]:
