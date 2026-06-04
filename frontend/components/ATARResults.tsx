@@ -28,9 +28,7 @@ interface StandardWeightInfo {
   is_at_max: boolean;
   standards_type: string | null;
   assessment_type: string | null;
-  weight_2024?: number;
-  weight_2023?: number;
-  weight_2022?: number;
+  weights_by_year: Record<number, number>;
 }
 
 const gradeColors: Record<string, { bg: string; text: string; border: string }> = {
@@ -78,32 +76,40 @@ export function ATARResults({ results, breakdown }: Props) {
     for (const y of breakdown.years) yearsMap[y.year] = y;
   }
   const availableYears = useMemo(() => data.map(d => d.year), [data]);
-  const [activeYear, setActiveYear] = useState<number | null>(
-    availableYears.length ? availableYears[availableYears.length - 1] : null
-  );
+  const yearsDesc = useMemo(() => [...availableYears].sort((a, b) => b - a), [availableYears]);
+  const latestYear = yearsDesc[0] ?? null;
+
+  const [activeYear, setActiveYear] = useState<number | null>(latestYear);
   const [isMethodologyModalOpen, setIsMethodologyModalOpen] = useState(false);
-  const [bestSortYear, setBestSortYear] = useState<number>(2024);
+  const [bestSortYear, setBestSortYear] = useState<number | null>(latestYear);
 
   const latestResult = data.length > 0 ? data[data.length - 1] : null;
-  const [histogramYear, setHistogramYear] = useState<number>(latestResult?.year || 2024);
+  const [histogramYear, setHistogramYear] = useState<number | null>(latestResult?.year ?? null);
   const [distributionData, setDistributionData] = useState<DistributionResponse | null>(null);
   const [isLoadingDistribution, setIsLoadingDistribution] = useState(false);
 
   useEffect(() => {
     setActiveYear(prev => {
       if (prev && availableYears.includes(prev)) return prev;
-      return availableYears.length ? availableYears[availableYears.length - 1] : null;
+      return latestYear;
     });
-  }, [availableYears]);
+  }, [availableYears, latestYear]);
 
   useEffect(() => {
-    if (latestResult && histogramYear === 2024 && latestResult.year !== 2024) {
+    setBestSortYear(prev => {
+      if (prev && availableYears.includes(prev)) return prev;
+      return latestYear;
+    });
+  }, [availableYears, latestYear]);
+
+  useEffect(() => {
+    if (latestResult && (histogramYear == null || !availableYears.includes(histogramYear))) {
       setHistogramYear(latestResult.year);
     }
-  }, [latestResult, histogramYear]);
+  }, [latestResult, histogramYear, availableYears]);
 
   useEffect(() => {
-    if (!hasAnyResults) return;
+    if (!hasAnyResults || histogramYear == null) return;
     const fetchDistribution = async () => {
       setIsLoadingDistribution(true);
       try {
@@ -164,7 +170,7 @@ export function ATARResults({ results, breakdown }: Props) {
     const standards: Array<StandardWeightInfo & { is_used: boolean; exclusion_reason: string | null }> = [];
     const standardWeightsByYear = new Map<number, Map<number, number>>();
 
-    [2024, 2023, 2022].forEach(year => {
+    yearsDesc.forEach(year => {
       if (yearsMap[year]) {
         yearsMap[year].best90.forEach(item => {
           if (!standardWeightsByYear.has(item.standard_number)) {
@@ -184,6 +190,13 @@ export function ATARResults({ results, breakdown }: Props) {
       }
     });
 
+    const weightsByYearFromMap = (stdNum: number): Record<number, number> => {
+      const m = standardWeightsByYear.get(stdNum);
+      const out: Record<number, number> = {};
+      if (m) m.forEach((v, k) => { out[k] = v; });
+      return out;
+    };
+
     for (const item of yearData.best90) {
       const isUnitStandard = item.standards_type?.toLowerCase().includes('unit');
       const maxGrade = isUnitStandard ? 'Achieved' : 'Excellence';
@@ -194,7 +207,6 @@ export function ATARResults({ results, breakdown }: Props) {
       const weightGap = effectiveMaxWeight - item.weight_applied;
       const maxContribution = item.credits_used * effectiveMaxWeight;
       const isExternal: boolean = item.assessment_type?.toLowerCase() === 'external';
-      const yearWeights = standardWeightsByYear.get(item.standard_number);
 
       standards.push({
         standard_number: item.standard_number,
@@ -212,9 +224,7 @@ export function ATARResults({ results, breakdown }: Props) {
         is_at_max: isAtMax,
         standards_type: item.standards_type || null,
         assessment_type: item.assessment_type || null,
-        weight_2024: yearWeights?.get(2024),
-        weight_2023: yearWeights?.get(2023),
-        weight_2022: yearWeights?.get(2022),
+        weights_by_year: weightsByYearFromMap(item.standard_number),
         is_used: true,
         exclusion_reason: null
       });
@@ -226,7 +236,6 @@ export function ATARResults({ results, breakdown }: Props) {
         const maxGrade = isUnitStandard ? 'Achieved' : 'Excellence';
         const isAtMax = excl.grade === maxGrade;
         const isExternal: boolean = excl.assessment_type?.toLowerCase() === 'external';
-        const yearWeights = standardWeightsByYear.get(excl.standard_number);
         // Use the true max-grade weight from the backend; fall back to weight_applied only if unavailable
         const effectiveMaxWeight = excl.weight_at_max_grade ?? excl.weight_applied ?? 0;
         const currentWeight = excl.weight_applied ?? 0;
@@ -248,9 +257,7 @@ export function ATARResults({ results, breakdown }: Props) {
           is_at_max: isAtMax,
           standards_type: excl.standards_type || null,
           assessment_type: excl.assessment_type || null,
-          weight_2024: yearWeights?.get(2024),
-          weight_2023: yearWeights?.get(2023),
-          weight_2022: yearWeights?.get(2022),
+          weights_by_year: weightsByYearFromMap(excl.standard_number),
           is_used: false,
           exclusion_reason: excl.reason
         });
@@ -258,9 +265,9 @@ export function ATARResults({ results, breakdown }: Props) {
     }
 
     const getWeightForSortYear = (s: StandardWeightInfo) => {
-      if (bestSortYear === 2024) return s.weight_2024 ?? s.max_weight;
-      if (bestSortYear === 2023) return s.weight_2023 ?? s.max_weight;
-      if (bestSortYear === 2022) return s.weight_2022 ?? s.max_weight;
+      if (bestSortYear != null && s.weights_by_year[bestSortYear] != null) {
+        return s.weights_by_year[bestSortYear];
+      }
       return s.max_weight;
     };
 
@@ -287,7 +294,7 @@ export function ATARResults({ results, breakdown }: Props) {
     }
 
     return { standards: sortedStandards, top90CutoffIndex: cutoffIndex };
-  }, [breakdown, activeYear, yearsMap, bestSortYear]);
+  }, [breakdown, activeYear, yearsMap, bestSortYear, yearsDesc]);
 
   const allStandardsWithStatus = useMemo(() => {
     if (!breakdown || !activeYear || !yearsMap[activeYear]) return [];
@@ -479,7 +486,7 @@ export function ATARResults({ results, breakdown }: Props) {
                 onChange={(e) => setActiveYear(parseInt(e.target.value))}
                 className="bg-surface-card border border-border text-xs py-1 px-2 text-text-primary outline-none focus:border-primary font-medium"
               >
-                {availableYears.map(y => (
+                {yearsDesc.map(y => (
                   <option key={y} value={y}>{y} weights</option>
                 ))}
               </select>
@@ -577,13 +584,13 @@ export function ATARResults({ results, breakdown }: Props) {
                 </div>
               </div>
               <select
-                value={bestSortYear}
+                value={bestSortYear ?? ''}
                 onChange={(e) => setBestSortYear(parseInt(e.target.value))}
                 className="bg-surface-card border border-border text-xs py-1 px-2 text-text-primary outline-none focus:border-primary font-medium"
               >
-                <option value={2024}>2024 weights</option>
-                <option value={2023}>2023 weights</option>
-                <option value={2022}>2022 weights</option>
+                {yearsDesc.map(y => (
+                  <option key={y} value={y}>{y} weights</option>
+                ))}
               </select>
             </div>
             <div className="max-h-[300px] overflow-y-auto p-2 space-y-1">
@@ -600,9 +607,9 @@ export function ATARResults({ results, breakdown }: Props) {
                         <span className="text-[10px] text-text-muted font-mono">{item.standard_number}</span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs bg-surface-base p-2 border border-border">
-                      {([2024, 2023, 2022] as const).map(yr => {
-                        const w = yr === 2024 ? item.weight_2024 : yr === 2023 ? item.weight_2023 : item.weight_2022;
+                    <div className={`grid gap-2 text-xs bg-surface-base p-2 border border-border`} style={{ gridTemplateColumns: `repeat(${Math.max(yearsDesc.length, 1)}, minmax(0, 1fr))` }}>
+                      {yearsDesc.map(yr => {
+                        const w = item.weights_by_year[yr];
                         const isActive = bestSortYear === yr;
                         return (
                           <div key={yr} className="flex flex-col">
