@@ -39,9 +39,10 @@ class StandardWeighting(Base):
 
 class ATARDistribution(Base):
     __tablename__ = "atar_distributions"
-    academic_year = Column(Integer, primary_key=True)
-    statistical_value = Column(DECIMAL(20, 15), primary_key=True)
-    frequency = Column(Integer, nullable=False)
+    academic_year     = Column(Integer, primary_key=True)
+    statistical_value = Column(Float, primary_key=True)   # DOUBLE PRECISION - full float64 precision
+    frequency         = Column(Integer, nullable=False)
+
 
 
 class ParticipationRate(Base):

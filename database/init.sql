@@ -34,9 +34,9 @@ CREATE TABLE IF NOT EXISTS standard_weightings (
 
 -- Table to store the historical frequency distribution of statistical values for each year.
 CREATE TABLE IF NOT EXISTS atar_distributions (
-    academic_year INTEGER NOT NULL,
-    statistical_value DECIMAL(20, 15) NOT NULL,
-    frequency INT NOT NULL,
+    academic_year     INTEGER          NOT NULL,
+    statistical_value DOUBLE PRECISION NOT NULL,  -- full IEEE-754 float64 precision
+    frequency         INT              NOT NULL,
     PRIMARY KEY (academic_year, statistical_value)
 );
 

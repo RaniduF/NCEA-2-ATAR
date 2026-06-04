@@ -21,6 +21,10 @@ services:
       - ./database/05-participation-rates-data.sql:/docker-entrypoint-initdb.d/05-participation-rates-data.sql:ro
       - ./database/06-alter-tables.sql:/docker-entrypoint-initdb.d/06-alter-tables.sql:ro
       - ./database/07-atar-map.sql:/docker-entrypoint-initdb.d/07-atar-map.sql:ro
+      - ./database/08-2025-participation-rate.sql:/docker-entrypoint-initdb.d/08-2025-participation-rate.sql:ro
+      - ./database/09-2025-atar-distributions.sql:/docker-entrypoint-initdb.d/09-2025-atar-distributions.sql:ro
+      - ./database/10-2025-new-standards.sql:/docker-entrypoint-initdb.d/10-2025-new-standards.sql:ro
+      - ./database/11-2025-standard-weightings.sql:/docker-entrypoint-initdb.d/11-2025-standard-weightings.sql:ro
     networks:
       - ncea-network
     healthcheck:
