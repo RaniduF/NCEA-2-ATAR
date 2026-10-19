@@ -1,124 +1,60 @@
-export type Grade = 'Excellence' | 'Merit' | 'Achieved' | 'Not Achieved';
+// Public data API used by the UI. There is no backend in the static (GitHub Pages)
+// build: every function below runs the client-side port of the FastAPI endpoint it
+// is named after (see ./engine) against the bundled database snapshot (./static-data).
+// Signatures and return shapes are unchanged from the HTTP client this replaced.
 
-export interface Standard {
-  standard_number: number;
-  title: string;
-  credits: number;
-  assessment_type: string | null;
-  standards_type: string | null;
-  is_ue: boolean;
-  subject: string | null;
-}
+import { ATARCalculator } from './engine/atar-engine';
+import * as search from './engine/search';
+import type {
+  ATARResult,
+  CalculationBreakdownResponse,
+  DistributionResponse,
+  Grade,
+  StandardsSearchResponse,
+  SuggestionsResponse,
+  UserStandardInput,
+} from './engine/types';
+import { loadAtar, loadStandards, loadWeightings } from './static-data';
 
-export interface StandardGroup {
-  name: string;
-  standards: Standard[];
-}
+export type {
+  ATARResult,
+  BreakdownTotals,
+  CalculationBreakdownResponse,
+  DistributionResponse,
+  ExcludedItem,
+  Grade,
+  HistogramBin,
+  Standard,
+  StandardContribution,
+  StandardGroup,
+  StandardsSearchResponse,
+  SubjectSSPBreakdown,
+  SuggestionsResponse,
+  YearlyBreakdown,
+} from './engine/types';
+export { prefetchStaticData } from './static-data';
 
-export interface SuggestionsResponse {
-  subjects: string[];
-  standards: string[];
-}
-
-export interface StandardsSearchResponse {
-  direct_results: Standard[];
-  related_groups: StandardGroup[];
-  suggestion: null | { type: string; value: string };
-  subject_match: null | { name: string; standards: Standard[] };
-}
-
-export interface ATARResult {
-  year: number;
-  estimated_atar: number;
-  statistical_value: number;
-}
-
-// --- Breakdown types ---
-export interface StandardContribution {
-  selection_rank: number;
-  standard_number: number;
-  title?: string | null;
-  subject?: string | null;
-  is_ue?: boolean;
-  standards_type?: string | null;
-  assessment_type?: string | null;  // Internal or External from database
-  grade: Grade;
-  year_achieved?: number | null;
-  weight_applied: number;
-  weight_at_max_grade?: number | null;  // Weight if standard was at Excellence (or Achieved for Unit Standards)
-  credits_available: number;
-  credits_used: number;
-  pro_rated: boolean;
-  contribution: number;
-  subject_credits_used_to_date: number;
-  subject_capped: boolean;
-  priority_tier: number;
-  fallback_reason?: string | null;
-}
-
-export interface BreakdownTotals {
-  total_contribution: number;
-  denominator_credits: number;
-  total_credits_used: number;
-  subject_caps: Record<string, number>;
-  prorated_count: number;
-}
-
-export interface ExcludedItem {
-  standard_number: number;
-  reason: string;
-  title?: string | null;
-  subject?: string | null;
-  grade?: string | null;
-  weight_applied?: number | null;
-  weight_at_max_grade?: number | null;  // Weight at Excellence (Achievement) or Achieved (Unit Standard)
-  standards_type?: string | null;
-  assessment_type?: string | null;
-  credits_available?: number | null;
-}
-
-export interface YearlyBreakdown {
-  year: number;
-  estimated_atar: number;
-  statistical_value: number;
-  best90: StandardContribution[];
-  totals: BreakdownTotals;
-  excluded: ExcludedItem[];
-}
-
-export interface SubjectSSPBreakdown {
-  subject: string;
-  year: number;
-  eligible: boolean;
-  ssp_score?: number | null;
-  denominator_credits: number;
-  items: StandardContribution[];
-}
-
-export interface CalculationBreakdownResponse {
-  years: YearlyBreakdown[];
-  subjects: SubjectSSPBreakdown[];
-}
-
-export interface DistributionDataPoint {
-  statistical_value: number;
-  frequency: number;
-}
-
-export interface DistributionResponse {
-  year: number;
-  distribution: DistributionDataPoint[];
-  weighted_statnz_population: number | null;
-  nz_total_candidature: number | null;
-  participation_rate: number | null;
-}
-
-// Production: "" (relative paths — CloudFront serves static + proxies /api/* to ALB)
-// Local dev: "http://localhost:8000" (no env var set, falls through to default)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+type StandardInput = { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number };
 
 const versionsCache = new Map<number, Promise<number[]>>();
 const yearsCache = new Map<string, Promise<number[]>>();
+
+/** Memoise per key; failed lookups are evicted so they can be retried. */
+function cached<K, V>(cache: Map<K, Promise<V>>, key: K, compute: () => Promise<V>): Promise<V> {
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const promise = compute().catch((err) => {
+    cache.delete(key);
+    throw err;
+  });
+  cache.set(key, promise);
+  return promise;
+}
+
+async function makeCalculator(standards: StandardInput[]): Promise<ATARCalculator> {
+  const [standardsIndex, weightings, atar] = await Promise.all([loadStandards(), loadWeightings(), loadAtar()]);
+  return new ATARCalculator(standards as UserStandardInput[], standardsIndex, weightings, atar);
+}
 
 /**
  * Fetches subject and standard suggestions matching the query.
@@ -127,125 +63,92 @@ const yearsCache = new Map<string, Promise<number[]>>();
  * @returns SuggestionsResponse containing matching `subjects` and `standards`
  */
 export async function getSuggestions(q: string): Promise<SuggestionsResponse> {
-  const url = `${API_BASE}/api/v1/suggestions/?q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch suggestions');
-  return res.json();
+  return search.getSuggestions(await loadStandards(), q);
 }
 
 /**
  * Search standards matching the provided query string.
  *
- * @param q - The search query to send to the standards endpoint
+ * @param q - The search query
  * @returns The standards search response containing direct results, related groups, an optional suggestion, and an optional subject match
  */
 export async function searchStandards(q: string): Promise<StandardsSearchResponse> {
-  const url = `${API_BASE}/api/v1/standards/?q=${encodeURIComponent(q)}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to search standards');
-  return res.json();
+  return search.searchStandards(await loadStandards(), q);
 }
 
 /**
  * Calculate estimated ATAR results for a set of standards.
  *
  * @param standards - Array of standards to evaluate. Each item must include `standard_number` and `grade`, and may include `year_achieved` and `standard_version`.
- * @returns An array of ATARResult objects containing year, estimated_atar, and statistical_value for the provided standards; returns an empty array if the response contains no results.
- * @throws Error if the API responds with a non-OK status (includes HTTP status and response text).
+ * @returns An array of ATARResult objects containing year, estimated_atar, and statistical_value for the provided standards.
+ * @throws Error if no standards are provided or no year could be calculated.
  */
-export async function calculateATAR(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<ATARResult[]> {
-  const url = `${API_BASE}/api/v1/calculate-atar/`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ standards }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to calculate ATAR: ${res.status} ${text}`);
+export async function calculateATAR(standards: StandardInput[]): Promise<ATARResult[]> {
+  if (!standards.length) throw new Error('Failed to calculate ATAR: No standards provided');
+  const results = (await makeCalculator(standards)).calculateForAllYears();
+  if (!results.length) {
+    throw new Error('Failed to calculate ATAR: Could not calculate ATAR for any year with the provided standards.');
   }
-  const data = await res.json();
-  // Extract the results array from the response object
-  return Array.isArray(data.results) ? data.results : [];
+  return results;
 }
 
 /**
- * Fetches a detailed ATAR calculation breakdown for the provided standards.
+ * Computes a detailed ATAR calculation breakdown for the provided standards.
  *
  * @param standards - An array of standard inputs, each with `standard_number`, `grade`, and optional `year_achieved` and `standard_version`.
  * @returns A CalculationBreakdownResponse containing yearly breakdowns and subject-level SSP breakdowns.
- * @throws Error if the API responds with a non-OK status; the error message includes the HTTP status and response text.
+ * @throws Error if no standards are provided or no year could be calculated.
  */
-export async function calculateATARBreakdown(standards: { standard_number: number; grade: Grade; year_achieved?: number; standard_version?: number }[]): Promise<CalculationBreakdownResponse> {
-  const url = `${API_BASE}/api/v1/calculate-atar/breakdown`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ standards }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Failed to fetch ATAR breakdown: ${res.status} ${text}`);
+export async function calculateATARBreakdown(standards: StandardInput[]): Promise<CalculationBreakdownResponse> {
+  if (!standards.length) throw new Error('Failed to fetch ATAR breakdown: No standards provided');
+  const breakdown = (await makeCalculator(standards)).calculateBreakdown();
+  if (!breakdown.years.length) {
+    throw new Error('Failed to fetch ATAR breakdown: Could not calculate ATAR breakdown for any year with the provided standards.');
   }
-  return res.json() as Promise<CalculationBreakdownResponse>;
+  return breakdown;
 }
 
 /**
- * Fetches available years for a given standard, optionally scoped to a specific version.
+ * Available years for a given standard, optionally scoped to a specific version.
  *
  * @param standardNumber - The numeric identifier of the standard
  * @param version - Optional standard version to filter available years
- * @returns An array of available years for the requested standard or version
- * @throws Error if the network request fails or returns a non-OK response
+ * @returns An array of available years for the requested standard or version, newest first
  */
 export async function getAvailableYears(standardNumber: number, version?: number): Promise<number[]> {
-  const cacheKey = `${standardNumber}-${version || 'any'}`;
-  if (yearsCache.has(cacheKey)) {
-    return yearsCache.get(cacheKey)!;
-  }
-  const promise = (async () => {
-    const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-years${version ? `?version=${version}` : ''}`;
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch available years');
-    const data = await res.json();
-    return data.available_years;
-  })();
-  yearsCache.set(cacheKey, promise);
-  return promise;
+  return cached(yearsCache, `${standardNumber}-${version || 'any'}`, async () =>
+    search.getAvailableYears(await loadWeightings(), standardNumber, version || null));
 }
 
 /**
- * Fetches the available version numbers for a given standard.
+ * Available version numbers for a given standard.
  *
  * @param standardNumber - The numeric identifier of the standard
- * @returns An array of available version numbers for the specified standard
- * @throws If the HTTP request fails or returns a non-OK response
+ * @returns An array of available version numbers, newest first
  */
 export async function getAvailableVersions(standardNumber: number): Promise<number[]> {
-  if (versionsCache.has(standardNumber)) {
-    return versionsCache.get(standardNumber)!;
-  }
-  const promise = (async () => {
-    const url = `${API_BASE}/api/v1/standards/${standardNumber}/available-versions`;
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch available versions');
-    const data = await res.json();
-    return data.available_versions;
-  })();
-  versionsCache.set(standardNumber, promise);
-  return promise;
+  return cached(versionsCache, standardNumber, async () =>
+    search.getAvailableVersions(await loadWeightings(), standardNumber));
 }
 
 /**
- * Fetches the ATAR distribution data for a given academic year.
+ * ATAR distribution data for a given academic year, pre-binned for the histogram.
  *
  * @param year - The academic year to fetch distribution data for
- * @returns Distribution data including statistical values, frequencies, and participation rate
- * @throws If the HTTP request fails or returns a non-OK response
+ * @returns Histogram bins and participation data for that year
+ * @throws If there is no distribution data for the year
  */
 export async function getDistribution(year: number): Promise<DistributionResponse> {
-  const url = `${API_BASE}/api/v1/calculate-atar/distributions/${year}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch distribution data');
-  return res.json();
-} 
+  const data = (await loadAtar()).years.get(year);
+  if (!data) throw new Error('Failed to fetch distribution data');
+  return {
+    year,
+    bins: data.histogram.bins.map(([value, freq]) => ({ value, freq })),
+    min_value: data.histogram.min_value,
+    max_value: data.histogram.max_value,
+    total_frequency: data.histogram.total_frequency,
+    weighted_statnz_population: data.weighted_statnz_population,
+    nz_total_candidature: data.nz_total_candidature,
+    participation_rate: data.participation_rate,
+  };
+}

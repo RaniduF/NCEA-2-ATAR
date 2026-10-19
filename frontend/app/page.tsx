@@ -6,7 +6,7 @@ import { SelectedStandards } from '../components/SelectedStandards';
 import { ATARResults } from '../components/ATARResults';
 import { PortfolioManager } from '../components/PortfolioManager';
 import { NCEAParserModal } from '../components/NCEAParserModal';
-import { calculateATAR, calculateATARBreakdown, type ATARResult, type Standard, type CalculationBreakdownResponse } from './services/api';
+import { calculateATAR, calculateATARBreakdown, prefetchStaticData, type ATARResult, type Standard, type CalculationBreakdownResponse } from './services/api';
 import { portfolioService } from './services/portfolio';
 import { useReveal } from './hooks/useReveal';
 import { useRipple } from './hooks/useRipple';
@@ -61,6 +61,11 @@ export default function Page() {
     if (!current) return true;
     return !areItemArraysEqual(selectedItems, current.items);
   }, [selectedItems, currentPortfolioId]);
+
+  // Warm the static database files so the first search/calculation is instant.
+  useEffect(() => {
+    prefetchStaticData();
+  }, []);
 
   useEffect(() => {
     const autoSaved = portfolioService.loadAutoSave();

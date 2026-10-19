@@ -222,11 +222,29 @@ class ATARCalculator:
             
         # FIX 2: The ACTAC Continuous Integral limit
         p = (candidature / population) * 100.0  # Formula requires a percentage (e.g., 60.84)
-        
-        # FIX APPLIED HERE: N must be the total number of students in the ranking pool, 
+
+        # FIX APPLIED HERE: N must be the total number of students in the ranking pool,
         # not just the 16-20 subset used to find 'p'.
-        N = sum(entry["count"] for entry in distribution_list) 
-        
+        N = sum(entry["count"] for entry in distribution_list)
+
+        return self._atar_for_rank(user_rank, N, p)
+
+    @staticmethod
+    def _atar_for_rank(user_rank: int, N: int, p: float) -> float:
+        """
+        Map a rank within the ranking pool to an ATAR band using the ACTAC continuous integral.
+
+        Split out of _estimate_atar_from_stat so scripts/export_static_data.py can precompute
+        the rank -> ATAR table for the static (GitHub Pages) build with this exact code.
+
+        Parameters:
+            user_rank (int): 1-based rank of the student (1 = highest statistical value).
+            N (int): Total number of students in the ranking pool.
+            p (float): Participation rate as a percentage (candidature / population * 100).
+
+        Returns:
+            float: The highest ATAR band whose cumulative limit contains the rank, or 0.0.
+        """
         def get_cumulative_limit(atar_x: float) -> float:
             """Calculates the exact upper bound capacity for ATARs >= x"""
             if 0 <= atar_x <= 150 - (2 * p):

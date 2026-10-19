@@ -125,26 +125,14 @@ export function ATARResults({ results, breakdown }: Props) {
   }, [histogramYear, hasAnyResults]);
 
   const histogramChartData = useMemo(() => {
-    if (!distributionData || distributionData.distribution.length === 0) return [];
-    const binSize = 0.005;
-    const bins = new Map<number, number>();
-    const values = distributionData.distribution.map(d => d.statistical_value);
-    const minVal = Math.min(...values);
-    const maxVal = Math.max(...values);
-
-    for (const point of distributionData.distribution) {
-      const binKey = Math.floor(point.statistical_value / binSize) * binSize;
-      bins.set(binKey, (bins.get(binKey) || 0) + point.frequency);
-    }
-
-    const binnedData = Array.from(bins.entries())
-      .map(([value, freq]) => ({ value, freq }))
-      .sort((a, b) => a.value - b.value);
-
-    if (binnedData.length === 0) return [];
+    // Bins (0.005 wide, ascending) are precomputed by scripts/export_static_data.py.
+    if (!distributionData || distributionData.bins.length === 0) return [];
+    const binnedData = distributionData.bins;
+    const minVal = distributionData.min_value;
+    const maxVal = distributionData.max_value;
 
     const bandwidth = 0.015;
-    const totalFrequency = distributionData.distribution.reduce((sum, d) => sum + d.frequency, 0);
+    const totalFrequency = distributionData.total_frequency;
     const result: { statistical_value: number; density: number }[] = [];
     const numPoints = 500;
     const step = (maxVal - minVal) / numPoints;

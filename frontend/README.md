@@ -10,15 +10,7 @@ React (Next.js) + Tailwind frontend for the NCEA to ATAR estimator.
 npm install
 ```
 
-2. Set backend API (optional; defaults to <http://localhost:8000>):
-
-```bash
-$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:8000" # PowerShell
-# or
-export NEXT_PUBLIC_API_BASE_URL="http://localhost:8000" # bash
-```
-
-3. Run the dev server:
+2. Run the dev server (no backend needed: data is loaded from `public/data/`, see the root README):
 
 ```bash
 npm run dev
@@ -30,4 +22,4 @@ Open <http://localhost:3000>.
 - Search for subjects or standards with live suggestions
 - Add multiple standards without resetting the search bar
 - Assign grades (Excellence, Merit, Achieved, Not Achieved)
-- Calculate ATAR via backend and display results over multiple years 
+- Calculate ATAR in the browser and display results over multiple years 

@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <header className="fixed top-0 left-0 right-0 border-b border-border bg-surface-card/95 backdrop-blur-sm z-50 transition-all duration-300">
             <div className="max-w-[900px] mx-auto px-6 h-14 flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3">
-                <img src="/N-A_logo.svg" alt="NCEA → ATAR logo" className="w-8 h-8 object-contain" />
+                <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/N-A_logo.svg`} alt="NCEA → ATAR logo" className="w-8 h-8 object-contain" />
                 <span className="text-base font-bold tracking-tight text-text-primary">NCEA → ATAR</span>
               </Link>
               <div className="flex items-center gap-6">

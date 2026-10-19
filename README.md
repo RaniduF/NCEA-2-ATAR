@@ -57,6 +57,30 @@ docker compose up --build
 
 See [docs/docker-setup.md](docs/docker-setup.md) for detailed setup instructions and troubleshooting.
 
+### Static site (GitHub Pages)
+
+The frontend runs without a backend: the read-only database ships as JSON in
+`frontend/public/data/` (~340 KB gzipped) and the calculator, search and breakdowns run in
+the browser (`frontend/app/services/engine/`, a line-for-line port of the FastAPI code).
+`.github/workflows/deploy-pages.yml` builds and deploys it on pushes to `main`
+(enable it under *Settings → Pages → Source: GitHub Actions*).
+
+```bash
+cd frontend && npm ci && npm run build   # static site in frontend/out
+```
+
+**Yearly data intake.** After adding the new SQL files to `database/` (and `docker-compose.yml`):
+
+1. Start the database with its port exposed, e.g. a `docker compose up database` with `ports: ["127.0.0.1:5432:5432"]` uncommented.
+2. `python scripts/export_static_data.py --db-url postgresql+psycopg2://ncea_user:ncea_password@localhost:5432/ncea_atar`
+   regenerates `frontend/public/data/*.json` (it cross-checks its ATAR lookup tables against the backend engine and aborts on any difference).
+3. `python scripts/parity/check_static_parity.py --db-port 5432` compares the browser engine against the
+   backend on ~25,000 randomised requests; every result must be identical.
+4. Commit the regenerated JSON.
+
+If you change `backend/app/services/atar_engine.py` or the search endpoints, make the same change in
+`frontend/app/services/engine/` and re-run step 3.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -68,7 +92,7 @@ See [docs/docker-setup.md](docs/docker-setup.md) for detailed setup instructions
 | `DB_PASSWORD` | Yes | — | Database password |
 | `CORS_ORIGINS` | No | `localhost:3000` | JSON array of allowed origins |
 | `NEXT_PUBLIC_SITE_URL` | No | `http://localhost:3000` | Public URL for SEO metadata / sitemap |
-| `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8000` | API base URL (build-time for Next.js) |
+| `NEXT_PUBLIC_BASE_PATH` | No | `""` | URL prefix for GitHub Pages project sites, e.g. `/NCEA-2-ATAR` (set by the Pages workflow) |
 
 Docker Compose files set sensible defaults for all variables.
 
@@ -93,6 +117,8 @@ Utility scripts live in `scripts/`:
 | Script | Purpose |
 |--------|---------|
 | `setup.sh` / `setup.ps1` | Interactive Docker setup wizard |
+| `export_static_data.py` | Export the database to `frontend/public/data` for the static site |
+| `parity/check_static_parity.py` | Verify the in-browser engine matches the backend exactly |
 | `master_data_ingestion.py` | Ingest raw data into database format |
 | `nzqa_subject_scraper.py` | Scrape NZQA subject listings |
 | `enhanced_nzqa_scraper.py` | Extended scraper with more detail |
