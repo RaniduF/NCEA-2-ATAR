@@ -1,0 +1,11 @@
+# Local preview of the static GitHub Pages site (no backend or database needed).
+#   docker compose -f docker-compose.pages.yml up --build
+#   -> http://localhost:8080/NCEA-2-ATAR/
+services:
+  pages:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.pages
+    container_name: ncea-pages-preview
+    ports:
+      - "8080:80"

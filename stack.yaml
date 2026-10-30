@@ -1,0 +1,657 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Full-stack deployment for a portfolio app with real users.
+  ECS Fargate with mixed on-demand + Spot capacity (1 on-demand baseline,
+  Spot for autoscaling bursts), ALB for API routing, S3 + CloudFront for
+  static frontend, RDS PostgreSQL 15 (db.t4g.micro, Single-AZ).
+  Target cost: ~$25-35/month at low traffic.
+
+# ---------------------------------------------------------------------------
+# Parameters
+# ---------------------------------------------------------------------------
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: portfolio
+    Description: Prefix used for naming and tagging all resources.
+
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnet1Cidr:
+    Type: String
+    Default: 10.0.1.0/24
+
+  PublicSubnet2Cidr:
+    Type: String
+    Default: 10.0.2.0/24
+
+  DBUsername:
+    Type: String
+    Default: appuser
+    Description: PostgreSQL master username.
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9_]*'
+    MinLength: 1
+    MaxLength: 16
+
+  DBInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues:
+      - db.t4g.micro
+      - db.t4g.small
+      - db.t3.micro
+
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+
+  BackendImage:
+    Type: String
+    Default: public.ecr.aws/nginx/nginx:latest
+    Description: >
+      Container image URI for the FastAPI backend. Replace with
+      <account>.dkr.ecr.<region>.amazonaws.com/<env>-backend:<tag>
+      after your first push to ECR.
+
+  MigrationImage:
+    Type: String
+    Default: public.ecr.aws/nginx/nginx:latest
+    Description: >
+      Container image URI for the database migration task. Replace with
+      <account>.dkr.ecr.<region>.amazonaws.com/<env>-db-init:<tag>
+      after your first push to ECR.
+
+  TaskCpu:
+    Type: String
+    Default: '256'
+    AllowedValues: ['256', '512', '1024']
+    Description: Fargate vCPU units. 256 = 0.25 vCPU (cheapest).
+
+  TaskMemory:
+    Type: String
+    Default: '512'
+    AllowedValues: ['512', '1024', '2048']
+    Description: Fargate memory in MB.
+
+  ContainerPortBackend:
+    Type: Number
+    Default: 8000
+    Description: Port FastAPI listens on inside the container.
+
+  CpuArchitecture:
+    Type: String
+    Default: X86_64
+    AllowedValues: [X86_64, ARM64]
+    Description: >
+      ARM64 (Graviton) is ~20% cheaper but requires your Docker images
+      to be built for ARM. Use 'docker buildx build --platform linux/arm64'.
+
+  BackendDesiredCount:
+    Type: Number
+    Default: 0
+    Description: >
+      Start at 0 to bootstrap the stack without launching tasks on the nginx
+      placeholder image. Set to 1+ on a subsequent deploy after pushing the
+      real backend image to ECR.
+
+# ---------------------------------------------------------------------------
+# Resources
+# ---------------------------------------------------------------------------
+Resources:
+
+  # ---------- Networking ----------
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet1Cidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-public-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PublicSubnet2Cidr
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-public-2
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-public-rt
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  # ---------- Security Groups ----------
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP/HTTPS from the internet to the ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS (in case you add a cert later)
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-alb-sg
+
+  EcsTasksSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic from ALB to ECS tasks only
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-ecs-tasks-sg
+
+  EcsTasksFromAlbBackend:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EcsTasksSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref ContainerPortBackend
+      ToPort: !Ref ContainerPortBackend
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: Backend port from ALB
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow PostgreSQL access from ECS tasks only
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref EcsTasksSecurityGroup
+          Description: Postgres from ECS tasks
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-rds-sg
+
+  # ---------- ECR Repositories ----------
+  BackendRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${EnvironmentName}-backend
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only last 10 images to save storage",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+  MigrationRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${EnvironmentName}-db-init
+      ImageScanningConfiguration:
+        ScanOnPush: false
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only last 5 migration images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+  # ---------- RDS ----------
+  DBSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${EnvironmentName}-db-secret
+      Description: Auto-generated PostgreSQL credentials
+      GenerateSecretString:
+        SecretStringTemplate: !Sub '{"username":"${DBUsername}"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${EnvironmentName} DB subnet group
+      SubnetIds:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    # Snapshot on delete protects you from accidentally wiping data.
+    # Change to Delete during early dev if you want clean teardown.
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub ${EnvironmentName}-postgres
+      Engine: postgres
+      EngineVersion: '15.18'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroup
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-postgres
+
+  # ---------- ECS Cluster ----------
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${EnvironmentName}-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      ClusterSettings:
+        # Container Insights adds ~$2-3/month. Disabled to save cost;
+        # flip to 'enabled' once you have budget for better observability.
+        - Name: containerInsights
+          Value: disabled
+
+  # ---------- IAM ----------
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-task-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: ReadDbSecret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref DBSecret
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    # The task role is what your application code uses. Empty by default —
+    # add S3, SES, etc. permissions here as your app needs them.
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-task-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+  # ---------- CloudWatch Log Groups ----------
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${EnvironmentName}/backend
+      RetentionInDays: 7
+
+  MigrationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${EnvironmentName}/db-init
+      RetentionInDays: 7
+
+  # ---------- Task Definitions ----------
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-backend
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: !Ref CpuArchitecture
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Ref BackendImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPortBackend
+              Protocol: tcp
+          Environment:
+            - Name: DB_HOST
+              Value: !GetAtt Database.Endpoint.Address
+            - Name: DB_PORT
+              Value: !GetAtt Database.Endpoint.Port
+            - Name: DB_NAME
+              Value: postgres
+            - Name: DB_USER
+              Value: !Ref DBUsername
+            - Name: CORS_ORIGINS
+              Value: '["https://ncea2atar.com","https://www.ncea2atar.com"]'
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub '${DBSecret}:password::'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          # 30s for graceful shutdown — important for Spot evictions.
+          # FastAPI lifespan handler calls engine.dispose() on SIGTERM.
+          StopTimeout: 30
+
+  MigrationTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${EnvironmentName}-db-init
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: !Ref CpuArchitecture
+      ContainerDefinitions:
+        - Name: db-init
+          Image: !Ref MigrationImage
+          Essential: true
+          Environment:
+            - Name: DB_HOST
+              Value: !GetAtt Database.Endpoint.Address
+            - Name: DB_PORT
+              Value: !GetAtt Database.Endpoint.Port
+            - Name: DB_NAME
+              Value: postgres
+            - Name: DB_USER
+              Value: !Ref DBUsername
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub '${DBSecret}:password::'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref MigrationLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ---------- ALB ----------
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '60'
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-backend-tg
+      VpcId: !Ref VPC
+      Port: !Ref ContainerPortBackend
+      Protocol: HTTP
+      TargetType: ip
+      # IMPORTANT: your FastAPI app must expose a /health endpoint that
+      # returns 200. Otherwise health checks fail and tasks get killed.
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: '200'
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+  # ---------- ECS Service (mixed capacity provider strategy) ----------
+  # Strategy explanation:
+  #   Base 1 on FARGATE means the first task is always on-demand (reliable).
+  #   Weight 1 (FARGATE) + Weight 4 (FARGATE_SPOT) means any additional
+  #   tasks above the base will be ~80% Spot, ~20% on-demand.
+  #   At DesiredCount=1 you pay on-demand. As autoscaling adds tasks
+  #   during traffic spikes, you mostly get cheap Spot capacity.
+
+  BackendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - HttpListener
+    Properties:
+      ServiceName: !Sub ${EnvironmentName}-backend
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref BackendTaskDefinition
+      DesiredCount: !Ref BackendDesiredCount
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Base: 1
+          Weight: 1
+        - CapacityProvider: FARGATE_SPOT
+          Base: 0
+          Weight: 4
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          # Required because we're in public subnets with no NAT Gateway.
+          # Tasks need a public IP to pull images from ECR.
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+          SecurityGroups:
+            - !Ref EcsTasksSecurityGroup
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: !Ref ContainerPortBackend
+          TargetGroupArn: !Ref BackendTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+
+  # ---------- Autoscaling (target tracking on CPU) ----------
+  BackendScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: BackendService
+    Properties:
+      MinCapacity: 1
+      MaxCapacity: 4
+      ResourceId: !Sub service/${EcsCluster}/${EnvironmentName}-backend
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  BackendScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${EnvironmentName}-backend-cpu-scaling
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref BackendScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  # ---------- Frontend Static Hosting (S3 + CloudFront) ----------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-frontend-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: 404.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${FrontendBucket.Arn}/*
+
+# ---------------------------------------------------------------------------
+# Outputs
+# ---------------------------------------------------------------------------
+Outputs:
+  AlbDnsName:
+    Description: Public ALB DNS name (used as CloudFront API origin).
+    Value: !GetAtt LoadBalancer.DNSName
+
+  BackendEcrUri:
+    Description: ECR URI for pushing the backend image.
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BackendRepository}
+
+  MigrationEcrUri:
+    Description: ECR URI for pushing the database migration image.
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${MigrationRepository}
+
+  MigrationTaskDefinitionArn:
+    Description: Task definition ARN for running database migrations.
+    Value: !Ref MigrationTaskDefinition
+
+  DBEndpoint:
+    Description: PostgreSQL endpoint hostname.
+    Value: !GetAtt Database.Endpoint.Address
+
+  DBSecretArn:
+    Description: Secrets Manager ARN holding DB credentials.
+    Value: !Ref DBSecret
+
+  EcsClusterName:
+    Description: ECS cluster name.
+    Value: !Ref EcsCluster
+
+  FrontendBucketName:
+    Description: S3 bucket for static frontend assets.
+    Value: !Ref FrontendBucket
+
+  FrontendBucketWebsiteEndpoint:
+    Description: S3 website endpoint - strip the http:// when adding to Cloudflare CNAME
+    Value: !GetAtt FrontendBucket.WebsiteURL
+
+  AlbDnsNameForCloudflare:
+    Description: ALB DNS name - put this in the Cloudflare CNAME for api subdomain
+    Value: !GetAtt LoadBalancer.DNSName

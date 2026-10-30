@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F5F0EB;
+  --foreground: #2D2520;
+  --primary: #C2552D;
+  --surface: #FFFFFF;
+  --border: #D4C9BC;
+}
+
+/* Bauhaus: enforce sharp corners everywhere */
+* {
+  border-radius: 0 !important;
+}
+
+html,
+body {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  overflow-x: hidden;
+}
+
+/* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-dm-sans), 'DM Sans', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Smooth focus rings */
+.focus-ring {
+  @apply outline-none ring-2 ring-offset-2 ring-offset-surface-base ring-primary-ring;
+}
+
+/* Selection and scrollbar */
+::selection {
+  @apply bg-primary/20 text-text-primary;
+}
+
+::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #B5A99D;
+  transition: background-color 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #8A7E72;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Stagger animation system */
+.stagger-item {
+  animation: staggerIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+@layer components {
+
+  /* Panel / Card — Light academic style */
+  .panel {
+    @apply bg-surface-card border border-border shadow-card transition-all duration-300;
+  }
+
+  .panel-card {
+    @apply panel hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+
+  .card-hover {
+    @apply hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-ring active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply btn px-5 py-2.5 bg-primary text-text-inverse border border-primary hover:bg-primary-light hover:translate-y-[-1px] hover:shadow-card-hover active:translate-y-0 active:shadow-none;
+  }
+
+  .btn-ghost {
+    @apply btn px-4 py-2 bg-transparent border border-border text-text-secondary hover:bg-surface-hover hover:border-border-strong hover:text-text-primary;
+  }
+
+  .btn-danger {
+    @apply btn px-4 py-2 bg-transparent border border-error-200 text-error-500 hover:bg-error-50 hover:border-error-500;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full bg-surface-card border border-border px-4 py-3 text-text-primary placeholder:text-text-muted placeholder:text-xs placeholder:tracking-wide focus:ring-2 focus:ring-primary-ring focus:border-primary outline-none transition-all duration-200;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-bold border uppercase tracking-wider;
+  }
+
+  .badge-primary {
+    @apply badge text-primary bg-primary-subtle border-primary/20;
+  }
+
+  .badge-ue {
+    @apply badge text-grade-achieved bg-success-50 border-grade-achieved/20;
+  }
+
+  /* Menu Items */
+  .menu-item {
+    @apply w-full text-left px-3 py-2 hover:bg-surface-hover text-text-secondary hover:text-text-primary transition-colors;
+  }
+
+  /* Material Symbols */
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* Grade color blocks */
+  .grade-block-excellence {
+    @apply bg-grade-excellence text-white;
+  }
+
+  .grade-block-merit {
+    @apply bg-grade-merit text-white;
+  }
+
+  .grade-block-achieved {
+    @apply bg-grade-achieved text-white;
+  }
+
+  .grade-block-not-achieved {
+    @apply bg-grade-notAchieved text-white;
+  }
+}

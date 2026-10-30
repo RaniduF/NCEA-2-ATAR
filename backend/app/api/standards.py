@@ -1,0 +1,181 @@
+# backend/app/api/standards.py
+
+import json
+import os
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import func
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import JSONB
+from thefuzz import \
+    process as fuzzy_process
+
+from ..db.session import get_db
+from ..models import standard_models
+
+
+# --- Load Manual Overrides ---
+def load_manual_overrides():
+    overrides_path = os.path.join(
+        os.path.dirname(__file__), '..', 'data', 'search_overrides.json'
+    )
+    try:
+        with open(overrides_path, 'r') as f:
+            overrides = json.load(f)
+            alias_to_standard = {}
+            for std_num, aliases in overrides.get("standard_aliases",
+                                                  {}).items():
+                for alias in aliases:
+                    alias_to_standard[alias] = std_num
+            return alias_to_standard
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+PRIMARY_ALIASES = load_manual_overrides()
+
+# --- API Router Setup ---
+router = APIRouter(
+    prefix="/standards",
+    tags=["Standards"]
+)
+
+
+@router.get("/")
+async def search_standards(q: str | None = None,
+                           db: Session = Depends(get_db)):
+    if not q:
+        return {"direct_results": [], "related_groups": [], "suggestion": None}
+
+    # Limit search query length to 100 characters to prevent denial-of-service / excessive matching
+    q_sanitized = q.strip()
+    if len(q_sanitized) > 100:
+        q_sanitized = q_sanitized[:100]
+
+    search_term = q_sanitized.lower()
+
+    # --- Cache the list of subjects for performance ---
+    all_subjects_query = db.query(
+        standard_models.Standard.subject).distinct().all()
+    all_subjects = {s[0].lower() for s in all_subjects_query if s[0]}
+
+    # --- 1. Subject Match ---
+    if search_term in all_subjects:
+        subject_standards = db.query(standard_models.Standard).filter(
+            func.lower(standard_models.Standard.subject) == search_term
+        ).all()
+        internals = sorted(
+            [s for s in subject_standards if s.assessment_type == 'Internal'],
+            key=lambda x: x.standard_number)
+        externals = sorted(
+            [s for s in subject_standards if s.assessment_type == 'External'],
+            key=lambda x: x.standard_number)
+        related_groups_response = []
+        if externals:
+            related_groups_response.append(
+                {"name": f"{q.title()} Externals", "standards": externals})
+        if internals:
+            related_groups_response.append(
+                {"name": f"{q.title()} Internals", "standards": internals})
+        return {"direct_results": [],
+                "related_groups": related_groups_response, "suggestion": None}
+
+    # --- 2. Alias or Standard Number Match ---
+    top_standard = None
+    standard_number_to_find = PRIMARY_ALIASES.get(search_term) or (
+        search_term if search_term.isdigit() else None)
+    if standard_number_to_find:
+        top_standard = db.query(standard_models.Standard).filter(
+            standard_models.Standard.standard_number == standard_number_to_find).first()
+
+    # --- 3. Keyword Search ---
+    if not top_standard:
+        top_standard = db.query(standard_models.Standard).filter(
+            standard_models.Standard.search_keywords['primary'].op('@>')(
+                cast(json.dumps([search_term]), JSONB)
+            )
+        ).first()
+
+    # --- If a standard was found, return its data and related groups ---
+    if top_standard:
+        related_groups_response = []
+        if top_standard.search_keywords and 'groups' in top_standard.search_keywords:
+            subject_cache = {}
+            for group_name in top_standard.search_keywords['groups']:
+                if not (group_name.endswith(' Externals') or group_name.endswith(' Internals')):
+                    continue
+
+                subject_name = group_name.replace(' Externals', '').replace(' Internals', '')
+                subject_lower = subject_name.lower()
+                if subject_lower in subject_cache:
+                    subject_standards = subject_cache[subject_lower]
+                else:
+                    subject_standards = db.query(standard_models.Standard).filter(
+                        func.lower(standard_models.Standard.subject) == subject_lower
+                    ).all()
+                    subject_cache[subject_lower] = subject_standards
+
+                if group_name.endswith(' Externals'):
+                    filtered_standards = [s for s in subject_standards if s.assessment_type == 'External']
+                elif group_name.endswith(' Internals'):
+                    filtered_standards = [s for s in subject_standards if s.assessment_type == 'Internal']
+                else:
+                    filtered_standards = subject_standards
+
+                filtered_standards.sort(key=lambda x: x.standard_number)
+
+                if filtered_standards:
+                    related_groups_response.append(
+                        {"name": group_name, "standards": filtered_standards})
+        return {"direct_results": [top_standard],
+                "related_groups": related_groups_response, "suggestion": None, "subject_match": None}
+
+    # --- 4. Fuzzy Search for Suggestions (if all else fails) ---
+    best_match = fuzzy_process.extractOne(search_term, all_subjects)
+    if best_match and best_match[
+        1] >= 75:
+        return {"direct_results": [], "related_groups": [],
+                "suggestion": {"type": "subject",
+                               "value": best_match[0].title()}}
+
+    # --- Final Fallback: No results and no suggestions ---
+    return {"direct_results": [], "related_groups": [], "suggestion": None}
+
+
+@router.get("/{standard_number}/available-years")  # noqa: B008
+def get_available_years_for_standard(standard_number: int, version: Optional[int] = None, db: Session = Depends(get_db)):
+    # Validate standard_number and version range
+    if not (0 <= standard_number <= 999999):
+        raise HTTPException(status_code=400, detail="Invalid standard number")
+    if version is not None and not (0 <= version <= 100):
+        raise HTTPException(status_code=400, detail="Invalid version number")
+
+    query = db.query(standard_models.StandardWeighting.academic_year)\
+        .filter(standard_models.StandardWeighting.standard_number == standard_number)
+
+    if version is not None:
+        query = query.filter(standard_models.StandardWeighting.standard_version == version)
+
+    available_years = query.distinct()\
+        .order_by(standard_models.StandardWeighting.academic_year.desc())\
+        .all()
+
+    years = [int(year[0]) for year in available_years]
+    return {"standard_number": standard_number, "version": version, "available_years": years}
+
+
+@router.get("/{standard_number}/available-versions")  # noqa: B008
+def get_available_versions_for_standard(standard_number: int, db: Session = Depends(get_db)):
+    # Validate standard_number range
+    if not (0 <= standard_number <= 999999):
+        raise HTTPException(status_code=400, detail="Invalid standard number")
+
+    available_versions = db.query(standard_models.StandardWeighting.standard_version)\
+        .filter(standard_models.StandardWeighting.standard_number == standard_number)\
+        .distinct()\
+        .order_by(standard_models.StandardWeighting.standard_version.desc())\
+        .all()
+
+    versions = [version[0] for version in available_versions]
+    return {"standard_number": standard_number, "available_versions": versions}
